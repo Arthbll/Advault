@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum Network {
+  EXOCLICK
+  TRAFFICSTARS
+  TRAFFICJUNKY
+  VOLUUM
+  BEMOB
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  KILLED // terminated by Kill-Switch
+  DRAFT
+}
+
+enum LogType {
+  SYNC
+  KILL_SWITCH_TRIGGERED
+  KILL_SWITCH_PAUSED
+  KILL_SWITCH_RESTORED
+  CAMPAIGN_ACTION
+  AUTH_ERROR
+  API_ERROR
+  BUDGET_ALERT
+}
+
+// ─── MODELS ───────────────────────────────────────────────────────────────────
+
+// Shadow table for Supabase Auth users
+model User {
+  id        String    @id @default(uuid()) // mirrors Supabase auth.users.id
+  email     String    @unique
+  createdAt DateTime  @default(now())
+
+  accounts  Account[]
+  campaigns Campaign[]
+  logs      Log[]
+  settings  UserSettings?
+}
+
+// One row per network per user — API keys stored AES-256-GCM encrypted
+model Account {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  network      Network
+  apiKeyEnc    String   // encrypt(apiKey)
+  apiSecretEnc String?  // encrypt(apiSecret) — optional per network
+  label        String?  // display name override
+  isActive     Boolean  @default(true)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campaigns    Campaign[]
+
+  @@unique([userId, network])
+  @@index([userId])
+}
+
+// Aggregated stats snapshot per campaign per date range
+model Campaign {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  externalId  String
+  name        String
+  network     Network
+  status      CampaignStatus @default(ACTIVE)
+
+  spend       Decimal  @db.Decimal(12, 4) @default(0)
+  revenue     Decimal  @db.Decimal(12, 4) @default(0)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  conversions Int      @default(0)
+
+  dateFrom    DateTime
+  dateTo      DateTime
+  syncedAt    DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  logs        Log[]
+
+  @@unique([accountId, externalId, dateFrom, dateTo])
+  @@index([userId, dateFrom, dateTo])
+  @@index([userId, status])
+}
+
+// Kill-Switch & alert settings per user
+model UserSettings {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Kill-Switch
+  killSwitchEnabled     Boolean  @default(false)
+  roiThreshold          Float    @default(-50)   // % — kill si ROI < ce seuil
+  maxSpendPerCampaign   Float?                   // $ — kill si spend dépasse ce montant
+  checkIntervalMinutes  Int      @default(30)    // fréquence de vérification
+
+  // Budget alerts
+  budgetAlertEnabled    Boolean  @default(false)
+  dailyBudgetLimit      Float?                   // $ — alerte si dépense journalière dépasse
+
+  updatedAt             DateTime @updatedAt
+  createdAt             DateTime @default(now())
+}
+
+// Audit trail — Kill-Switch events, sync errors, budget alerts
+model Log {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  type       LogType
+  message    String
+  metadata   Json?     // { roi, threshold, network, zoneId, ... }
+
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, type])
+}

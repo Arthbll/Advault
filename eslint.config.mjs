@@ -7,12 +7,19 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Override default ignores of eslint-config-next.
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      // Faux positifs : setState dans useEffect est valide pour l'initialisation
+      "react-hooks/set-state-in-effect": "off",
+      // Faux positifs : `any` explicite nécessaire pour les adapters génériques
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;
