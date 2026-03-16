@@ -7,6 +7,7 @@ import KpiCard from "@/components/dashboard/KpiCard";
 import ProfitChart from "@/components/dashboard/ProfitChart";
 import NetworkBreakdown from "@/components/dashboard/NetworkBreakdown";
 import PlatformCards from "@/components/dashboard/PlatformCards";
+import WorldImpressionsCard from "@/components/dashboard/WorldImpressionsCard";
 import DateRangePicker, { DateRange } from "@/components/ui/DateRangePicker";
 import { sendNotification } from "@/components/settings/NotificationSettings";
 
@@ -116,8 +117,7 @@ export default function DashboardPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
   function handleRangeChange(r: DateRange) { setDateRange(r); setLoading(true); fetchData(r); }
 
-  // ⚠️ DEMO — retirer quand les vraies données sont positives
-  const DEMO = true;
+  const DEMO = false;
   const profit      = DEMO ? 4218.50  : data ? parseFloat(data.kpis.profit)      : 0;
   const roi         = DEMO ? 34.7     : data ? parseFloat(data.kpis.roi)          : 0;
   const spend       = DEMO ? 12150.00 : data ? parseFloat(data.kpis.totalSpend)   : 0;
@@ -128,14 +128,26 @@ export default function DashboardPage() {
   const hasData     = !loading && data && data.campaigns.length > 0;
   const chartData   = hasData ? buildChartData(data!.campaigns, dateRange.from, dateRange.to) : [];
   const networkData = hasData ? buildNetworkData(data!.byNetwork) : [];
+  const impressionsRoadmap = hasData
+    ? Object.entries(data!.byNetwork).map(([network, v]) => ({
+        network,
+        impressions: v.impressions,
+      }))
+    : [];
+  const topCampaigns = hasData
+    ? data!.campaigns
+        .slice()
+        .sort((a, b) => (b.impressions ?? 0) - (a.impressions ?? 0))
+        .slice(0, 6)
+    : [];
 
   // ── Message contextuel ──
   function getContextMsg() {
-    if (roi >= 40)  return { text: "Tes campagnes performent au top ce mois-ci", color: "#00FF87" };
-    if (roi >= 20)  return { text: "Bonne dynamique — continue sur cette lancée", color: "#00FF87" };
+    if (roi >= 40)  return { text: "Tes campagnes performent au top ce mois-ci", color: "#A5B4FC" };
+    if (roi >= 20)  return { text: "Bonne dynamique — continue sur cette lancée", color: "#A5B4FC" };
     if (roi >= 0)   return { text: "Marge positive, surveille tes coûts de près", color: "#52525B" };
-    if (roi >= -20) return { text: "Quelques réseaux à ajuster ce mois-ci", color: "#FF9F0A" };
-    return           { text: "ROI négatif — revois tes seuils Kill-Switch", color: "#FF453A" };
+    if (roi >= -20) return { text: "Quelques réseaux à ajuster ce mois-ci", color: "#FACC6B" };
+    return           { text: "ROI négatif — revois tes seuils Kill-Switch", color: "#F97373" };
   }
   const ctxMsg = getContextMsg();
 
@@ -163,13 +175,13 @@ export default function DashboardPage() {
   const goalPct = goal > 0 ? Math.min(100, (revenue / goal) * 100) : 0;
 
   return (
-    <div style={{ background: "#0A0A0B", minHeight: "100vh" }}>
+    <div style={{ background: "transparent", minHeight: "100vh" }}>
 
       {/* ── Header ── */}
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 32px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-          <p style={{ fontSize: 12, color: "#3F3F46", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
-            <Activity size={10} strokeWidth={1.5} style={{ color: "#00FF87" }} />
+          <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+            <Activity size={10} strokeWidth={1.5} style={{ color: "#A5B4FC" }} />
             {getGreeting()}, Arthur
           </p>
           <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.04em", color: "#F5F5F7", lineHeight: 1, margin: 0 }}>
@@ -185,14 +197,15 @@ export default function DashboardPage() {
 
           <motion.button
             onClick={handleSync} disabled={syncing}
-            whileHover={!syncing ? { y: -1, boxShadow: "0 0 0 1px rgba(0,255,135,0.25), 0 4px 16px rgba(0,255,135,0.2)" } : {}}
+            whileHover={!syncing ? { y: -1, boxShadow: "0 10px 30px rgba(0,0,0,0.7)" } : {}}
             whileTap={!syncing ? { scale: 0.96 } : {}}
             style={{
               display: "flex", alignItems: "center", gap: 6,
-              padding: "9px 16px", borderRadius: 12, border: "1px solid rgba(0,255,135,0.2)",
-              background: "rgba(0,255,135,0.08)", color: "#00FF87",
+              padding: "9px 16px", borderRadius: 999,
+              border: "1px solid rgba(74,222,128,0.18)",
+              background: "rgba(15,23,42,0.9)", color: "#E5E7EB",
               fontSize: 13, fontWeight: 600,
-              boxShadow: "0 0 0 1px rgba(0,255,135,0.08)",
+              boxShadow: "0 0 0 1px rgba(148,163,184,0.08)",
               cursor: syncing ? "not-allowed" : "pointer",
               opacity: syncing ? 0.7 : 1,
               transition: "box-shadow 0.2s, border-color 0.2s",
@@ -210,10 +223,10 @@ export default function DashboardPage() {
           {/* ROI pill */}
           <div style={{
             display: "flex", alignItems: "center", gap: 5,
-            padding: "9px 14px", borderRadius: 12,
-            background: roi >= 0 ? "rgba(0,255,135,0.08)" : "rgba(255,69,58,0.08)",
-            color: roi >= 0 ? "#00FF87" : "#FF453A",
-            border: `1px solid ${roi >= 0 ? "rgba(0,255,135,0.15)" : "rgba(255,69,58,0.15)"}`,
+            padding: "9px 14px", borderRadius: 999,
+            background: "rgba(15,23,42,0.9)",
+            color: roi >= 0 ? "#4ADE80" : "#F97373",
+            border: `1px solid ${roi >= 0 ? "rgba(74,222,128,0.22)" : "rgba(249,115,115,0.22)"}`,
             fontSize: 13, fontWeight: 700,
             fontVariantNumeric: "tabular-nums",
           }}>
@@ -247,13 +260,15 @@ export default function DashboardPage() {
         <AnimatePresence>
           {syncMsg && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
               style={{
                 display: "flex", alignItems: "center", gap: 8,
-                padding: "11px 16px", borderRadius: 12, marginBottom: 20,
-                background: syncMsg.startsWith("⚠") ? "rgba(255,69,58,0.08)" : "rgba(0,255,135,0.08)",
-                color:      syncMsg.startsWith("⚠") ? "#FF453A"              : "#00FF87",
-                border:     syncMsg.startsWith("⚠") ? "1px solid rgba(255,69,58,0.15)" : "1px solid rgba(0,255,135,0.15)",
+                padding: "11px 16px", borderRadius: 14, marginBottom: 20,
+                background: syncMsg.startsWith("⚠") ? "rgba(127,29,29,0.5)" : "rgba(15,23,42,0.9)",
+                color:      syncMsg.startsWith("⚠") ? "#F97373"            : "#E5E7EB",
+                border:     syncMsg.startsWith("⚠") ? "1px solid rgba(248,113,113,0.35)" : "1px solid rgba(148,163,184,0.45)",
                 fontSize: 13,
               }}
             >
@@ -269,54 +284,197 @@ export default function DashboardPage() {
           </div>
         ) : null}
 
-        {/* ── KPIs Row 1 — 2 large ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-          <KpiCard large index={0} label="Profit Net"
-            value={fmtMoney(profit)}
-            sub={`${fmtMoney(revenue)} revenus · ${fmtMoney(spend)} dépenses`}
-            accent={profit >= 0 ? "green" : "red"}
-            trend={profit >= 0 ? "up" : "down"}
-            badge={profit >= 0 ? "Positif" : "Négatif"}
-          />
-          <KpiCard large index={1} label="ROI Global"
-            value={`${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`}
-            sub="(Profit / Dépenses) × 100"
-            accent={roi >= 0 ? "green" : "red"}
-            trend={roi >= 0 ? "up" : "down"}
-          />
-        </div>
-
-        {/* ── Objectif mensuel ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
-          onClick={() => { if (!editingGoal) { setGoalInput(goal > 0 ? String(goal) : ""); setEditingGoal(true); } }}
+        {/* ── Top grid inspiré de la maquette ── */}
+        <div
           style={{
-            background: "#111113", borderRadius: 16, padding: "14px 20px",
-            border: "1px solid rgba(255,255,255,0.06)",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",
-            marginBottom: 10, cursor: editingGoal ? "default" : "pointer",
-            transition: "border-color 0.2s",
+            display: "grid",
+            gridTemplateColumns: "minmax(0,2.1fr) minmax(0,1.4fr) minmax(0,1.4fr)",
+            gap: 16,
+            marginBottom: 24,
+            alignItems: "stretch",
           }}
-          whileHover={!editingGoal ? { borderColor: "rgba(0,255,135,0.15)" } : {}}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#3F3F46", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+          {/* Bloc principal Revenus / Profit / ROI */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+            whileHover={{ y: -2 }}
+            style={{
+              borderRadius: 28,
+              padding: "20px 22px",
+              background: "radial-gradient(circle at top left, rgba(88,28,135,0.4), transparent 55%), rgba(5,8,22,0.98)",
+              border: "1px solid rgba(148,163,184,0.35)",
+              boxShadow: "0 22px 55px rgba(15,23,42,0.9)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6B7280", marginBottom: 4 }}>
+                  Performance globale
+                </p>
+                <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em", color: "#F9FAFB", margin: 0 }}>
+                  Revenus & profit publicitaires
+                </h2>
+              </div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  borderRadius: 999,
+                  background: "rgba(15,23,42,0.9)",
+                  border: "1px solid rgba(55,65,81,0.9)",
+                  padding: 3,
+                  fontSize: 11,
+                  color: "#9CA3AF",
+                  gap: 2,
+                }}
+              >
+                {["Today", "Week", "Month", "Range"].map(label => {
+                  const isActive = label === "Month";
+                  return (
+                    <span
+                      key={label}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: 999,
+                        background: isActive ? "rgba(76,81,191,0.9)" : "transparent",
+                        color: isActive ? "#F9FAFB" : "#9CA3AF",
+                        fontWeight: isActive ? 600 : 500,
+                      }}
+                    >
+                      {label}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1.1fr) minmax(0,1.1fr)",
+                gap: 12,
+                marginTop: 6,
+              }}
+            >
+              <div>
+                <p style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Profit net ce {dateRange.from === dateRange.to ? "jour" : "mois"}</p>
+                <motion.p
+                  key={profit}
+                  style={{
+                    fontSize: 32,
+                    fontWeight: 700,
+                    letterSpacing: "-0.04em",
+                    color: profit >= 0 ? "#4ADE80" : "#F97373",
+                    margin: 0,
+                  }}
+                  initial={{ scale: 0.96, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                >
+                  {fmtMoney(profit)}
+                </motion.p>
+                <p style={{ fontSize: 11, color: "#6B7280", marginTop: 6 }}>
+                  {fmtMoney(revenue)} revenus · {fmtMoney(spend)} dépenses
+                </p>
+              </div>
+
+              <div>
+                <p style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>ROI global</p>
+                <motion.p
+                  key={roi}
+                  style={{
+                    fontSize: 26,
+                    fontWeight: 700,
+                    letterSpacing: "-0.03em",
+                    color: roi >= 0 ? "#A5B4FC" : "#F97373",
+                    margin: 0,
+                  }}
+                  initial={{ scale: 0.96, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                >
+                  {roi >= 0 ? "+" : ""}
+                  {roi.toFixed(1)}%
+                </motion.p>
+                <p style={{ fontSize: 11, color: "#6B7280", marginTop: 6 }}>(Profit / Dépenses) × 100</p>
+              </div>
+
+              <div>
+                <p style={{ fontSize: 11, color: "#6B7280", marginBottom: 4 }}>Volume</p>
+                <motion.p
+                  key={`${impressions}-${clicks}`}
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 600,
+                    letterSpacing: "-0.02em",
+                    color: "#F9FAFB",
+                    margin: 0,
+                  }}
+                  initial={{ scale: 0.96, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                >
+                  {fmtImpr(impressions)} impr. · {fmtImpr(clicks)} clics
+                </motion.p>
+                <p style={{ fontSize: 11, color: "#6B7280", marginTop: 6 }}>
+                  CTR {impressions > 0 ? `${((clicks / impressions) * 100).toFixed(2)}%` : "—"}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Bloc "Objectif du mois" façon carte centrale */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            onClick={() => {
+              if (!editingGoal) {
+                setGoalInput(goal > 0 ? String(goal) : "");
+                setEditingGoal(true);
+              }
+            }}
+            style={{
+              borderRadius: 28,
+              padding: "18px 20px",
+              background: "radial-gradient(circle at top, rgba(30,64,175,0.45), transparent 60%), rgba(5,8,22,0.98)",
+              border: "1px solid rgba(55,65,81,0.9)",
+              boxShadow: "0 18px 45px rgba(15,23,42,0.9)",
+              cursor: editingGoal ? "default" : "pointer",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+            }}
+            whileHover={!editingGoal ? { y: -2 } : {}}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "#6B7280" }}>
                 Objectif du mois
               </span>
               {goal > 0 && (
-                <span style={{
-                  fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 99,
-                  background: goalPct >= 100 ? "rgba(0,255,135,0.12)" : "rgba(255,255,255,0.04)",
-                  color: goalPct >= 100 ? "#00FF87" : "#52525B",
-                  border: `1px solid ${goalPct >= 100 ? "rgba(0,255,135,0.2)" : "rgba(255,255,255,0.06)"}`,
-                }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    padding: "3px 8px",
+                    borderRadius: 999,
+                    background: goalPct >= 100 ? "rgba(74,222,128,0.18)" : "rgba(31,41,55,1)",
+                    color: goalPct >= 100 ? "#4ADE80" : "#9CA3AF",
+                    border: `1px solid ${goalPct >= 100 ? "rgba(74,222,128,0.4)" : "rgba(55,65,81,0.9)"}`,
+                  }}
+                >
                   {goalPct >= 100 ? "✓ Atteint" : `${goalPct.toFixed(0)}%`}
                 </span>
               )}
             </div>
+
             {editingGoal ? (
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
                 <input
                   ref={goalRef}
                   value={goalInput}
@@ -324,45 +482,226 @@ export default function DashboardPage() {
                   onKeyDown={e => { if (e.key === "Enter") saveGoal(); if (e.key === "Escape") setEditingGoal(false); }}
                   placeholder="Ex: 20000"
                   style={{
-                    background: "#1A1A1C", border: "1px solid rgba(0,255,135,0.3)", borderRadius: 8,
-                    color: "#F5F5F7", fontSize: 12, padding: "4px 10px", outline: "none", width: 100,
+                    flex: 1,
+                    background: "#020617",
+                    border: "1px solid rgba(148,163,184,0.6)",
+                    borderRadius: 10,
+                    color: "#E5E7EB",
+                    fontSize: 12,
+                    padding: "6px 10px",
+                    outline: "none",
                   }}
                 />
-                <button onClick={saveGoal} style={{ fontSize: 11, color: "#00FF87", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>OK</button>
-                <button onClick={() => setEditingGoal(false)} style={{ fontSize: 11, color: "#3F3F46", background: "none", border: "none", cursor: "pointer" }}>✕</button>
+                <button onClick={saveGoal} style={{ fontSize: 11, color: "#E5E7EB", background: "rgba(76,81,191,1)", borderRadius: 999, border: "none", padding: "6px 10px", cursor: "pointer", fontWeight: 600 }}>
+                  OK
+                </button>
+                <button onClick={() => setEditingGoal(false)} style={{ fontSize: 11, color: "#6B7280", background: "transparent", border: "none", cursor: "pointer" }}>
+                  ✕
+                </button>
               </div>
             ) : (
-              <span style={{ fontSize: 12, color: "#3F3F46" }}>
-                {goal > 0 ? `${fmtMoney(revenue)} / ${fmtMoney(goal)}` : "Cliquer pour définir un objectif →"}
-              </span>
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.04em", color: "#F9FAFB", margin: 0 }}>
+                  {goal > 0 ? fmtMoney(goal) : "Définir un objectif"}
+                </p>
+                <p style={{ fontSize: 11, color: "#6B7280", marginTop: 6 }}>
+                  {goal > 0 ? `${fmtMoney(revenue)} réalisés sur la période` : "Cliquer pour fixer ton objectif mensuel"}
+                </p>
+              </div>
             )}
-          </div>
-          {/* Progress bar */}
-          <div style={{ height: 3, background: "rgba(255,255,255,0.04)", borderRadius: 99, overflow: "hidden" }}>
+
+            <div style={{ height: 4, background: "rgba(31,41,55,1)", borderRadius: 999, overflow: "hidden" }}>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${goalPct}%` }}
+                transition={{ duration: 1, ease: [0.23, 1, 0.32, 1] }}
+                style={{
+                  height: "100%",
+                  borderRadius: 999,
+                  background: goalPct >= 100
+                    ? "linear-gradient(90deg, rgba(74,222,128,0.6), #4ADE80)"
+                    : "linear-gradient(90deg, rgba(129,140,248,0.5), #4ADE80)",
+                }}
+              />
+            </div>
+          </motion.div>
+
+          {/* Bloc "Engagement / conversions" façon installs */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            whileHover={{ y: -2 }}
+            style={{
+              borderRadius: 28,
+              padding: "18px 20px",
+              background: "radial-gradient(circle at top, rgba(250,204,21,0.28), transparent 60%), rgba(5,8,22,0.98)",
+              border: "1px solid rgba(55,65,81,0.9)",
+              boxShadow: "0 18px 45px rgba(15,23,42,0.9)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#6B7280", marginBottom: 4 }}>
+                  Engagement & conversions
+                </p>
+                <p style={{ fontSize: 20, fontWeight: 600, color: "#F9FAFB", margin: 0 }}>
+                  {fmtImpr(clicks)} clics · {fmtImpr(impressions)} impr.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10, marginTop: 4 }}>
+              {[
+                { label: "Clics", value: clicks, color: "#A5B4FC" },
+                { label: "Conversions", value: hasData ? data!.campaigns.reduce((s, c) => s + c.conversions, 0) : 0, color: "#4ADE80" },
+                { label: "CPC moyen", value: clicks > 0 ? spend / clicks : 0, color: "#FACC6B", isMoney: true },
+              ].map(({ label, value, color, isMoney }) => (
+                <div key={label} style={{ borderRadius: 16, padding: "10px 12px", background: "rgba(15,23,42,0.96)", border: "1px solid rgba(55,65,81,0.9)" }}>
+                  <p style={{ fontSize: 10, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</p>
+                  <p style={{ fontSize: 16, fontWeight: 600, color, margin: 0, fontVariantNumeric: "tabular-nums" }}>
+                    {isMoney ? fmtMoney(value) : fmtImpr(value)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+
+        {/* ── Ligne KPI compacte sous les blocs principaux ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+          <KpiCard index={2} label="Dépenses" value={fmtMoney(spend)} sub={`${Object.keys(data?.byNetwork ?? {}).length} réseaux`} />
+          <KpiCard index={3} label="Revenus" value={fmtMoney(revenue)} sub="Brut sur la période" />
+          <KpiCard index={4} label="Impressions" value={fmtImpr(impressions)} sub={impressions > 0 ? `CTR ${((clicks/impressions)*100).toFixed(2)}%` : "—"} />
+          <KpiCard index={5} label="Campagnes actives" value={String(activeCamps)} sub={`${activeCamps} actives / ${data?.campaigns.length ?? 0}`} />
+        </div>
+
+        {/* ── Roadmap des impressions (origine par réseau) ── */}
+        {impressionsRoadmap.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.22, duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+            style={{
+              borderRadius: 24,
+              padding: "18px 20px 14px",
+              marginBottom: 24,
+              background: "rgba(5,8,22,0.96)",
+              border: "1px solid rgba(55,65,81,0.9)",
+              boxShadow: "0 18px 40px rgba(15,23,42,0.9)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div>
+                <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#6B7280", marginBottom: 4 }}>
+                  Roadmap des impressions
+                </p>
+                <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>
+                  D’où viennent tes impressions sur cette période
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {impressionsRoadmap
+                .slice()
+                .sort((a, b) => b.impressions - a.impressions)
+                .map(row => {
+                  const share = impressions > 0 ? (row.impressions / impressions) * 100 : 0;
+                  return (
+                    <div key={row.network} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 12, color: "#E5E7EB", fontWeight: 500 }}>{row.network}</span>
+                        <span style={{ fontSize: 11, color: "#6B7280" }}>
+                          {fmtImpr(row.impressions)} · {share.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div style={{ height: 3, background: "rgba(31,41,55,1)", borderRadius: 999, overflow: "hidden" }}>
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${share}%` }}
+                          transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
+                          style={{
+                            height: "100%",
+                            borderRadius: 999,
+                            background: "linear-gradient(90deg, rgba(129,140,248,0.6), #4ADE80)",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Bloc "comme la maquette" : top list + map impressions ── */}
+        {hasData && (
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(0,1.8fr)", gap: 16, marginBottom: 28 }}>
             <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${goalPct}%` }}
-              transition={{ duration: 1, ease: [0.23, 1, 0.32, 1], delay: 0.3 }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.18, duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+              whileHover={{ y: -2 }}
               style={{
-                height: "100%", borderRadius: 99,
-                background: goalPct >= 100
-                  ? "linear-gradient(90deg, rgba(0,255,135,0.5), #00FF87)"
-                  : goalPct >= 60
-                    ? "linear-gradient(90deg, rgba(0,255,135,0.3), rgba(0,255,135,0.7))"
-                    : "linear-gradient(90deg, rgba(0,255,135,0.2), rgba(0,255,135,0.5))",
-                boxShadow: goalPct > 0 ? "0 0 8px rgba(0,255,135,0.3)" : "none",
+                borderRadius: 28,
+                padding: "18px 20px",
+                background: "rgba(5,8,22,0.96)",
+                border: "1px solid rgba(55,65,81,0.9)",
+                boxShadow: "0 18px 45px rgba(15,23,42,0.9)",
               }}
+            >
+              <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#6B7280", marginBottom: 10 }}>
+                Top campagnes (impressions)
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {topCampaigns.map(c => {
+                  const ctr = c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0;
+                  return (
+                    <div
+                      key={c.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        padding: "10px 12px",
+                        borderRadius: 16,
+                        background: "rgba(15,23,42,0.92)",
+                        border: "1px solid rgba(55,65,81,0.9)",
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "#E5E7EB", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {c.name}
+                        </p>
+                        <p style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>
+                          {c.network} · {c.status}
+                        </p>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: "#F9FAFB", margin: 0, fontVariantNumeric: "tabular-nums" }}>
+                          {fmtImpr(c.impressions)}
+                        </p>
+                        <p style={{ fontSize: 11, color: "#6B7280", marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+                          CTR {c.impressions > 0 ? `${ctr.toFixed(2)}%` : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+
+            <WorldImpressionsCard
+              totalImpressions={impressions}
+              sources={impressionsRoadmap.map(r => ({ label: r.network, value: r.impressions }))}
             />
           </div>
-        </motion.div>
-
-        {/* ── KPIs Row 2 — 4 small ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 28 }}>
-          <KpiCard index={2} label="Dépenses"    value={fmtMoney(spend)}       sub={`${Object.keys(data?.byNetwork ?? {}).length} réseaux`} />
-          <KpiCard index={3} label="Revenus"     value={fmtMoney(revenue)}     sub="Brut" />
-          <KpiCard index={4} label="Impressions" value={fmtImpr(impressions)}  sub={impressions > 0 ? `CTR ${((clicks/impressions)*100).toFixed(2)}%` : "—"} />
-          <KpiCard index={5} label="Campagnes"   value={String(activeCamps)}   sub={`${activeCamps} active${activeCamps !== 1 ? "s" : ""} / ${data?.campaigns.length ?? 0}`} />
-        </div>
+        )}
 
         {/* ── Empty state ── */}
         {!hasData && !loading && (

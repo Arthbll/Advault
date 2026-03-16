@@ -2,11 +2,11 @@
   "name": "advault-project",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
+"scripts": {
     "dev": "NODE_TLS_REJECT_UNAUTHORIZED=0 next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "next lint"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

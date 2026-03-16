@@ -37,11 +37,13 @@ export function sendNotification(title: string, body: string, type: keyof NotifP
 }
 
 export default function NotificationSettings() {
+  const [mounted,    setMounted]    = useState(false);
   const [permission, setPermission] = useState<Permission>("default");
   const [prefs,      setPrefs]      = useState<NotifPrefs>({ onSync: true, onKillSwitch: true });
   const [requesting, setRequesting] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     if ("Notification" in window) {
       setPermission(Notification.permission as Permission);
     }
@@ -62,7 +64,7 @@ export default function NotificationSettings() {
     localStorage.setItem(PREFS_KEY, JSON.stringify(next));
   }
 
-  const isSupported = typeof window !== "undefined" && "Notification" in window;
+  const isSupported = mounted && "Notification" in window;
   const isGranted   = permission === "granted";
   const isDenied    = permission === "denied";
 

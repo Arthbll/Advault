@@ -65,8 +65,8 @@ function AnimatedValue({ raw, formatted, large }: { raw: number | null; formatte
 
 export default function KpiCard({ label, value, sub, accent = "neutral", index = 0, badge, trend, large }: KpiCardProps) {
   const isSignal = accent === "green" || accent === "red";
-  const color    = accent === "green" ? "#00FF87" : accent === "red" ? "#FF453A" : accent === "gold" ? "#FFD60A" : "#F5F5F7";
-  const glowRGB  = accent === "green" ? "0,255,135" : accent === "red" ? "255,69,58" : accent === "gold" ? "255,214,10" : "255,255,255";
+  const color    = accent === "green" ? "#4ADE80" : accent === "red" ? "#F97373" : accent === "gold" ? "#FACC6B" : "#F5F5F7";
+  const glowRGB  = accent === "green" ? "74,222,128" : accent === "red" ? "249,115,115" : accent === "gold" ? "250,204,107" : "255,255,255";
 
   // Try to parse numeric value for animation
   const numericMatch = value.replace(/[$€,%\s]/g, "").replace("k", "000");
@@ -89,10 +89,10 @@ export default function KpiCard({ label, value, sub, accent = "neutral", index =
         padding:    large ? "22px 24px" : "18px 20px",
         display:    "flex", flexDirection: "column",
         gap:        large ? 10 : 8,
-        border:     hovered ? `1px solid rgba(${glowRGB},0.18)` : "1px solid rgba(255,255,255,0.06)",
+        border:     hovered ? `1px solid rgba(${glowRGB},0.16)` : "1px solid rgba(255,255,255,0.06)",
         boxShadow:  hovered
-          ? `0 0 0 1px rgba(${glowRGB},0.06), 0 8px 32px rgba(0,0,0,0.5), 0 0 40px rgba(${glowRGB},0.07)`
-          : "0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",
+          ? "0 10px 30px rgba(0,0,0,0.65)"
+          : "0 6px 18px rgba(0,0,0,0.65)",
         transform:  hovered ? "translateY(-2px)" : "translateY(0)",
         transition: "border-color 0.2s, box-shadow 0.25s, transform 0.18s",
         cursor:     "default",

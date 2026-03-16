@@ -345,7 +345,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </motion.aside>
 
       {/* ── Main content ── */}
-      <main style={{ flex: 1, overflow: "auto", background: "#0A0A0B" }}>
+      <main style={{ flex: 1, overflow: "auto", background: "transparent" }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={pathname}

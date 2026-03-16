@@ -7,7 +7,7 @@ import { TrendingUp, TrendingDown } from "lucide-react";
 const NET_META: Record<string, { label: string; color: string; rgb: string; abbr: string }> = {
   EXOCLICK:     { label: "ExoClick",     color: "#F59E0B", rgb: "245,158,11",  abbr: "EX" },
   TRAFFICSTARS: { label: "TrafficStars", color: "#8B5CF6", rgb: "139,92,246",  abbr: "TS" },
-  TRAFFICJUNKY: { label: "TrafficJunky", color: "#00FF87", rgb: "0,255,135",   abbr: "TJ" },
+  TRAFFICJUNKY: { label: "TrafficJunky", color: "#4ADE80", rgb: "74,222,128",   abbr: "TJ" },
   VOLUUM:       { label: "Voluum",       color: "#38BDF8", rgb: "56,189,248",  abbr: "VL" },
   BEMOB:        { label: "Bemob",        color: "#F87171", rgb: "248,113,113", abbr: "BM" },
 };

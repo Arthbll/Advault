@@ -42,12 +42,40 @@ export async function GET() {
     loginBody = String(err);
   }
 
+  let targeting: unknown = null;
+  let campaignDetail: unknown = null;
+
+  if (loginStatus === 200) {
+    const bearerToken = JSON.parse(loginBody).token as string;
+    const headers = {
+      Authorization: `Bearer ${bearerToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+
+    // Fetch targeting of campaign 8090226
+    try {
+      const r = await fetch("https://api.exoclick.com/v2/campaigns/8090226/targeting", {
+        headers, cache: "no-store", signal: AbortSignal.timeout(10_000),
+      });
+      const t = await r.text();
+      try { targeting = JSON.parse(t); } catch { targeting = t; }
+    } catch (e) { targeting = String(e); }
+
+    // Fetch full detail of campaign 8090226
+    try {
+      const r = await fetch("https://api.exoclick.com/v2/campaigns/8090226", {
+        headers, cache: "no-store", signal: AbortSignal.timeout(10_000),
+      });
+      const t = await r.text();
+      try { campaignDetail = JSON.parse(t); } catch { campaignDetail = t; }
+    } catch (e) { campaignDetail = String(e); }
+  }
+
   return NextResponse.json({
     tokenPreview,
-    tokenLength: apiToken.length,
     loginStatus,
-    loginBodySnippet: loginBody.slice(0, 500),
-    loginHeaders,
-    serverIp: "check vercel/netlify logs or use whatismyip",
+    targeting,
+    campaignDetail,
   });
 }

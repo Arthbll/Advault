@@ -26,17 +26,19 @@ const CF_HEADERS: Record<string, string> = {
 const _sessionCache: Record<string, { token: string; expiry: number }> = {};
 
 export interface ExoClickCreateParams {
-  name:         string;
-  bid:          number;
-  bidType:      "cpm" | "cpc";
-  adFormat:     number;  // zone type ID
-  active:       boolean;
-  dailyBudget?: number;
-  totalBudget?: number;
-  countries?:   string[];
-  devices?:     string[];
-  startAt?:     string;  // YYYY-MM-DD
-  endAt?:       string;
+  name:               string;
+  bid:                number;
+  bidType:            "cpm" | "cpc";
+  adFormat:           number;   // ad_zone_type ID
+  active:             boolean;
+  advertiserAdType?:  number;   // 1=adult 2=mainstream (défaut: 1)
+  categories?:        number[]; // IDs catégories ExoClick (défaut: [1])
+  dailyBudget?:       number;
+  totalBudget?:       number;
+  countries?:         string[]; // codes ISO
+  devices?:           string[]; // "desktop"|"mobile"|"tablet"
+  startAt?:           string;   // YYYY-MM-DD
+  endAt?:             string;
 }
 
 export interface ExoClickCampaign {
@@ -190,19 +192,63 @@ export class ExoClickAdapter {
   }
 
   async createCampaign(params: ExoClickCreateParams): Promise<{ id: string; name: string }> {
-    const body: Record<string, unknown> = {
-      name:         params.name,
-      bid:          params.bid,
-      bid_type:     params.bidType,
-      status:       params.active ? 1 : 2,
-      ad_zone_type: params.adFormat,
+    // ISO 3166-1 numeric → ExoClick country IDs (confirmé depuis l'API réelle : US=840)
+    const COUNTRY_ID: Record<string, number> = {
+      US: 840, GB: 826, DE: 276, FR: 250, ES: 724, IT: 380,
+      CA: 124, AU:  36, BR:  76, MX: 484, IN: 356, JP: 392,
+      KR: 410, RU: 643, UA: 804, PL: 616, NL: 528, BE:  56,
+      SE: 752, NO: 578, DK: 208, FI: 246, CH: 756, AT:  40,
+      PT: 620, CZ: 203, HU: 348, RO: 642, TR: 792, TH: 764,
+      ID: 360, PH: 608, VN: 704, MY: 458, SG: 702, ZA: 710,
+      AR:  32, CO: 170,
     };
-    if (params.dailyBudget)     body.daily_budget = params.dailyBudget;
-    if (params.totalBudget)     body.budget       = params.totalBudget;
-    if (params.countries?.length) body.countries  = params.countries;
-    if (params.devices?.length)   body.devices    = params.devices;
-    if (params.startAt) body.start_at = params.startAt;
-    if (params.endAt)   body.end_at   = params.endAt;
+
+    // device_type IDs ExoClick (confirmé : {id:2} = mobile dans l'API réelle)
+    const DEVICE_TYPE_ID: Record<string, number> = { desktop: 1, mobile: 2, tablet: 3 };
+
+    // ad format → advertiser_ad_type (confirmé : popunder = 7)
+    const FORMAT_TO_AD_TYPE: Record<number, number> = {
+      2: 1, 4: 7, 5: 5, 8: 8, 13: 13, 14: 14,
+    };
+
+    // pricing_model est numérique dans l'API
+    const PRICING_MODEL: Record<string, number> = { cpm: 1, cpc: 2 };
+
+    // Format ciblage confirmé depuis GET /campaigns/{id} :
+    // { targeted: [{id: X}], blocked: [] }
+    const countryIds = params.countries?.length
+      ? params.countries.map(c => COUNTRY_ID[c]).filter(Boolean)
+      : [840]; // US par défaut (au moins 1 pays requis)
+
+    const deviceTypeIds = params.devices?.length
+      ? params.devices.map(d => DEVICE_TYPE_ID[d]).filter(Boolean)
+      : [1, 2, 3]; // tous par défaut
+
+    const categoryIds = params.categories?.length
+      ? params.categories
+      : [97]; // catégorie adult confirmée depuis l'API réelle
+
+    const toTargeted = (ids: number[]) => ({
+      targeted: ids.map(id => ({ id })),
+      blocked:  [],
+    });
+
+    const body: Record<string, unknown> = {
+      name:                   params.name,
+      price:                  params.bid,
+      pricing_model:          PRICING_MODEL[params.bidType] ?? 1,
+      status:                 params.active ? 1 : 0,
+      advertiser_ad_type:     FORMAT_TO_AD_TYPE[params.adFormat] ?? 7,
+      media_storage_template: "link",
+      countries:              toTargeted(countryIds),
+      device_types:           toTargeted(deviceTypeIds),
+      categories:             toTargeted(categoryIds),
+    };
+
+    if (params.dailyBudget) body.max_daily_budget  = params.dailyBudget;
+    if (params.totalBudget) body.total_budget_limit = params.totalBudget;
+    if (params.startAt)     body.start_date         = params.startAt;
+    if (params.endAt)       body.end_date           = params.endAt;
 
     const data = await this.apiFetch<{ result: Record<string, unknown> }>("/campaigns", {
       method: "POST",
