@@ -1,29 +1,56 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #020308;
-  --foreground: #e5e5e5;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #020308;
-    --foreground: #e5e5e5;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background:
-    radial-gradient(circle at top left, #1a1c34 0, transparent 55%),
-    radial-gradient(circle at top right, #19172a 0, transparent 55%),
-    #020308;
-  color: var(--foreground);
-  font-family: var(--font-sans), system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  background: #000000;
+  color: #ffffff;
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Bento stagger fade-in ─────────────────────────────────── */
+@keyframes bentoFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bento-item {
+  opacity: 0;
+  animation: bentoFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ── World map glow pulse ──────────────────────────────────── */
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 1;   }
+}
+
+.glow-dot {
+  animation: glowPulse 2.8s ease-in-out infinite;
+}
+
+@keyframes liveBlink {
+  0%, 100% { opacity: 1;    box-shadow: 0 0 4px 1px #4ade80; }
+  50%       { opacity: 0.25; box-shadow: 0 0 2px 0px #4ade80; }
+}
+
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 4px 1px #4ade80;
+  animation: liveBlink 1.6s ease-in-out infinite;
 }

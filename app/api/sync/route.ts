@@ -6,6 +6,9 @@ import { ExoClickAdapter } from "@/lib/adapters/exoclick";
 import { TrafficStarsAdapter } from "@/lib/adapters/trafficstars";
 import { Network, CampaignStatus } from "@prisma/client";
 
+// Allow up to 5 min on Vercel (backfill = 90 days × 1.5s ≈ 135s)
+export const maxDuration = 300;
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -16,6 +19,8 @@ function daysAgoStr(n: number) {
   return d.toISOString().slice(0, 10);
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function POST(req: NextRequest) {
   // 1. Auth
   const supabase = await createSupabase();
@@ -24,8 +29,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dateFrom = daysAgoStr(90);
-  const dateTo   = todayStr();
+  // mode=backfill → sync last 90 days day by day (first-time setup)
+  // mode=daily    → sync only today (default, called by cron/manual)
+  const body = await req.json().catch(() => ({})) as { mode?: string };
+  const isBackfill = body?.mode === "backfill";
+
+  // Build list of days to sync
+  const today = todayStr();
+  const daysToSync: string[] = isBackfill
+    ? Array.from({ length: 90 }, (_, i) => daysAgoStr(89 - i)) // oldest → newest
+    : [today];
 
   // 2. Load user's active accounts
   const accounts = await prisma.account.findMany({
@@ -39,138 +52,160 @@ export async function POST(req: NextRequest) {
   let totalSynced = 0;
   const errors: string[] = [];
 
+  // On backfill: delete old "range" records (dateFrom ≠ dateTo) that were
+  // created before the daily-sync format — they inflate totals when mixed
+  // with the new per-day records.
+  if (isBackfill) {
+    await prisma.$executeRaw`
+      DELETE FROM "Campaign"
+      WHERE "userId" = ${user.id}
+        AND "dateFrom" != "dateTo"
+    `;
+  }
+
   for (const account of accounts) {
     try {
       const apiKey = decrypt(account.apiKeyEnc);
 
       if (account.network === Network.EXOCLICK) {
-        const adapter = new ExoClickAdapter(apiKey);
+        const adapter   = new ExoClickAdapter(apiKey);
+        const campaigns = await adapter.getCampaigns();
 
-        // Fetch campaigns + stats in parallel
-        const [campaigns, stats] = await Promise.all([
-          adapter.getCampaigns(),
-          adapter.getStats(dateFrom, dateTo),
-        ]);
+        // Sync each day individually so date filters work correctly
+        for (const day of daysToSync) {
+          try {
+            const stats = await adapter.getStats(day, day);
+            const statsMap: Record<string, typeof stats[0]> = {};
+            for (const s of stats) {
+              statsMap[String(s.campaignId)] = s;
+              statsMap[String(Number(s.campaignId))] = s;
+            }
 
-        // Index par string ET par number pour éviter les mismatches d'ID
-        const statsMap: Record<string, typeof stats[0]> = {};
-        for (const s of stats) {
-          statsMap[String(s.campaignId)] = s;
-          statsMap[String(Number(s.campaignId))] = s;
+            for (const campaign of campaigns) {
+              const stat = statsMap[String(campaign.id)] ?? statsMap[String(Number(campaign.id))];
+              await prisma.campaign.upsert({
+                where: {
+                  accountId_externalId_dateFrom_dateTo: {
+                    accountId:  account.id,
+                    externalId: String(campaign.id),
+                    dateFrom:   new Date(day),
+                    dateTo:     new Date(day),
+                  },
+                },
+                create: {
+                  userId:      user.id,
+                  accountId:   account.id,
+                  externalId:  String(campaign.id),
+                  name:        campaign.name,
+                  network:     Network.EXOCLICK,
+                  status:      campaign.status === "active" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.spent       ?? 0,
+                  revenue:     stat?.revenue     ?? 0,
+                  impressions: stat?.impressions ?? 0,
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  dateFrom:    new Date(day),
+                  dateTo:      new Date(day),
+                  syncedAt:    new Date(),
+                },
+                update: {
+                  name:        campaign.name,
+                  status:      campaign.status === "active" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.spent       ?? 0,
+                  revenue:     stat?.revenue     ?? 0,
+                  impressions: stat?.impressions ?? 0,
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  syncedAt:    new Date(),
+                },
+              });
+              totalSynced++;
+            }
+
+            // Throttle to avoid ExoClick rate limiting (max ~30 req/min)
+            if (isBackfill) await sleep(1500);
+          } catch (dayErr) {
+            // Skip a single day if it fails — don't abort the whole sync
+            const msg = dayErr instanceof Error ? dayErr.message : String(dayErr);
+            errors.push(`EXOCLICK day ${day}: ${msg}`);
+            if (isBackfill) await sleep(1500);
+          }
         }
 
-        for (const campaign of campaigns) {
-          const stat = statsMap[String(campaign.id)] ?? statsMap[String(Number(campaign.id))];
-          await prisma.campaign.upsert({
-            where: {
-              accountId_externalId_dateFrom_dateTo: {
-                accountId:  account.id,
-                externalId: String(campaign.id),
-                dateFrom:   new Date(dateFrom),
-                dateTo:     new Date(dateTo),
-              },
-            },
-            create: {
-              userId:      user.id,
-              accountId:   account.id,
-              externalId:  String(campaign.id),
-              name:        campaign.name,
-              network:     Network.EXOCLICK,
-              status:      campaign.status === "active" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
-              spend:       stat?.spent       ?? 0,
-              revenue:     stat?.revenue     ?? 0,
-              impressions: stat?.impressions ?? 0,
-              clicks:      stat?.clicks      ?? 0,
-              conversions: stat?.conversions ?? 0,
-              dateFrom:    new Date(dateFrom),
-              dateTo:      new Date(dateTo),
-              syncedAt:    new Date(),
-            },
-            update: {
-              name:        campaign.name,
-              status:      campaign.status === "active" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
-              spend:       stat?.spent       ?? 0,
-              revenue:     stat?.revenue     ?? 0,
-              impressions: stat?.impressions ?? 0,
-              clicks:      stat?.clicks      ?? 0,
-              conversions: stat?.conversions ?? 0,
-              syncedAt:    new Date(),
-            },
-          });
-          totalSynced++;
-        }
-
-        // Log sync
         await prisma.log.create({
           data: {
             userId:   user.id,
             type:     "SYNC",
-            message:  `ExoClick sync: ${campaigns.length} campagnes, ${dateFrom} → ${dateTo}`,
-            metadata: { network: "EXOCLICK", count: campaigns.length },
+            message:  `ExoClick sync: ${campaigns.length} campagnes × ${daysToSync.length} jour(s)`,
+            metadata: { network: "EXOCLICK", campaigns: campaigns.length, days: daysToSync.length, mode: isBackfill ? "backfill" : "daily" },
           },
         });
       }
 
       if (account.network === Network.TRAFFICSTARS) {
-        const adapter = new TrafficStarsAdapter(apiKey);
+        const adapter   = new TrafficStarsAdapter(apiKey);
+        const campaigns = await adapter.getCampaigns();
 
-        const [campaigns, stats] = await Promise.all([
-          adapter.getCampaigns(),
-          adapter.getStats(dateFrom, dateTo),
-        ]);
+        for (const day of daysToSync) {
+          try {
+            const stats = await adapter.getStats(day, day);
+            const statsMap: Record<string, typeof stats[0]> = {};
+            for (const s of stats) {
+              statsMap[String(s.campaignId)] = s;
+              statsMap[String(Number(s.campaignId))] = s;
+            }
 
-        const statsMap: Record<string, typeof stats[0]> = {};
-        for (const s of stats) {
-          statsMap[String(s.campaignId)] = s;
-          statsMap[String(Number(s.campaignId))] = s;
-        }
-
-        for (const campaign of campaigns) {
-          const stat = statsMap[String(campaign.id)] ?? statsMap[String(Number(campaign.id))];
-          await prisma.campaign.upsert({
-            where: {
-              accountId_externalId_dateFrom_dateTo: {
-                accountId:  account.id,
-                externalId: String(campaign.id),
-                dateFrom:   new Date(dateFrom),
-                dateTo:     new Date(dateTo),
-              },
-            },
-            create: {
-              userId:      user.id,
-              accountId:   account.id,
-              externalId:  String(campaign.id),
-              name:        campaign.name,
-              network:     Network.TRAFFICSTARS,
-              status:      campaign.status === "active" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
-              spend:       stat?.spent       ?? 0,
-              revenue:     0,
-              impressions: stat?.impressions ?? 0,
-              clicks:      stat?.clicks      ?? 0,
-              conversions: stat?.conversions ?? 0,
-              dateFrom:    new Date(dateFrom),
-              dateTo:      new Date(dateTo),
-              syncedAt:    new Date(),
-            },
-            update: {
-              name:        campaign.name,
-              status:      campaign.status === "active" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
-              spend:       stat?.spent       ?? 0,
-              impressions: stat?.impressions ?? 0,
-              clicks:      stat?.clicks      ?? 0,
-              conversions: stat?.conversions ?? 0,
-              syncedAt:    new Date(),
-            },
-          });
-          totalSynced++;
+            for (const campaign of campaigns) {
+              const stat = statsMap[String(campaign.id)] ?? statsMap[String(Number(campaign.id))];
+              await prisma.campaign.upsert({
+                where: {
+                  accountId_externalId_dateFrom_dateTo: {
+                    accountId:  account.id,
+                    externalId: String(campaign.id),
+                    dateFrom:   new Date(day),
+                    dateTo:     new Date(day),
+                  },
+                },
+                create: {
+                  userId:      user.id,
+                  accountId:   account.id,
+                  externalId:  String(campaign.id),
+                  name:        campaign.name,
+                  network:     Network.TRAFFICSTARS,
+                  status:      campaign.status === "active" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.spent       ?? 0,
+                  revenue:     0,
+                  impressions: stat?.impressions ?? 0,
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  dateFrom:    new Date(day),
+                  dateTo:      new Date(day),
+                  syncedAt:    new Date(),
+                },
+                update: {
+                  name:        campaign.name,
+                  status:      campaign.status === "active" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.spent       ?? 0,
+                  impressions: stat?.impressions ?? 0,
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  syncedAt:    new Date(),
+                },
+              });
+              totalSynced++;
+            }
+          } catch (dayErr) {
+            const msg = dayErr instanceof Error ? dayErr.message : String(dayErr);
+            errors.push(`TRAFFICSTARS day ${day}: ${msg}`);
+          }
         }
 
         await prisma.log.create({
           data: {
             userId:   user.id,
             type:     "SYNC",
-            message:  `TrafficStars sync: ${campaigns.length} campagnes`,
-            metadata: { network: "TRAFFICSTARS", count: campaigns.length },
+            message:  `TrafficStars sync: ${campaigns.length} campagnes × ${daysToSync.length} jour(s)`,
+            metadata: { network: "TRAFFICSTARS", campaigns: campaigns.length, days: daysToSync.length },
           },
         });
       }
@@ -192,8 +227,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     synced:  totalSynced,
     errors:  errors.length > 0 ? errors : undefined,
-    dateFrom,
-    dateTo,
+    days:    daysToSync.length,
+    mode:    isBackfill ? "backfill" : "daily",
   });
 }
 

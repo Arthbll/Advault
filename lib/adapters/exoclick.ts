@@ -258,6 +258,43 @@ export class ExoClickAdapter {
     return { id: String(result.id ?? ""), name: String(result.name ?? params.name) };
   }
 
+  async getStatsByCountry(dateFrom: string, dateTo: string): Promise<{ countryCode: string; impressions: number; clicks: number; spent: number }[]> {
+    const data = await this.apiFetch<{ result: unknown }>(
+      `/statistics/a/global`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          group_by: ["country"],
+          filter:   { date_from: dateFrom, date_to: dateTo },
+        }),
+      }
+    );
+
+    const raw = data?.result ?? [];
+    const list: Record<string, unknown>[] = Array.isArray(raw)
+      ? raw as Record<string, unknown>[]
+      : Object.values(raw as Record<string, unknown>) as Record<string, unknown>[];
+
+    return list
+      .map(row => {
+        const groupBy = (row.group_by ?? {}) as Record<string, unknown>;
+        const countryObj = (groupBy.country ?? {}) as Record<string, unknown>;
+        // ExoClick returns ISO 2-letter code in group_by.country.name or .code
+        const countryCode = String(
+          countryObj.name ?? countryObj.code ?? countryObj.id ?? row.country ?? ""
+        ).toUpperCase();
+
+        return {
+          countryCode,
+          impressions: toNum(row.impressions),
+          clicks:      toNum(row.clicks),
+          spent:       toNum(row.cost ?? row.spent ?? 0),
+        };
+      })
+      .filter(r => r.countryCode.length === 2)
+      .sort((a, b) => b.impressions - a.impressions);
+  }
+
   async getStats(dateFrom: string, dateTo: string): Promise<ExoClickStats[]> {
     const data = await this.apiFetch<{ result: unknown }>(
       `/statistics/a/global`,
