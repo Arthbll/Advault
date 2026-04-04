@@ -40,16 +40,13 @@ interface DashboardData {
   activeCampaigns: number;
 }
 
-interface AlertCampaign { id: string; name: string; network: string; roi: number; spend: number; }
-interface CampaignRow { id: string; name: string; network: string; spend: number; revenue: number; profit: number; roi: number; impressions: number; clicks: number; conversions: number; dateFrom: string; dateTo: string; }
-
 interface Props extends DashboardData {
   /* formatted strings from server (initial render) */
   profitLabel: string; roiLabel: string; spendLabel: string;
   convLabel: string; spendSub: string; convSub: string;
-  /* extra props from page */
-  alerts?: AlertCampaign[];
-  topCampaigns?: CampaignRow[];
+  /* extra props from page (unused in this component, accepted for compatibility) */
+  alerts?: any[];
+  topCampaigns?: any[];
   trend?: number | null;
   needsSync?: boolean;
 }
