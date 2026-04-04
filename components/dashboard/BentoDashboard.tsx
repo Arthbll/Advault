@@ -366,7 +366,7 @@ export default function BentoDashboard(props: Props) {
               <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#3f3f46" }} tickLine={false} axisLine={false}
                 interval={chartData.length > 20 ? Math.floor(chartData.length / 5) : 0} />
               <Tooltip
-                formatter={(v: any, key: string) => [`€${Math.round(v ?? 0).toLocaleString("fr-FR")}`, key === "profit" ? "Profit" : "Revenue"]}
+                formatter={(v: any, key: any) => [`€${Math.round(v ?? 0).toLocaleString("fr-FR")}`, key === "profit" ? "Profit" : "Revenue"]}
                 labelFormatter={(l: string) => l}
                 contentStyle={{ background: "#1e1e26", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, fontSize: 11 }}
                 labelStyle={{ color: "#71717a", marginBottom: 4 }}
