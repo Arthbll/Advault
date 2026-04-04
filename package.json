@@ -1,10 +1,10 @@
 {
-  "name": "advault-project",
+  "name": "profitdash-project",
   "version": "0.1.0",
   "private": true,
-"scripts": {
+  "scripts": {
     "dev": "NODE_TLS_REJECT_UNAUTHORIZED=0 next dev",
-    "build": "prisma generate && next build",
+    "build": "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 prisma generate && next build",
     "start": "next start",
     "lint": "next lint"
   },
@@ -13,11 +13,13 @@
     "@prisma/client": "^6.19.2",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.0",
+    "apexcharts": "^5.10.4",
     "clsx": "^2.1.1",
     "framer-motion": "^12.35.2",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
     "react": "19.2.3",
+    "react-apexcharts": "^2.1.0",
     "react-dom": "19.2.3",
     "recharts": "^3.8.0",
     "tailwind-merge": "^3.5.0"
