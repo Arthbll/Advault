@@ -2,73 +2,80 @@
 
 import { ReactNode } from "react";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 interface KpiCardProps {
-  label: string;
-  value: string;
-  sub?: string;
+  label:   string;
+  value:   string;
+  sub?:    string;
   accent?: "green" | "red" | "gold" | "neutral" | "violet";
-  icon?: ReactNode;
+  icon?:   ReactNode;
 }
 
+// ─── Accent map — aligned to dashboard palette ────────────────────────────────
+
 const accentMap = {
-  green:   { text: "#4ade80",  glow: "rgba(74,222,128,0.25)"   },
-  red:     { text: "#f87171",  glow: "rgba(248,113,113,0.25)"  },
-  gold:    { text: "#fbbf24",  glow: "rgba(251,191,36,0.25)"   },
-  neutral: { text: "#a1a1aa",  glow: "rgba(161,161,170,0.15)"  },
-  violet:  { text: "#a78bfa",  glow: "rgba(139,92,246,0.25)"   },
+  green:   { text: "#4ade80",                border: "rgba(74,222,128,0.13)"    },
+  red:     { text: "#f87171",                border: "rgba(248,113,113,0.13)"   },
+  gold:    { text: "#fbbf24",                border: "rgba(251,191,36,0.11)"    },
+  neutral: { text: "rgba(255,255,255,0.72)", border: "rgba(255,255,255,0.07)"   },
+  violet:  { text: "#a78bfa",                border: "rgba(167,139,250,0.13)"   },
 };
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function KpiCard({ label, value, sub, accent = "neutral", icon }: KpiCardProps) {
-  const { text, glow } = accentMap[accent];
+  const { text, border } = accentMap[accent];
 
   return (
     <div style={{
-      background: "#111115",
-      border: "1px solid rgba(255,255,255,0.08)",
-      borderRadius: 24,
-      padding: "22px 24px",
+      background: "#17171e",
+      border: `1px solid ${border}`,
+      borderRadius: 16,
+      padding: "18px 20px",
       display: "flex",
       flexDirection: "column",
-      gap: 14,
+      gap: 10,
       position: "relative",
       overflow: "hidden",
     }}>
-      {/* Top accent glow line */}
-      <div style={{
-        position: "absolute", top: 0, left: "15%", right: "15%", height: 1,
-        background: `linear-gradient(90deg, transparent, ${glow}, transparent)`,
-      }} />
-
       {/* Label row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{
           fontSize: 10, fontWeight: 600,
-          letterSpacing: "0.1em", textTransform: "uppercase" as const,
-          color: "#52525b",
+          letterSpacing: "0.12em", textTransform: "uppercase" as const,
+          color: "#3f3f46",
         }}>
           {label}
         </span>
-        {icon ? icon : (
+        {icon ?? (
           <div style={{
-            width: 6, height: 6, borderRadius: "50%",
-            background: text,
-            boxShadow: `0 0 8px 3px ${glow}`,
+            width: 4, height: 4, borderRadius: "50%",
+            background: text, opacity: 0.5,
           }} />
         )}
       </div>
 
-      {/* Big number */}
-      <div style={{
-        fontSize: 30, fontWeight: 300,
-        letterSpacing: "-0.02em",
-        color: text, lineHeight: 1,
+      {/* Value */}
+      <span style={{
+        fontSize: 26, fontWeight: 400,
+        letterSpacing: "-0.03em", lineHeight: 1,
+        color: text,
+        fontVariantNumeric: "tabular-nums",
+        fontFeatureSettings: '"tnum"',
+        display: "block",
       }}>
         {value}
-      </div>
+      </span>
 
       {/* Sub label */}
       {sub && (
-        <p style={{ fontSize: 11, color: "#3f3f46", margin: 0, lineHeight: 1.4 }}>{sub}</p>
+        <span style={{
+          fontSize: 10, color: "rgba(255,255,255,0.2)",
+          lineHeight: 1.45, letterSpacing: "0.01em",
+        }}>
+          {sub}
+        </span>
       )}
     </div>
   );

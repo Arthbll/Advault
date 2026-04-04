@@ -32,9 +32,11 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/register");
+  // Public routes — accessible without authentication
+  const isPublicRoute = pathname === "/" || pathname.startsWith("/api/waitlist");
 
   // Redirect unauthenticated users away from protected routes
-  if (!user && !isAuthRoute) {
+  if (!user && !isAuthRoute && !isPublicRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

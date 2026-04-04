@@ -5,6 +5,9 @@ import { decrypt } from "@/lib/crypto";
 import { ExoClickAdapter } from "@/lib/adapters/exoclick";
 import { TrafficStarsAdapter } from "@/lib/adapters/trafficstars";
 import { Network } from "@prisma/client";
+import { getDemoStatsResponse } from "@/lib/demo-data";
+import { cookies } from "next/headers";
+import { resolveWorkspaceUserId } from "@/lib/workspace";
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 function daysAgoStr(n: number) {
@@ -17,17 +20,25 @@ export async function GET(req: NextRequest) {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const userId = await resolveWorkspaceUserId(user.id);
+
   const { searchParams } = new URL(req.url);
   const dateFrom = searchParams.get("dateFrom") ?? daysAgoStr(90);
   const dateTo   = searchParams.get("dateTo")   ?? todayStr();
 
+  // ── Mode démo activé manuellement ────────────────────────────────────────
+  const cookieStore = await cookies();
+  if (cookieStore.get("profitdash_demo")?.value === "1") {
+    return NextResponse.json(getDemoStatsResponse(dateFrom, dateTo));
+  }
+
   const accounts = await prisma.account.findMany({
-    where: { userId: user.id, isActive: true },
+    where: { userId: userId, isActive: true },
   });
 
   // Get campaign names/statuses from DB
   const dbCampaigns = await prisma.campaign.findMany({
-    where: { userId: user.id },
+    where: { userId: userId },
     orderBy: { syncedAt: "desc" },
   });
   // Deduplicate — keep latest per externalId+network
@@ -103,6 +114,11 @@ export async function GET(req: NextRequest) {
     } catch (err) {
       syncErrors.push(`${account.network}: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  // Si les adapters n'ont retourné aucune ligne → demo
+  if (rows.length === 0) {
+    return NextResponse.json(getDemoStatsResponse(dateFrom, dateTo));
   }
 
   // Aggregate

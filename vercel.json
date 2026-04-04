@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/kill-switch/run",
+      "schedule": "*/30 * * * *"
+    }
+  ]
+}

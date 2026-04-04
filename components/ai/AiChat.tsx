@@ -10,9 +10,9 @@ interface Message {
 }
 
 const SUGGESTIONS = [
-  "Quelles campagnes couper ?",
-  "Comment améliorer mon ROI ?",
-  "Analyse mes performances",
+  "Which campaigns should I cut?",
+  "How can I improve my ROI?",
+  "Analyse my performance",
 ];
 
 export default function AiChat() {
@@ -47,7 +47,7 @@ export default function AiChat() {
         body:    JSON.stringify({ messages: newMessages }),
       });
 
-      if (!res.ok || !res.body) throw new Error("Erreur réseau");
+      if (!res.ok || !res.body) throw new Error("Network error");
 
       const reader  = res.body.getReader();
       const decoder = new TextDecoder();
@@ -66,7 +66,7 @@ export default function AiChat() {
         });
       }
     } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: "⚠ Erreur — vérifie ta clé API dans .env.local." }]);
+      setMessages(prev => [...prev, { role: "assistant", content: "⚠ Error — check your API key in .env.local." }]);
     } finally {
       setLoading(false);
     }
@@ -119,8 +119,8 @@ export default function AiChat() {
                 <Sparkles size={13} style={{ color: "#fbbf24" }} />
               </div>
               <div>
-                <p className="text-xs font-black" style={{ color: "#ffffff" }}>AdVault AI</p>
-                <p className="text-xs" style={{ color: "#3f3f46", fontSize: 10 }}>Analyse tes campagnes en temps réel</p>
+                <p className="text-xs font-black" style={{ color: "#ffffff" }}>ProfitDash AI</p>
+                <p className="text-xs" style={{ color: "#3f3f46", fontSize: 10 }}>Analyse your campaigns in real time</p>
               </div>
             </div>
 
@@ -133,7 +133,7 @@ export default function AiChat() {
                     <Sparkles size={18} style={{ color: "#fbbf24" }} />
                   </div>
                   <p className="text-xs text-center" style={{ color: "#52525b" }}>
-                    Pose-moi une question sur<br />tes campagnes et performances.
+                    Ask me anything about<br />your campaigns and performance.
                   </p>
                   <div className="flex flex-col gap-2 w-full">
                     {SUGGESTIONS.map(s => (
@@ -199,7 +199,7 @@ export default function AiChat() {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-                  placeholder="Demande quelque chose…"
+                  placeholder="Ask something…"
                   className="flex-1 bg-transparent text-xs outline-none"
                   style={{ color: "#ffffff" }}
                 />

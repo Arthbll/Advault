@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { withTimeout } from "@/lib/db";
 import ProfileClient from "@/components/profile/ProfileClient";
 
 export default async function ProfilePage() {
@@ -9,13 +10,25 @@ export default async function ProfilePage() {
   if (!user) redirect("/login");
 
   const [accounts, campaigns] = await Promise.all([
-    prisma.account.findMany({ where: { userId: user.id, isActive: true }, select: { network: true } }),
-    prisma.campaign.findMany({ where: { userId: user.id }, select: { id: true }, distinct: ["externalId"] }),
+    withTimeout(
+      prisma.account.findMany({ where: { userId: user.id, isActive: true }, select: { network: true } }),
+      [],
+      3000,
+    ),
+    withTimeout(
+      prisma.campaign.findMany({ where: { userId: user.id }, select: { id: true }, distinct: ["externalId"] }),
+      [],
+      3000,
+    ),
   ]);
+
+  const displayName: string =
+    (user.user_metadata?.display_name as string | undefined) ?? "";
 
   return (
     <ProfileClient
       email={user.email ?? ""}
+      displayName={displayName}
       createdAt={user.created_at}
       networksCount={accounts.length}
       campaignsCount={campaigns.length}

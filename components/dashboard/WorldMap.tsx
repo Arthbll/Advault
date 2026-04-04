@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -11,7 +12,17 @@ export interface GlowDot {
   size: number; delay: string;
 }
 
-interface Props { dots?: GlowDot[] }
+const NET_SOURCES = [
+  { id: "ALL",          label: "All"    },
+  { id: "EXOCLICK",     label: "Exo"    },
+  { id: "TRAFFICSTARS", label: "TS"     },
+];
+
+interface Props {
+  dots?: GlowDot[];
+  activeNetwork?: string;
+  onNetworkChange?: (n: string) => void;
+}
 
 // ─── Fallback dots ────────────────────────────────────────────────────────────
 
@@ -79,7 +90,7 @@ function geometryToPath(geo: TopoGeometry, arcs: [number, number][][]): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function WorldMap({ dots }: Props) {
+export default function WorldMap({ dots, activeNetwork = "ALL", onNetworkChange }: Props) {
   const activeDots  = dots && dots.length > 0 ? dots : FALLBACK;
   const hasRealData = dots && dots.length > 0;
 
@@ -194,7 +205,7 @@ export default function WorldMap({ dots }: Props) {
           <text x={W / 2} y={H / 2} textAnchor="middle"
             fontSize="11" fill="rgba(255,255,255,0.1)"
             fontFamily="Inter, system-ui, sans-serif">
-            Chargement de la carte…
+            Loading map…
           </text>
         )}
 
@@ -254,18 +265,59 @@ export default function WorldMap({ dots }: Props) {
         }}>
           Global Traffic
         </p>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 3 }}>
-          <span style={{ color: "#fff", fontWeight: 300, fontSize: 15, letterSpacing: "-0.02em" }}>
-            ExoClick
-          </span>
-          {/* Blinking LED */}
-          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span className="live-dot" />
-            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
-              color: "#4ade80", textTransform: "uppercase" }}>
-              Live
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 3 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            <span style={{ color: "#fff", fontWeight: 300, fontSize: 15, letterSpacing: "-0.02em" }}>
+              {activeNetwork === "ALL" ? "All Sources" : activeNetwork === "EXOCLICK" ? "ExoClick" : "TrafficStars"}
             </span>
-          </span>
+            {/* Blinking LED */}
+            <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span className="live-dot" />
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
+                color: "#4ade80", textTransform: "uppercase" }}>
+                Live
+              </span>
+            </span>
+          </div>
+
+          {/* Network Source Toggle */}
+          {onNetworkChange && (
+            <div style={{
+              display: "flex", alignItems: "center",
+              background: "rgba(0,0,0,0.35)", borderRadius: 99,
+              padding: "3px 4px", gap: 1,
+              pointerEvents: "auto",
+              border: "1px solid rgba(255,255,255,0.07)",
+            }}>
+              {NET_SOURCES.map(({ id, label }) => (
+                <button
+                  key={id}
+                  onClick={() => onNetworkChange(id)}
+                  style={{
+                    position: "relative", padding: "3px 9px", borderRadius: 99,
+                    fontSize: 10, fontWeight: activeNetwork === id ? 600 : 400,
+                    color: activeNetwork === id ? "#000" : "rgba(255,255,255,0.4)",
+                    background: "none", border: "none", cursor: "pointer",
+                    transition: "color 0.15s",
+                    zIndex: 1,
+                  }}
+                >
+                  {activeNetwork === id && (
+                    <motion.div
+                      layoutId="mapNetPill"
+                      style={{
+                        position: "absolute", inset: 0, borderRadius: 99,
+                        background: "#ffffff",
+                        zIndex: -1,
+                      }}
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

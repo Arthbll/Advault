@@ -38,7 +38,7 @@ export async function register(formData: FormData) {
     return { error: error.message };
   }
 
-  return { success: "Vérifie ton email pour confirmer ton compte." };
+  return { success: "Check your inbox and click the confirmation link to activate your account." };
 }
 
 export async function logout() {
@@ -46,4 +46,47 @@ export async function logout() {
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
   redirect("/login");
+}
+
+export async function forgotPassword(formData: FormData) {
+  const supabase = await createClient();
+
+  const email = (formData.get("email") as string ?? "").trim().toLowerCase();
+
+  if (!email) {
+    return { error: "Please enter your email address." };
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/reset-password`,
+  });
+
+  // Always return success to avoid email enumeration
+  if (error && error.message !== "For security purposes, you can only request this once every 60 seconds") {
+    return { error: "Something went wrong. Please try again." };
+  }
+
+  return { success: true };
+}
+
+export async function resetPassword(formData: FormData) {
+  const supabase = await createClient();
+
+  const password = formData.get("password") as string;
+  const confirm  = formData.get("confirm")  as string;
+
+  if (!password || password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+  if (password !== confirm) {
+    return { error: "Passwords don't match." };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return { success: true };
 }

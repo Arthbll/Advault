@@ -5,18 +5,42 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, RefreshCw, ChevronDown, Globe, Monitor, Smartphone, Tablet, Check } from "lucide-react";
 
 // ── ExoClick reference data ──────────────────────────────────────────────────
-const AD_FORMATS = [
-  { id: 2,  label: "Banner",              sub: "Display 300x250, 728x90…" },
-  { id: 4,  label: "Pop-under",           sub: "Ouverture en arrière-plan" },
-  { id: 8,  label: "Interstitiel",        sub: "Plein écran entre pages"   },
-  { id: 13, label: "Push Notification",   sub: "Notification navigateur"   },
-  { id: 14, label: "Native",              sub: "Contenu sponsorisé natif"  },
-  { id: 5,  label: "In-Video",            sub: "Pre/mid-roll vidéo"        },
+const AD_FORMATS_EXOCLICK = [
+  { id: 2,  label: "Banner",              sub: "Display 300x250, 728x90…"       },
+  { id: 4,  label: "Pop-under",           sub: "Opens in background"            },
+  { id: 8,  label: "Interstitial",        sub: "Full-screen between pages"      },
+  { id: 13, label: "Push Notification",   sub: "Browser notification"           },
+  { id: 14, label: "Native",              sub: "Native sponsored content"       },
+  { id: 5,  label: "In-Video",            sub: "Pre/mid-roll video"             },
 ];
 
-const BID_TYPES = [
-  { value: "cpm", label: "CPM", sub: "Coût pour 1 000 impressions" },
-  { value: "cpc", label: "CPC", sub: "Coût par clic" },
+// ── TrafficStars reference data ───────────────────────────────────────────────
+// Real formats from GET /v1.1/ad_formats (verified 23/03/2026)
+const AD_FORMATS_TRAFFICSTARS = [
+  { id: 1,   label: "Banner 300x250",        sub: "Standard display format"     },
+  { id: 23,  label: "Banner 728x90",         sub: "Horizontal leaderboard"      },
+  { id: 7,   label: "Popunder",              sub: "Opens in background"         },
+  { id: 104, label: "Push Notification",     sub: "Web push / In-page push"     },
+  { id: 63,  label: "Video",                 sub: "Pre-roll, outstream…"        },
+  { id: 62,  label: "Native",                sub: "Native sponsored content"    },
+  { id: 105, label: "Interstitial",          sub: "Full-screen between pages"   },
+];
+
+const BID_TYPES_EXOCLICK = [
+  { value: "cpm", label: "CPM", sub: "Cost per 1,000 impressions" },
+  { value: "cpc", label: "CPC", sub: "Cost per click"             },
+];
+
+const BID_TYPES_TRAFFICSTARS = [
+  { value: "cpm", label: "CPM", sub: "Cost per 1,000 impressions" },
+  { value: "cpc", label: "CPC", sub: "Cost per click"             },
+  { value: "cpa", label: "CPA", sub: "Cost per action/conversion" },
+];
+
+const NETWORKS = [
+  { id: "EXOCLICK",     label: "ExoClick",     color: "#c08835", disabled: false },
+  { id: "TRAFFICSTARS", label: "TrafficStars", color: "#7264a8", disabled: false },
+  { id: "TRAFFICJUNKY", label: "TrafficJunky", color: "#4a8fb4", disabled: true  },
 ];
 
 const COUNTRIES: { code: string; name: string }[] = [
@@ -83,10 +107,14 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
 
+  // Network selector
+  const [network, setNetwork] = useState<"EXOCLICK" | "TRAFFICSTARS" | "TRAFFICJUNKY">("EXOCLICK");
+
   // Form state
   const [name,        setName]        = useState("");
-  const [adFormat,    setAdFormat]    = useState<number>(2);
-  const [bidType,     setBidType]     = useState<"cpm" | "cpc">("cpm");
+  const [adFormat,    setAdFormat]    = useState<number>(2);   // ExoClick format
+  const [tsFormatId,  setTsFormatId]  = useState<number>(1);  // TrafficStars format
+  const [bidType,     setBidType]     = useState<"cpm" | "cpc" | "cpa">("cpm");
   const [bid,         setBid]         = useState("");
   const [dailyBudget, setDailyBudget] = useState("");
   const [totalBudget, setTotalBudget] = useState("");
@@ -109,36 +137,57 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
     c.code.toLowerCase().includes(countrySearch.toLowerCase())
   );
 
+  // Derived helpers
+  const AD_FORMATS = network === "TRAFFICSTARS" ? AD_FORMATS_TRAFFICSTARS : AD_FORMATS_EXOCLICK;
+  const BID_TYPES  = network === "TRAFFICSTARS" ? BID_TYPES_TRAFFICSTARS  : BID_TYPES_EXOCLICK;
+  const activeFormatId = network === "TRAFFICSTARS" ? tsFormatId : adFormat;
+
   // Step validation
-  const step1Valid = name.trim().length > 0 && adFormat > 0;
-  const step2Valid = parseFloat(bid) > 0;
+  const step1Valid = name.trim().length > 0 && activeFormatId > 0;
+  const step2Valid = parseFloat(bid) > 0 && (network === "TRAFFICSTARS" ? parseFloat(dailyBudget) > 0 : true);
 
   async function handleSubmit() {
     setSubmitting(true);
     setError(null);
     try {
+      const commonTargeting = {
+        countries: countries.length > 0 ? countries : undefined,
+        active,
+      };
+
+      const payload = network === "TRAFFICSTARS"
+        ? {
+            network:       "TRAFFICSTARS",
+            name:          name.trim(),
+            format_id:     tsFormatId,
+            pricing_model: bidType as "cpm" | "cpc" | "cpa",
+            price:         parseFloat(bid),
+            max_daily:     parseFloat(dailyBudget),
+            ...commonTargeting,
+          }
+        : {
+            network:     "EXOCLICK",
+            name:        name.trim(),
+            adFormat,
+            bidType,
+            bid:         parseFloat(bid),
+            dailyBudget: dailyBudget ? parseFloat(dailyBudget) : undefined,
+            totalBudget: totalBudget ? parseFloat(totalBudget) : undefined,
+            devices:     devices.length > 0 ? devices : undefined,
+            startAt:     startAt || undefined,
+            endAt:       endAt   || undefined,
+            ...commonTargeting,
+          };
+
       const res = await fetch("/api/campaigns/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          network:     "EXOCLICK",
-          name:        name.trim(),
-          adFormat,
-          bidType,
-          bid:         parseFloat(bid),
-          dailyBudget: dailyBudget ? parseFloat(dailyBudget) : undefined,
-          totalBudget: totalBudget ? parseFloat(totalBudget) : undefined,
-          countries:   countries.length > 0 ? countries : undefined,
-          devices:     devices.length > 0 ? devices : undefined,
-          startAt:     startAt || undefined,
-          endAt:       endAt   || undefined,
-          active,
-        }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (json.ok) { onCreated(); onClose(); }
-      else setError(json.error ?? "Erreur inconnue");
-    } catch { setError("Erreur réseau"); }
+      else setError(json.error ?? "Unknown error");
+    } catch { setError("Network error"); }
     setSubmitting(false);
   }
 
@@ -180,9 +229,9 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
         <div style={{ padding: "24px 28px 0", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
             <div>
-              <p style={{ fontSize: 11, color: "#3F3F46", marginBottom: 4 }}>ExoClick · Nouvelle campagne</p>
+              <p style={{ fontSize: 11, color: "#3F3F46", marginBottom: 4 }}>{network === "TRAFFICSTARS" ? "TrafficStars" : "ExoClick"} · New campaign</p>
               <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em", color: "#F5F5F7", margin: 0 }}>
-                Créer une campagne
+                Create campaign
               </h2>
             </div>
             <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }} onClick={onClose}
@@ -214,10 +263,10 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
             ))}
             <div style={{ marginLeft: 10 }}>
               <p style={{ fontSize: 12, fontWeight: 600, color: "#F5F5F7", margin: 0 }}>
-                {step === 1 ? "Format & nom" : step === 2 ? "Budget & enchère" : "Ciblage"}
+                {step === 1 ? "Format & name" : step === 2 ? "Budget & bid" : "Targeting"}
               </p>
               <p style={{ fontSize: 11, color: "#3F3F46", marginTop: 1 }}>
-                {step === 1 ? "Étape 1 / 3" : step === 2 ? "Étape 2 / 3" : "Étape 3 / 3"}
+                {step === 1 ? "Step 1 / 3" : step === 2 ? "Step 2 / 3" : "Step 3 / 3"}
               </p>
             </div>
           </div>
@@ -228,57 +277,92 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
         {/* Content */}
         <div style={{ flex: 1, padding: "0 28px", display: "flex", flexDirection: "column", gap: 16 }}>
 
-          {/* ── STEP 1 : Format & nom ── */}
+          {/* ── STEP 1 : Format & name ── */}
           <AnimatePresence mode="wait">
             {step === 1 && (
               <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
+                {/* Network selector */}
                 <div style={sectionStyle}>
-                  <Field label="Nom de la campagne">
-                    <input value={name} onChange={e => setName(e.target.value)} placeholder="Ex : ExoClick - Adult - US - Banner"
-                      style={inputStyle} onFocus={focusGreen} onBlur={blurReset} />
-                  </Field>
-                </div>
-
-                <div style={sectionStyle}>
-                  <label style={labelStyle}>Format d&apos;annonce</label>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {AD_FORMATS.map(fmt => (
-                      <motion.div key={fmt.id} onClick={() => setAdFormat(fmt.id)}
-                        whileHover={{ x: 2 }}
+                  <label style={labelStyle}>Ad network</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {NETWORKS.map(n => (
+                      <motion.div key={n.id}
+                        onClick={() => {
+                          if (n.disabled) return;
+                          setNetwork(n.id as "EXOCLICK" | "TRAFFICSTARS" | "TRAFFICJUNKY");
+                          setAdFormat(2); setTsFormatId(1); setBidType("cpm");
+                        }}
+                        whileTap={n.disabled ? {} : { scale: 0.97 }}
+                        title={n.disabled ? "Campaign creation not available for this network (account pending approval)" : undefined}
                         style={{
-                          display: "flex", alignItems: "center", justifyContent: "space-between",
-                          padding: "12px 14px", borderRadius: 12, cursor: "pointer",
-                          background: adFormat === fmt.id ? "rgba(0,255,135,0.06)" : "#111113",
-                          border: adFormat === fmt.id ? "1px solid rgba(0,255,135,0.2)" : "1px solid rgba(255,255,255,0.05)",
+                          flex: 1, padding: "13px 14px", borderRadius: 12,
+                          cursor: n.disabled ? "not-allowed" : "pointer",
+                          opacity: n.disabled ? 0.45 : 1,
+                          background: network === n.id ? `rgba(${n.id === "TRAFFICSTARS" ? "114,100,168" : n.id === "TRAFFICJUNKY" ? "74,143,180" : "192,136,53"},0.1)` : "rgba(255,255,255,0.03)",
+                          border: network === n.id ? `1px solid rgba(${n.id === "TRAFFICSTARS" ? "114,100,168" : n.id === "TRAFFICJUNKY" ? "74,143,180" : "192,136,53"},0.35)` : "1px solid rgba(255,255,255,0.06)",
                           transition: "all 0.15s",
+                          display: "flex", alignItems: "center", gap: 8, position: "relative",
                         }}
                       >
-                        <div>
-                          <p style={{ fontSize: 13, fontWeight: adFormat === fmt.id ? 600 : 400, color: adFormat === fmt.id ? "#F5F5F7" : "#A1A1AA", margin: 0 }}>{fmt.label}</p>
-                          <p style={{ fontSize: 11, color: "#3F3F46", marginTop: 2 }}>{fmt.sub}</p>
-                        </div>
-                        <div style={{
-                          width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
-                          background: adFormat === fmt.id ? "#00FF87" : "rgba(255,255,255,0.06)",
-                          border: adFormat === fmt.id ? "none" : "1px solid rgba(255,255,255,0.1)",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          boxShadow: adFormat === fmt.id ? "0 0 8px rgba(0,255,135,0.4)" : "none",
-                          transition: "all 0.2s",
-                        }}>
-                          {adFormat === fmt.id && <Check size={10} strokeWidth={3} style={{ color: "#000" }} />}
-                        </div>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: network === n.id ? n.color : "#3F3F46", flexShrink: 0, boxShadow: network === n.id ? `0 0 6px ${n.color}` : "none", transition: "all 0.15s" }} />
+                        <span style={{ fontSize: 13, fontWeight: network === n.id ? 600 : 400, color: network === n.id ? "#F5F5F7" : "#52525B" }}>{n.label}</span>
+                        {n.disabled && <span style={{ marginLeft: "auto", fontSize: 9, fontWeight: 600, color: "#71717A", textTransform: "uppercase", letterSpacing: "0.05em" }}>Soon</span>}
                       </motion.div>
                     ))}
                   </div>
                 </div>
 
+                <div style={sectionStyle}>
+                  <Field label="Campaign name">
+                    <input value={name} onChange={e => setName(e.target.value)}
+                      placeholder={network === "TRAFFICSTARS" ? "Ex : TS - Adult - FR - Banner" : "Ex : ExoClick - Adult - US - Banner"}
+                      style={inputStyle} onFocus={focusGreen} onBlur={blurReset} />
+                  </Field>
+                </div>
+
+                <div style={sectionStyle}>
+                  <label style={labelStyle}>Ad format</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {AD_FORMATS.map(fmt => {
+                      const isSelected = network === "TRAFFICSTARS" ? tsFormatId === fmt.id : adFormat === fmt.id;
+                      return (
+                      <motion.div key={fmt.id} onClick={() => network === "TRAFFICSTARS" ? setTsFormatId(fmt.id) : setAdFormat(fmt.id)}
+                        whileHover={{ x: 2 }}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          padding: "12px 14px", borderRadius: 12, cursor: "pointer",
+                          background: isSelected ? "rgba(0,255,135,0.06)" : "#111113",
+                          border: isSelected ? "1px solid rgba(0,255,135,0.2)" : "1px solid rgba(255,255,255,0.05)",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: isSelected ? 600 : 400, color: isSelected ? "#F5F5F7" : "#A1A1AA", margin: 0 }}>{fmt.label}</p>
+                          <p style={{ fontSize: 11, color: "#3F3F46", marginTop: 2 }}>{fmt.sub}</p>
+                        </div>
+                        <div style={{
+                          width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+                          background: isSelected ? "#00FF87" : "rgba(255,255,255,0.06)",
+                          border: isSelected ? "none" : "1px solid rgba(255,255,255,0.1)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          boxShadow: isSelected ? "0 0 8px rgba(0,255,135,0.4)" : "none",
+                          transition: "all 0.2s",
+                        }}>
+                          {isSelected && <Check size={10} strokeWidth={3} style={{ color: "#000" }} />}
+                        </div>
+                      </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Initial status */}
                 <div style={sectionStyle}>
-                  <label style={labelStyle}>Statut au lancement</label>
+                  <label style={labelStyle}>Launch status</label>
                   <div style={{ display: "flex", gap: 8 }}>
-                    {[{ v: false, label: "En pause", color: "#F59E0B", rgb: "245,158,11" }, { v: true, label: "Active", color: "#00FF87", rgb: "0,255,135" }].map(({ v, label, color, rgb }) => (
+                    {[{ v: false, label: "Paused", color: "#F59E0B", rgb: "245,158,11" }, { v: true, label: "Active", color: "#00FF87", rgb: "0,255,135" }].map(({ v, label, color, rgb }) => (
                       <motion.div key={label} onClick={() => setActive(v)} whileTap={{ scale: 0.97 }}
                         style={{
                           flex: 1, padding: "11px", borderRadius: 12, cursor: "pointer", textAlign: "center",
@@ -295,17 +379,17 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
               </motion.div>
             )}
 
-            {/* ── STEP 2 : Budget & enchère ── */}
+            {/* ── STEP 2 : Budget & bid ── */}
             {step === 2 && (
               <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
                 {/* Bid type */}
                 <div style={sectionStyle}>
-                  <label style={labelStyle}>Type d&apos;enchère</label>
+                  <label style={labelStyle}>Bid type</label>
                   <div style={{ display: "flex", gap: 8 }}>
                     {BID_TYPES.map(bt => (
-                      <motion.div key={bt.value} onClick={() => setBidType(bt.value as "cpm" | "cpc")} whileTap={{ scale: 0.97 }}
+                      <motion.div key={bt.value} onClick={() => setBidType(bt.value as "cpm" | "cpc" | "cpa")} whileTap={{ scale: 0.97 }}
                         style={{
                           flex: 1, padding: "14px", borderRadius: 12, cursor: "pointer",
                           background: bidType === bt.value ? "rgba(0,255,135,0.08)" : "rgba(255,255,255,0.03)",
@@ -322,7 +406,7 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
 
                 {/* Bid amount */}
                 <div style={sectionStyle}>
-                  <Field label={`Enchère ${bidType.toUpperCase()} ($)`}>
+                  <Field label={`${bidType.toUpperCase()} bid ($)`}>
                     <div style={{ position: "relative" }}>
                       <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#3F3F46", fontSize: 13, pointerEvents: "none" }}>$</span>
                       <input type="number" min="0.001" step="0.001" value={bid} onChange={e => setBid(e.target.value)}
@@ -330,7 +414,7 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
                         style={{ ...inputStyle, paddingLeft: 28 }} onFocus={focusGreen} onBlur={blurReset} />
                     </div>
                     <p style={{ fontSize: 11, color: "#3F3F46", marginTop: 6 }}>
-                      {bidType === "cpm" ? "Montant payé par 1 000 impressions" : "Montant payé par clic"}
+                      {bidType === "cpm" ? "Amount paid per 1,000 impressions" : "Amount paid per click"}
                     </p>
                   </Field>
                 </div>
@@ -338,18 +422,18 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
                 {/* Budgets */}
                 <div style={sectionStyle}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <Field label="Budget journalier ($)">
+                    <Field label="Daily budget ($)">
                       <div style={{ position: "relative" }}>
                         <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#3F3F46", fontSize: 13, pointerEvents: "none" }}>$</span>
                         <input type="number" min="0" step="0.01" value={dailyBudget} onChange={e => setDailyBudget(e.target.value)}
                           placeholder="Ex : 50" style={{ ...inputStyle, paddingLeft: 28 }} onFocus={focusGreen} onBlur={blurReset} />
                       </div>
                     </Field>
-                    <Field label="Budget total ($) — optionnel">
+                    <Field label="Total budget ($) — optional">
                       <div style={{ position: "relative" }}>
                         <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#3F3F46", fontSize: 13, pointerEvents: "none" }}>$</span>
                         <input type="number" min="0" step="0.01" value={totalBudget} onChange={e => setTotalBudget(e.target.value)}
-                          placeholder="Illimité" style={{ ...inputStyle, paddingLeft: 28 }} onFocus={focusGreen} onBlur={blurReset} />
+                          placeholder="Unlimited" style={{ ...inputStyle, paddingLeft: 28 }} onFocus={focusGreen} onBlur={blurReset} />
                       </div>
                     </Field>
                   </div>
@@ -358,11 +442,11 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
                 {/* Dates */}
                 <div style={sectionStyle}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <Field label="Date de début — optionnel">
+                    <Field label="Start date — optional">
                       <input type="date" value={startAt} onChange={e => setStartAt(e.target.value)}
                         style={{ ...inputStyle, colorScheme: "dark" }} onFocus={focusGreen} onBlur={blurReset} />
                     </Field>
-                    <Field label="Date de fin — optionnel">
+                    <Field label="End date — optional">
                       <input type="date" value={endAt} onChange={e => setEndAt(e.target.value)}
                         style={{ ...inputStyle, colorScheme: "dark" }} onFocus={focusGreen} onBlur={blurReset} />
                     </Field>
@@ -371,14 +455,14 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
               </motion.div>
             )}
 
-            {/* ── STEP 3 : Ciblage ── */}
+            {/* ── STEP 3 : Targeting ── */}
             {step === 3 && (
               <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
                 {/* Devices */}
                 <div style={sectionStyle}>
-                  <label style={labelStyle}>Appareils</label>
+                  <label style={labelStyle}>Devices</label>
                   <div style={{ display: "flex", gap: 8 }}>
                     {DEVICES.map(({ id, label, icon: Icon }) => {
                       const on = devices.includes(id);
@@ -406,26 +490,26 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                       <Globe size={12} strokeWidth={1.5} style={{ color: "#00FF87" }} />
-                      <label style={{ ...labelStyle, margin: 0 }}>Pays ciblés</label>
+                      <label style={{ ...labelStyle, margin: 0 }}>Target countries</label>
                     </div>
                     <div style={{ display: "flex", gap: 6 }}>
                       {countries.length > 0 && (
                         <span style={{ fontSize: 11, padding: "2px 9px", borderRadius: 99, background: "rgba(0,255,135,0.08)", color: "#00FF87", border: "1px solid rgba(0,255,135,0.15)" }}>
-                          {countries.length} sélectionné{countries.length > 1 ? "s" : ""}
+                          {countries.length} selected
                         </span>
                       )}
                       <button onClick={() => setCountries([])} style={{ fontSize: 10, color: "#3F3F46", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>
-                        Tout effacer
+                        Clear all
                       </button>
                     </div>
                   </div>
 
                   {/* Search */}
                   <input value={countrySearch} onChange={e => setCountrySearch(e.target.value)}
-                    placeholder="Rechercher un pays…"
+                    placeholder="Search a country…"
                     style={{ ...inputStyle, marginBottom: 10 }} onFocus={focusGreen} onBlur={blurReset} />
 
-                  {/* Pays sélectionnés en premier */}
+                  {/* Selected countries first */}
                   <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
                     {filteredCountries
                       .sort((a, b) => {
@@ -467,18 +551,19 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
                   </div>
                 </div>
 
-                {/* Récap */}
+                {/* Summary */}
                 <div style={{ background: "rgba(0,255,135,0.04)", borderRadius: 14, padding: "14px 18px", border: "1px solid rgba(0,255,135,0.08)" }}>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: "#00FF87", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.07em" }}>Récapitulatif</p>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: "#00FF87", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.07em" }}>Summary</p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                     {[
-                      ["Nom",     name || "—"],
-                      ["Format",  AD_FORMATS.find(f => f.id === adFormat)?.label ?? "—"],
-                      ["Enchère", bid ? `$${bid} ${bidType.toUpperCase()}` : "—"],
-                      ["Budget",  dailyBudget ? `$${dailyBudget}/j` : "Illimité"],
-                      ["Pays",    countries.length > 0 ? countries.slice(0, 4).join(", ") + (countries.length > 4 ? ` +${countries.length - 4}` : "") : "Tous"],
-                      ["Devices", devices.length > 0 ? devices.join(", ") : "—"],
-                      ["Statut",  active ? "Active" : "En pause"],
+                      ["Network", network === "TRAFFICSTARS" ? "TrafficStars" : network === "TRAFFICJUNKY" ? "TrafficJunky" : "ExoClick"],
+                      ["Name",    name || "—"],
+                      ["Format",  AD_FORMATS.find(f => f.id === activeFormatId)?.label ?? "—"],
+                      ["Bid",     bid ? `$${bid} ${bidType.toUpperCase()}` : "—"],
+                      ["Budget",  dailyBudget ? `$${dailyBudget}/day` : network === "TRAFFICSTARS" ? "⚠ Required" : "Unlimited"],
+                      ["Countries", countries.length > 0 ? countries.slice(0, 4).join(", ") + (countries.length > 4 ? ` +${countries.length - 4}` : "") : "All"],
+                      ...(network === "EXOCLICK" ? [["Devices", devices.length > 0 ? devices.join(", ") : "—"] as [string, string]] : []),
+                      ["Status",  active ? "Active" : "Paused"],
                     ].map(([k, v]) => (
                       <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
                         <span style={{ color: "#3F3F46" }}>{k}</span>
@@ -507,7 +592,7 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
           {step > 1 && (
             <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }} onClick={() => setStep(s => (s - 1) as 1 | 2 | 3)}
               style={{ padding: "13px 20px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)", color: "#52525B", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-              Retour
+              Back
             </motion.button>
           )}
 
@@ -526,7 +611,7 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
             >
-              Continuer <ChevronDown size={13} strokeWidth={2} style={{ rotate: "-90deg" }} />
+              Continue <ChevronDown size={13} strokeWidth={2} style={{ rotate: "-90deg" }} />
             </motion.button>
           ) : (
             <motion.button
@@ -545,9 +630,9 @@ export default function CampaignCreateModal({ onClose, onCreated }: Props) {
               }}
             >
               {submitting ? (
-                <><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.7, ease: "linear" }}><RefreshCw size={13} strokeWidth={2} /></motion.div> Création…</>
+                <><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.7, ease: "linear" }}><RefreshCw size={13} strokeWidth={2} /></motion.div> Creating…</>
               ) : (
-                <><Check size={13} strokeWidth={2} /> Créer la campagne</>
+                <><Check size={13} strokeWidth={2} /> Create campaign</>
               )}
             </motion.button>
           )}

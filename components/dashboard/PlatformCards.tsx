@@ -49,7 +49,7 @@ export default function PlatformCards({ data, campaigns }: Props) {
   return (
     <div>
       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#3F3F46", marginBottom: 12 }}>
-        Répartition par plateforme
+        Performance by platform
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(networksToShow.length, 3)}, 1fr)`, gap: 10 }}>
@@ -163,7 +163,7 @@ function NetworkCard({ meta, row, camp, hasData, ctr, isPos, index }: {
                 <motion.div
                   animate={camp.active > 0 ? { opacity: [1, 0.2, 1], scale: [1, 0.7, 1] } : {}}
                   transition={{ duration: 2, repeat: Infinity }}
-                  style={{ width: 5, height: 5, borderRadius: "50%", background: camp.active > 0 ? "#00FF87" : "#27272A", flexShrink: 0, boxShadow: camp.active > 0 ? "0 0 4px rgba(0,255,135,0.6)" : "none" }}
+                  style={{ width: 5, height: 5, borderRadius: "50%", background: camp.active > 0 ? "#4a9e78" : "#27272A", flexShrink: 0 }}
                 />
                 <span style={{ fontSize: 11, color: "#3F3F46" }}>
                   {camp.active}/{camp.total} actives
@@ -176,9 +176,9 @@ function NetworkCard({ meta, row, camp, hasData, ctr, isPos, index }: {
             <div style={{
               display: "flex", alignItems: "center", gap: 4,
               padding: "4px 9px", borderRadius: 99,
-              background: isPos ? "rgba(0,255,135,0.1)" : "rgba(255,69,58,0.1)",
-              color: isPos ? "#00FF87" : "#FF453A",
-              border: `1px solid ${isPos ? "rgba(0,255,135,0.15)" : "rgba(255,69,58,0.15)"}`,
+              background: isPos ? "rgba(74,158,120,0.09)" : "rgba(160,80,70,0.09)",
+              color: isPos ? "#4a9e78" : "#a07070",
+              border: `1px solid ${isPos ? "rgba(74,158,120,0.16)" : "rgba(160,80,70,0.16)"}`,
               fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums",
             }}>
               {isPos ? <TrendingUp size={9} strokeWidth={2} /> : <TrendingDown size={9} strokeWidth={2} />}
@@ -186,7 +186,7 @@ function NetworkCard({ meta, row, camp, hasData, ctr, isPos, index }: {
             </div>
           ) : (
             <span style={{ fontSize: 10, color: "#3F3F46", padding: "3px 9px", borderRadius: 99, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-              Non connecté
+              Not connected
             </span>
           )}
         </div>
@@ -198,8 +198,8 @@ function NetworkCard({ meta, row, camp, hasData, ctr, isPos, index }: {
         {/* Spend / Revenue */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
           {[
-            { label: "Dépenses", value: fmt$(row.spend) },
-            { label: "Revenus",  value: fmt$(row.revenue) },
+            { label: "Spend",   value: fmt$(row.spend) },
+            { label: "Revenue", value: fmt$(row.revenue) },
           ].map(({ label, value }) => (
             <div key={label} style={{ background: "#1A1A1C", borderRadius: 12, padding: "10px 12px", border: "1px solid rgba(255,255,255,0.04)" }}>
               <p style={{ fontSize: 10, color: "#3F3F46", marginBottom: 4, letterSpacing: "0.04em" }}>{label}</p>
@@ -211,10 +211,10 @@ function NetworkCard({ meta, row, camp, hasData, ctr, isPos, index }: {
         {/* Profit */}
         <div style={{
           background: hasData
-            ? (isPos ? "rgba(0,255,135,0.06)" : "rgba(255,69,58,0.06)")
+            ? (isPos ? "rgba(74,158,120,0.06)" : "rgba(160,80,70,0.06)")
             : "rgba(255,255,255,0.02)",
           border: hasData
-            ? (isPos ? "1px solid rgba(0,255,135,0.1)" : "1px solid rgba(255,69,58,0.1)")
+            ? (isPos ? "1px solid rgba(74,158,120,0.12)" : "1px solid rgba(160,80,70,0.12)")
             : "1px solid rgba(255,255,255,0.04)",
           borderRadius: 12, padding: "10px 14px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -222,12 +222,12 @@ function NetworkCard({ meta, row, camp, hasData, ctr, isPos, index }: {
           <span style={{ fontSize: 11, color: "#3F3F46" }}>Profit net</span>
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
             {hasData && (isPos
-              ? <TrendingUp  size={10} strokeWidth={1.5} style={{ color: "#00FF87", filter: "drop-shadow(0 0 3px rgba(0,255,135,0.5))" }} />
-              : <TrendingDown size={10} strokeWidth={1.5} style={{ color: "#FF453A" }} />
+              ? <TrendingUp  size={10} strokeWidth={1.5} style={{ color: "#4a9e78" }} />
+              : <TrendingDown size={10} strokeWidth={1.5} style={{ color: "#a07070" }} />
             )}
             <span style={{
               fontSize: 14, fontWeight: 700,
-              color: hasData ? (isPos ? "#00FF87" : "#FF453A") : "#27272A",
+              color: hasData ? (isPos ? "#4a9e78" : "#a07070") : "#27272A",
               letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums",
             }}>
               {row.profit >= 0 ? "+" : "-"}{fmt$(Math.abs(row.profit))}
@@ -257,10 +257,7 @@ function NetworkCard({ meta, row, camp, hasData, ctr, isPos, index }: {
               transition={{ duration: 1.4, delay: index * 0.1 + 0.3, ease: [0.23, 1, 0.32, 1] }}
               style={{
                 height: "100%", borderRadius: 99,
-                background: isPos
-                  ? `linear-gradient(90deg, rgba(0,255,135,0.3), #00FF87)`
-                  : `linear-gradient(90deg, rgba(255,69,58,0.3), #FF453A)`,
-                boxShadow: isPos ? "0 0 6px rgba(0,255,135,0.4)" : "0 0 6px rgba(255,69,58,0.4)",
+                background: isPos ? "#4a9e78" : "#a07070",
               }}
             />
           </div>

@@ -3,12 +3,42 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Mail, Lock, ArrowRight, AlertCircle } from "lucide-react";
+import { ArrowRight, AlertCircle } from "lucide-react";
 import { login } from "@/app/actions/auth";
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const EASE: [number, number, number, number] = [0.23, 1, 0.32, 1];
+
+const INPUT: React.CSSProperties = {
+  width: "100%",
+  height: 52,
+  padding: "0 18px",
+  borderRadius: 16,
+  fontSize: 14,
+  outline: "none",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  color: "rgba(255,255,255,0.88)",
+  transition: "border-color 0.18s, background 0.18s",
+  boxSizing: "border-box",
+  colorScheme: "dark",
+  letterSpacing: "0.01em",
+};
+
+// ─── Stagger helper ───────────────────────────────────────────────────────────
+function s(i: number) {
+  return {
+    initial: { opacity: 0, y: 14 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.55, delay: i * 0.08, ease: EASE },
+  };
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function LoginPage() {
   const [error, setError]           = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [showPw, setShowPw]         = useState(false);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -20,108 +50,335 @@ export default function LoginPage() {
     });
   }
 
-  const focusStyle  = { border: "1px solid rgba(0,255,135,0.4)", boxShadow: "0 0 0 3px rgba(0,255,135,0.06)" };
-  const blurStyle   = { border: "1px solid rgba(255,255,255,0.08)", boxShadow: "none" };
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 28 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.55, ease: [0.23, 1, 0.32, 1] }}
-      className="w-full max-w-sm px-4"
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        width: "100%",
+        maxWidth: 480,
+      }}
     >
-      {/* Logo */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.85 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.1, duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
-        className="flex flex-col items-center gap-3 mb-10"
-      >
-        <motion.div
-          whileHover={{ rotate: 8, scale: 1.12 }}
-          transition={{ type: "spring", stiffness: 300 }}
-          className="w-12 h-12 rounded-2xl flex items-center justify-center text-base font-black"
-          style={{ background: "#FFD60A", color: "#000000", boxShadow: "0 0 0 1px rgba(255,214,10,0.3), 0 4px 16px rgba(255,214,10,0.3)" }}
+      {/* ── Badge ─────────────────────────────────────────────────────────── */}
+      <motion.div {...s(0)} style={{ marginBottom: 24 }}>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            borderRadius: 999,
+            border: "1px solid rgba(139,92,246,0.20)",
+            background: "rgba(139,92,246,0.08)",
+            padding: "6px 18px",
+            fontSize: 10,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.24em",
+            color: "rgba(196,181,253,1)",
+          }}
         >
-          AV
-        </motion.div>
-        <div className="text-center">
-          <h1 className="text-xl font-black tracking-tight" style={{ color: "#F5F5F7" }}>AdVault</h1>
-          <p className="text-xs mt-0.5" style={{ color: "#52525B" }}>Connexion à ton compte</p>
-        </div>
+          Private access
+        </span>
       </motion.div>
 
-      {/* Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.18, duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-        className="rounded-3xl p-8"
-        style={{ background: "#111113", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}
+      {/* ── Headline ──────────────────────────────────────────────────────── */}
+      <motion.h1 {...s(1)}
+        style={{
+          fontSize: 58,
+          fontWeight: 200,
+          letterSpacing: "-0.065em",
+          lineHeight: 0.92,
+          color: "rgba(255,255,255,0.92)",
+          textAlign: "center",
+          margin: "0 0 18px",
+          maxWidth: "10ch",
+        }}
       >
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          {[
-            { label: "Email",          type: "email",    name: "email",    placeholder: "ton@email.com", autoComplete: "email" },
-            { label: "Mot de passe",   type: "password", name: "password", placeholder: "••••••••",      autoComplete: "current-password" },
-          ].map(({ label, type, name, placeholder, autoComplete }) => (
-            <div key={name} className="flex flex-col gap-2">
-              <label className="text-xs font-semibold tracking-widest uppercase" style={{ color: "#3F3F46" }}>{label}</label>
-              <div className="relative">
-                {type === "email"
-                  ? <Mail size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "#52525B" }} />
-                  : <Lock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "#52525B" }} />
-                }
-                <input
-                  type={type} name={name} required autoComplete={autoComplete} placeholder={placeholder}
-                  className="w-full pl-9 pr-4 py-3 rounded-2xl text-sm outline-none transition-all"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#F5F5F7" }}
-                  onFocus={e => Object.assign(e.currentTarget.style, focusStyle)}
-                  onBlur={e  => Object.assign(e.currentTarget.style, blurStyle)}
-                />
-              </div>
-            </div>
-          ))}
+        See what deserves action.
+      </motion.h1>
 
+      {/* ── Sub ───────────────────────────────────────────────────────────── */}
+      <motion.p {...s(2)}
+        style={{
+          fontSize: 16,
+          lineHeight: 1.75,
+          color: "rgba(255,255,255,0.34)",
+          textAlign: "center",
+          margin: "0 0 36px",
+          maxWidth: "34ch",
+        }}
+      >
+        The operating layer between traffic and profit.
+      </motion.p>
+
+      {/* ── Card ──────────────────────────────────────────────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 24, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.7, delay: 0.28, ease: EASE }}
+        style={{
+          width: "100%",
+          background:
+            "linear-gradient(180deg, rgba(16,17,25,0.96) 0%, rgba(9,10,16,0.98) 100%)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          borderRadius: 28,
+          boxShadow:
+            "0 30px 90px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.08)",
+          padding: "32px",
+        }}
+      >
+        {/* Wordmark row */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            marginBottom: 24,
+          }}
+        >
+          <div
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: 14,
+              background: "linear-gradient(145deg, #8b5cf6, #2563eb, #38bdf8)",
+              boxShadow: "0 10px 28px rgba(99,102,241,0.32)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 20,
+              fontWeight: 600,
+              color: "#fff",
+              flexShrink: 0,
+            }}
+          >
+            P
+          </div>
+          <div>
+            <p
+              style={{
+                fontSize: 26,
+                fontWeight: 200,
+                letterSpacing: "-0.05em",
+                color: "rgba(255,255,255,0.92)",
+                margin: 0,
+                lineHeight: 1,
+              }}
+            >
+              ProfitDash
+            </p>
+            <p
+              style={{
+                fontSize: 10,
+                textTransform: "uppercase",
+                letterSpacing: "0.22em",
+                color: "rgba(255,255,255,0.26)",
+                margin: "5px 0 0",
+              }}
+            >
+              Decision engine for media buyers
+            </p>
+          </div>
+        </div>
+
+        {/* Welcome */}
+        <div style={{ marginBottom: 24 }}>
+          <p
+            style={{
+              fontSize: 28,
+              fontWeight: 200,
+              letterSpacing: "-0.04em",
+              color: "rgba(255,255,255,0.92)",
+              margin: "0 0 8px",
+            }}
+          >
+            Welcome back
+          </p>
+          <p
+            style={{
+              fontSize: 14,
+              lineHeight: 1.7,
+              color: "rgba(255,255,255,0.34)",
+              margin: 0,
+            }}
+          >
+            Get back to the signal, the engine, and the campaigns that need action.
+          </p>
+        </div>
+
+        {/* Form */}
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: "flex", flexDirection: "column", gap: 10 }}
+        >
+          <input
+            type="email"
+            name="email"
+            required
+            autoComplete="email"
+            placeholder="Email"
+            style={INPUT}
+            onFocus={e => {
+              e.currentTarget.style.borderColor = "rgba(139,92,246,0.40)";
+              e.currentTarget.style.background  = "rgba(255,255,255,0.055)";
+            }}
+            onBlur={e => {
+              e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
+              e.currentTarget.style.background  = "rgba(255,255,255,0.04)";
+            }}
+          />
+
+          <div style={{ position: "relative" }}>
+            <input
+              type={showPw ? "text" : "password"}
+              name="password"
+              required
+              autoComplete="current-password"
+              placeholder="Password"
+              style={{ ...INPUT, paddingRight: 60 }}
+              onFocus={e => {
+                e.currentTarget.style.borderColor = "rgba(139,92,246,0.40)";
+                e.currentTarget.style.background  = "rgba(255,255,255,0.055)";
+              }}
+              onBlur={e => {
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
+                e.currentTarget.style.background  = "rgba(255,255,255,0.04)";
+              }}
+            />
+            <span
+              onClick={() => setShowPw(v => !v)}
+              style={{
+                position: "absolute",
+                right: 18,
+                top: "50%",
+                transform: "translateY(-50%)",
+                fontSize: 11,
+                color: "rgba(255,255,255,0.32)",
+                cursor: "pointer",
+                userSelect: "none",
+                transition: "color 0.15s",
+              }}
+            >
+              {showPw ? "Hide" : "Show"}
+            </span>
+          </div>
+
+          {/* Error */}
           <AnimatePresence>
             {error && (
               <motion.div
-                initial={{ opacity: 0, y: -6, height: 0 }} animate={{ opacity: 1, y: 0, height: "auto" }} exit={{ opacity: 0, y: -6, height: 0 }}
-                transition={{ duration: 0.25 }}
-                className="flex items-center gap-2.5 px-4 py-3 rounded-2xl text-xs"
-                style={{ background: "rgba(255,69,58,0.08)", border: "1px solid rgba(255,69,58,0.2)", color: "#FF453A" }}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "11px 16px",
+                  borderRadius: 12,
+                  fontSize: 13,
+                  background: "rgba(244,63,94,0.07)",
+                  border: "1px solid rgba(248,113,133,0.16)",
+                  color: "rgba(254,205,211,0.9)",
+                }}
               >
-                <AlertCircle size={13} strokeWidth={1.5} />{error}
+                <AlertCircle size={13} strokeWidth={1.5} />
+                {error}
               </motion.div>
             )}
           </AnimatePresence>
 
+          {/* Forgot password */}
+          <div style={{ padding: "2px 2px" }}>
+            <Link
+              href="/forgot-password"
+              style={{
+                fontSize: 13,
+                color: "rgba(255,255,255,0.32)",
+                textDecoration: "none",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={e =>
+                (e.currentTarget.style.color = "rgba(255,255,255,0.65)")
+              }
+              onMouseLeave={e =>
+                (e.currentTarget.style.color = "rgba(255,255,255,0.32)")
+              }
+            >
+              Forgot password?
+            </Link>
+          </div>
+
+          {/* CTA */}
           <motion.button
-            type="submit" disabled={isPending}
-            whileHover={!isPending ? { y: -1, boxShadow: "0 0 0 1px rgba(0,255,135,0.25), 0 4px 20px rgba(0,255,135,0.2)" } : {}}
+            type="submit"
+            disabled={isPending}
+            whileHover={!isPending ? { scale: 1.01 } : {}}
             whileTap={!isPending ? { scale: 0.98 } : {}}
-            className="flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold mt-1"
             style={{
-              background: "rgba(0,255,135,0.1)", color: "#00FF87",
-              border: "1px solid rgba(0,255,135,0.25)",
-              opacity: isPending ? 0.7 : 1, cursor: isPending ? "not-allowed" : "pointer",
-              transition: "box-shadow 0.2s",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              height: 52,
+              width: "100%",
+              borderRadius: 16,
+              marginTop: 4,
+              border: "none",
+              background: isPending
+                ? "rgba(99,102,241,0.30)"
+                : "linear-gradient(90deg, #8b5cf6, #6366f1, #38bdf8)",
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: isPending ? "not-allowed" : "pointer",
+              opacity: isPending ? 0.65 : 1,
+              letterSpacing: "0.01em",
+              boxShadow: isPending
+                ? "none"
+                : "0 18px 50px rgba(99,102,241,0.30)",
+              transition: "opacity 0.15s",
             }}
           >
-            {isPending
-              ? <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}><Zap size={14} strokeWidth={1.5} /></motion.div>
-              : <><span>Se connecter</span><ArrowRight size={14} strokeWidth={1.5} /></>
-            }
+            {isPending ? (
+              "Signing in…"
+            ) : (
+              <>
+                <span>Sign in to ProfitDash</span>
+                <ArrowRight size={14} strokeWidth={2} />
+              </>
+            )}
           </motion.button>
+
+          {/* Request access */}
+          <p
+            style={{
+              textAlign: "center",
+              fontSize: 13,
+              marginTop: 4,
+              color: "rgba(255,255,255,0.28)",
+            }}
+          >
+            No account yet?{" "}
+            <Link
+              href="/register"
+              style={{
+                color: "rgba(255,255,255,0.62)",
+                textDecoration: "none",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={e =>
+                (e.currentTarget.style.color = "rgba(255,255,255,0.90)")
+              }
+              onMouseLeave={e =>
+                (e.currentTarget.style.color = "rgba(255,255,255,0.62)")
+              }
+            >
+              Request access
+            </Link>
+          </p>
         </form>
       </motion.div>
-
-      <motion.p
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-        className="text-center text-xs mt-6" style={{ color: "#3F3F46" }}
-      >
-        Pas encore de compte ?{" "}
-        <Link href="/register" className="font-semibold" style={{ color: "#00FF87" }}>Créer un compte</Link>
-      </motion.p>
-    </motion.div>
+    </div>
   );
 }

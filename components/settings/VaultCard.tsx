@@ -3,50 +3,54 @@
 import Link from "next/link";
 import { Key, ExternalLink } from "lucide-react";
 
+const LABEL: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600,
+  textTransform: "uppercase", letterSpacing: "0.12em",
+  color: "#3f3f46",
+};
+
 export default function VaultCard({ connectedCount }: { connectedCount: number }) {
   return (
     <Link href="/dashboard/vault" style={{ textDecoration: "none" }}>
       <div
         style={{
-          background: "#111113",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: 20, padding: "20px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4)",
-          cursor: "pointer", transition: "border-color 0.2s, box-shadow 0.2s, transform 0.18s",
+          background: "#17171e",
+          border: "1px solid rgba(255,255,255,0.03)",
+          borderRadius: 18, padding: "16px 18px",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07), 0 1px 2px rgba(0,0,0,0.4)",
+          cursor: "pointer", transition: "border-color 0.2s, box-shadow 0.2s, transform 0.15s",
         }}
         onMouseEnter={e => {
           const el = e.currentTarget as HTMLElement;
-          el.style.borderColor = "rgba(255,214,10,0.2)";
-          el.style.boxShadow   = "0 0 0 1px rgba(255,214,10,0.06), 0 8px 32px rgba(0,0,0,0.5), 0 0 40px rgba(255,214,10,0.06)";
+          el.style.borderColor = "rgba(251,191,36,0.15)";
           el.style.transform   = "translateY(-1px)";
         }}
         onMouseLeave={e => {
           const el = e.currentTarget as HTMLElement;
-          el.style.borderColor = "rgba(255,255,255,0.06)";
-          el.style.boxShadow   = "0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4)";
+          el.style.borderColor = "rgba(255,255,255,0.03)";
           el.style.transform   = "translateY(0)";
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
           <div style={{
-            width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+            width: 34, height: 34, borderRadius: 10, flexShrink: 0,
             display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(255,214,10,0.08)", border: "1px solid rgba(255,214,10,0.12)",
+            background: "rgba(251,191,36,0.08)",
           }}>
-            <Key size={17} strokeWidth={1.5} style={{ color: "#FFD60A" }} />
+            <Key size={14} strokeWidth={1.5} style={{ color: "#b09040" }} />
           </div>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 14, fontWeight: 600, color: "#F5F5F7", margin: 0 }}>Vault</p>
-            <p style={{ fontSize: 12, color: "#3F3F46", marginTop: 2 }}>Clés API des réseaux</p>
+            <p style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.85)", margin: 0 }}>Vault</p>
+            <p style={{ ...LABEL, marginTop: 2 }}>Network API keys</p>
           </div>
-          <ExternalLink size={13} strokeWidth={1.5} style={{ color: "#27272A" }} />
+          <ExternalLink size={12} strokeWidth={1.5} style={{ color: "#3f3f46" }} />
         </div>
-        <div style={{ background: "#1A1A1C", borderRadius: 12, padding: "12px 14px", border: "1px solid rgba(255,255,255,0.04)" }}>
-          <p style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.03em", color: "#F5F5F7", margin: 0, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-            {connectedCount}
-          </p>
-          <p style={{ fontSize: 11, color: "#3F3F46", marginTop: 4 }}>
-            réseau{connectedCount !== 1 ? "x" : ""} connecté{connectedCount !== 1 ? "s" : ""} · AES-256-GCM
+        <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "10px 13px", border: "1px solid rgba(255,255,255,0.04)" }}>
+          <span style={{ fontSize: 28, fontWeight: 200, letterSpacing: "-0.04em", color: connectedCount === 0 ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.92)", display: "block", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+            {connectedCount === 0 ? "—" : connectedCount}
+          </span>
+          <p style={{ ...LABEL, marginTop: 4 }}>
+            network{connectedCount !== 1 ? "s" : ""} connected · AES-256-GCM
           </p>
         </div>
       </div>

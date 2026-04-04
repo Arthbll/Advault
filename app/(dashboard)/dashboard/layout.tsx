@@ -4,170 +4,316 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, Flame, Search } from "lucide-react";
-import AiChat from "@/components/ai/AiChat";
+import {
+  IconGauge, IconTarget, IconActivity, IconWallet, IconVault, IconSliders,
+  IconBrain,
+} from "@/components/ui/Icons";
+import GettingStarted from "@/components/dashboard/GettingStarted";
 
 const NAV = [
-  { href: "/dashboard",            label: "Dashboard"  },
-  { href: "/dashboard/campaigns",  label: "Campagnes"  },
-  { href: "/dashboard/statistics", label: "Stats"      },
-  { href: "/dashboard/vault",      label: "Vault"      },
-  { href: "/dashboard/settings",   label: "Paramètres" },
+  { href: "/dashboard",             label: "Performance",  icon: IconGauge    },
+  { href: "/dashboard/campaigns",   label: "Execution",    icon: IconTarget   },
+  { href: "/dashboard/statistics",  label: "Analytics",    icon: IconActivity },
+  { href: "/dashboard/conversions", label: "Transactions", icon: IconWallet   },
+  { href: "/dashboard/rules",       label: "Rules",        icon: IconBrain    },
+  { href: "/dashboard/vault",       label: "Vault",        icon: IconVault    },
+  { href: "/dashboard/settings",    label: "Settings",     icon: IconSliders  },
 ];
+
+const NAV_HREFS = NAV.map(n => n.href);
+const EASE: [number, number, number, number] = [0.23, 1, 0.32, 1];
+
+// Premium page transitions — subtle y + opacity + blur, no horizontal slamming
+const pageVariants = {
+  initial: { opacity: 0, y: 10, filter: "blur(4px)" },
+  animate: { opacity: 1, y: 0,  filter: "blur(0px)" },
+  exit:    { opacity: 0, y: -6, filter: "blur(3px)" },
+};
+
+interface MeData { name: string; initials: string; plan: string; role: string; }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [streak, setStreak] = useState(0);
+  const [direction, setDirection] = useState(0);
+  const [me, setMe] = useState<MeData>({ name: "", initials: "", plan: "", role: "" });
+  const [isDemo, setIsDemo] = useState(false);
+  const [demoBannerDismissed, setDemoBannerDismissed] = useState(false);
+
+  const currentIdx = NAV_HREFS.findIndex(
+    href => pathname === href || (href !== "/dashboard" && pathname.startsWith(href))
+  );
 
   useEffect(() => {
-    const start = localStorage.getItem("streakStartDate");
-    if (start) {
-      const days = Math.floor((Date.now() - new Date(start).getTime()) / 86400_000);
-      setStreak(Math.max(1, days + 1));
-    }
+    fetch("/api/me")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: MeData | null) => { if (d) setMe(d); })
+      .catch(() => {});
+
+    fetch("/api/user/status")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { hasAccounts: boolean; hasCampaigns: boolean } | null) => {
+        if (d && !d.hasAccounts) setIsDemo(true);
+      })
+      .catch(() => {});
   }, []);
 
+
   return (
-    <div style={{ minHeight: "100vh", background: "#0d0d10", display: "flex", flexDirection: "column" }}>
+    <div style={{ height: "100vh", background: "#0d0d10", display: "flex", flexDirection: "column" }}>
 
       {/* ── Top Navigation Bar ─────────────────────────────────────────────── */}
-      <header style={{
-        position: "sticky", top: 0, zIndex: 50,
-        height: 68,
-        background: "rgba(13,13,16,0.88)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
-        display: "grid",
-        gridTemplateColumns: "1fr auto 1fr",
-        alignItems: "center",
-        padding: "0 28px",
-        gap: 16,
-      }}>
+      <motion.header
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+        style={{
+          position: "sticky", top: 0, zIndex: 50,
+          background: "rgba(13,13,16,0.85)",
+          backdropFilter: "blur(28px)",
+          WebkitBackdropFilter: "blur(28px)",
+          borderBottom: "1px solid rgba(255,255,255,0.05)",
+          display: "grid",
+          gridTemplateColumns: "1fr auto 1fr",
+          alignItems: "center",
+          padding: "10px 28px",
+          gap: 16,
+        }}>
 
         {/* Left: Brand */}
         <div style={{
-          fontWeight: 300, fontSize: 20,
-          color: "rgba(255,255,255,0.92)",
-          letterSpacing: "-0.03em",
+          fontWeight: 400, fontSize: 18,
+          color: "rgba(255,255,255,0.3)",
+          letterSpacing: "-0.02em",
         }}>
-          AdVault
+          ProfitDash
         </div>
 
-        {/* Center: Nav pill */}
-        <nav style={{
-          display: "flex",
-          alignItems: "center",
-          background: "rgba(255,255,255,0.04)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 9999,
-          padding: "5px 6px",
-          gap: 2,
-        }}>
-          {NAV.map(({ href, label }) => {
-            const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
-            return (
-              <Link
-                key={href}
-                href={href}
-                style={{
-                  display: "inline-block",
-                  padding: "7px 18px",
-                  borderRadius: 9999,
-                  fontSize: 13,
-                  fontWeight: active ? 600 : 400,
-                  color: active ? "#000000" : "rgba(113,113,122,0.9)",
-                  background: active ? "#ffffff" : "transparent",
-                  textDecoration: "none",
-                  transition: "all 0.15s ease",
-                  whiteSpace: "nowrap" as const,
-                }}
-              >
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
+        {/* Center: Nav pill + dots */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7 }}>
+          <nav style={{
+            display: "flex",
+            alignItems: "center",
+            background: "rgba(255,255,255,0.035)",
+            border: "1px solid rgba(255,255,255,0.07)",
+            borderRadius: 9999,
+            padding: "4px 5px",
+            gap: 1,
+          }}>
+            {NAV.map(({ href, label, icon: Icon }) => {
+              const active    = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+              const targetIdx = NAV_HREFS.indexOf(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setDirection(targetIdx > currentIdx ? -1 : 1)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "5px 13px",
+                    borderRadius: 9999,
+                    fontSize: 12,
+                    fontWeight: active ? 500 : 400,
+                    color: active ? "#000000" : "rgba(113,113,122,0.9)",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap" as const,
+                    cursor: "pointer",
+                    position: "relative" as const,
+                    zIndex: 1,
+                    transition: "color 0.2s",
+                  }}
+                >
+                  {/* Sliding background pill — moves smoothly via layoutId */}
+                  {active && (
+                    <motion.span
+                      layoutId="nav-active-pill"
+                      style={{
+                        position: "absolute", inset: 0, borderRadius: 9999,
+                        background: "#ffffff",
+                        zIndex: -1,
+                      }}
+                      transition={{ type: "spring", stiffness: 380, damping: 34 }}
+                    />
+                  )}
+                  <Icon size={14} strokeWidth={active ? 1.8 : 1.3} />
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
 
-        {/* Right: Search + Streak + Kill-Switch + User */}
+          {/* Position dots — spring animated */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {NAV.map((_, i) => (
+              <motion.div
+                key={i}
+                animate={{
+                  width:      i === currentIdx ? 16 : 3,
+                  opacity:    i === currentIdx ? 0.75 : 0.18,
+                  background: i === currentIdx ? "#ffffff" : "#ffffff",
+                }}
+                transition={{ type: "spring", stiffness: 360, damping: 30 }}
+                style={{ height: 3, borderRadius: 99, background: "#ffffff" }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Right: Help + Account chip */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
 
-          {/* Search */}
-          <button style={{
-            width: 34, height: 34, borderRadius: 10,
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer",
-          }}>
-            <Search size={14} color="rgba(113,113,122,0.9)" strokeWidth={1.5} />
-          </button>
-
-          {/* Streak */}
-          {streak > 0 && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 5,
-              padding: "5px 10px", borderRadius: 8,
-              background: "rgba(255,160,50,0.08)",
-              border: "1px solid rgba(255,160,50,0.15)",
-            }}>
-              <Flame size={11} color="#FF9F0A" strokeWidth={2} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#FF9F0A" }}>{streak}j</span>
-            </div>
-          )}
-
-          {/* Kill-Switch */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 5,
-            padding: "5px 10px", borderRadius: 8,
-            background: "rgba(0,255,135,0.06)",
-            border: "1px solid rgba(0,255,135,0.1)",
-          }}>
-            <motion.div animate={{ opacity: [1, 0.3, 1], scale: [1, 0.85, 1] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}>
-              <Zap size={11} color="#00FF87" strokeWidth={2} style={{ filter: "drop-shadow(0 0 4px rgba(0,255,135,0.6))" }} />
-            </motion.div>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#00FF87" }}>Live</span>
-          </div>
-
-          {/* User */}
-          <Link href="/dashboard/profile" style={{
-            textDecoration: "none",
-            display: "flex", alignItems: "center", gap: 9,
-            padding: "5px 12px 5px 6px", borderRadius: 10,
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.08)",
-          }}>
-            <div style={{
-              width: 26, height: 26, borderRadius: 8, flexShrink: 0,
-              background: "#FFD60A", color: "#000",
+          {/* Help button */}
+          <a
+            href="mailto:hello@profitdash.io?subject=Support request"
+            title="Get help"
+            style={{
+              width: 32, height: 32, borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.03)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 9, fontWeight: 800,
-              boxShadow: "0 0 8px rgba(255,214,10,0.35)",
+              color: "rgba(255,255,255,0.32)",
+              fontSize: 13, fontWeight: 600, textDecoration: "none",
+              transition: "color 0.15s, background 0.15s",
+              letterSpacing: "-0.01em",
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.65)";
+              (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.07)";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.32)";
+              (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.03)";
+            }}
+          >
+            ?
+          </a>
+
+          {/* Account chip — direction C: name · plan · avatar */}
+          <Link href="/dashboard/profile" style={{ textDecoration: "none" }}>
+            <div style={{
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.09)",
+              background: "rgba(255,255,255,0.03)",
+              padding: "7px 8px 7px 14px",
+              display: "flex", alignItems: "center",
+              justifyContent: "space-between",
+              gap: 14,
+              cursor: "pointer",
+              transition: "background 0.2s",
             }}>
-              AB
-            </div>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#F5F5F7", lineHeight: 1.2 }}>Arthur B.</div>
-              <div style={{ fontSize: 10, color: "#52525b" }}>Admin</div>
+              <div>
+                <div style={{
+                  fontSize: 13, letterSpacing: "-0.02em", fontWeight: 500,
+                  color: "rgba(255,255,255,0.85)", lineHeight: 1.25,
+                  whiteSpace: "nowrap",
+                }}>
+                  {me.name || "—"}
+                </div>
+                <div style={{
+                  marginTop: 2, fontSize: 11,
+                  color: "rgba(255,255,255,0.38)",
+                  whiteSpace: "nowrap",
+                }}>
+                  {me.role || "Operator"} · {me.plan || "…"}
+                </div>
+              </div>
+              <div style={{
+                height: 30, width: 30, borderRadius: 9, flexShrink: 0,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.05)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 11, fontWeight: 600,
+                color: "rgba(255,255,255,0.70)",
+                letterSpacing: "0.01em",
+              }}>
+                {me.initials || "—"}
+              </div>
             </div>
           </Link>
         </div>
-      </header>
+      </motion.header>
 
       {/* ── Page Content ───────────────────────────────────────────────────── */}
-      <main style={{ flex: 1, overflow: "auto" }}>
+      <main style={{ flex: 1, overflow: "auto", position: "relative" }}>
+        {/* Ambient violet vignette at top */}
+        <div className="page-vignette" style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: 300,
+          pointerEvents: "none", zIndex: 0,
+        }} />
+
+        {/* Demo mode banner */}
+        <AnimatePresence>
+          {isDemo && !demoBannerDismissed && (
+            <motion.div
+              key="demo-banner"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.4, ease: EASE }}
+              style={{ padding: "10px 22px 0" }}
+            >
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                gap: 12, padding: "9px 16px 9px 18px",
+                borderRadius: 12,
+                background: "rgba(245,158,11,0.07)",
+                border: "1px solid rgba(251,191,36,0.18)",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{
+                    width: 6, height: 6, borderRadius: "50%",
+                    background: "#fbbf24", flexShrink: 0,
+                    boxShadow: "0 0 6px rgba(251,191,36,0.6)",
+                  }} />
+                  <span style={{ fontSize: 12, color: "rgba(253,230,138,0.85)", lineHeight: 1.5 }}>
+                    You are viewing demo data.{" "}
+                    <Link
+                      href="/dashboard/settings"
+                      style={{ color: "rgba(253,230,138,1)", textDecoration: "underline", textDecorationColor: "rgba(253,230,138,0.4)" }}
+                    >
+                      Connect your first ad network
+                    </Link>
+                    {" "}to see your real metrics.
+                  </span>
+                </div>
+                <button
+                  onClick={() => setDemoBannerDismissed(true)}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "rgba(253,230,138,0.4)", fontSize: 16, lineHeight: 1,
+                    padding: "0 2px", flexShrink: 0,
+                    transition: "color 0.15s",
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "rgba(253,230,138,0.8)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(253,230,138,0.4)"; }}
+                >
+                  ×
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Getting Started */}
+        <div style={{ paddingTop: 14 }}>
+          <GettingStarted hasAccounts={false} hasCampaigns={false} />
+        </div>
+
         <AnimatePresence mode="wait">
           <motion.div
             key={pathname}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ duration: 0.38, ease: [0.23, 1, 0.32, 1] }}
           >
             {children}
           </motion.div>
         </AnimatePresence>
-        <AiChat />
+
       </main>
     </div>
   );

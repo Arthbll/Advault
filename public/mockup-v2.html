@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProfitDash · Decision Rules Mockup V2</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            rose:    { 300: '#fca5a5', 400: '#f87171', 500: '#ef4444' },
+            amber:   { 300: '#fcd34d', 400: '#fbbf24', 500: '#f59e0b' },
+            emerald: { 300: '#6ee7b7', 400: '#34d399', 500: '#10b981' },
+            violet:  { 100: '#ede9fe', 300: '#c4b5fd', 400: '#a78bfa', 500: '#8b5cf6' },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+    body { margin: 0; background: #05060a; }
+  </style>
+</head>
+<body>
+
+<div class="min-h-screen bg-[#05060a] text-white p-8">
+  <div class="mx-auto max-w-[1580px] space-y-8">
+
+    <!-- Outer wrapper label -->
+    <div>
+      <div class="text-[11px] uppercase tracking-[0.24em] text-violet-300/80 mb-3">ProfitDash · Decision Rules</div>
+      <h1 class="text-[46px] leading-[0.96] tracking-[-0.06em] font-light max-w-5xl" style="color:rgba(255,255,255,0.92)">
+        Compact control-surface direction for Decision Rules.
+      </h1>
+    </div>
+
+    <!-- Main card -->
+    <div class="rounded-[38px] border border-white/8 overflow-hidden shadow-[0_40px_120px_rgba(0,0,0,0.42)]"
+         style="background:linear-gradient(180deg,rgba(10,11,17,0.98),rgba(7,8,12,0.99))">
+
+      <!-- Header panel -->
+      <div class="px-8 lg:px-10 py-7 border-b border-white/6"
+           style="background:radial-gradient(circle at 18% 0%,rgba(99,102,241,0.08),transparent 30%),radial-gradient(circle at 82% 8%,rgba(16,185,129,0.06),transparent 24%)">
+        <div class="flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <div class="text-[12px] uppercase tracking-[0.22em] text-white/26">Decision Rules</div>
+            <div class="mt-4 text-[52px] leading-[0.92] tracking-[-0.075em] font-light max-w-[11ch]" style="color:rgba(255,255,255,0.92)">
+              Set when ProfitDash kills, flags, and scales campaigns.
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <!-- Preset switcher -->
+            <div class="rounded-[20px] border border-white/10 bg-white/[0.03] p-1 flex items-center gap-1">
+              <button class="h-11 px-5 rounded-2xl text-sm text-white/64 cursor-pointer">Soft</button>
+              <button class="h-11 px-5 rounded-2xl text-sm text-violet-100 cursor-pointer"
+                      style="background:rgba(139,92,246,0.14);border:1px solid rgba(167,139,250,0.18)">Balanced</button>
+              <button class="h-11 px-5 rounded-2xl text-sm text-white/64 cursor-pointer">Aggressive</button>
+            </div>
+            <!-- Save -->
+            <button class="h-12 rounded-2xl px-6 text-sm font-semibold text-white cursor-pointer"
+                    style="background:linear-gradient(90deg,#ec4899,#8b5cf6);box-shadow:0 18px 45px rgba(139,92,246,0.18)">
+              Save changes
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="p-8 lg:p-10 space-y-6">
+
+        <!-- Active rule summary pill -->
+        <div class="rounded-[24px] border border-white/8 bg-white/[0.02] px-5 py-4 text-sm text-white/78">
+          <span class="text-white/46 mr-3">Balanced</span>
+          Kill below -30% · Watch -15% to 0% · Scale above +30% · Scale +10%
+        </div>
+
+        <!-- Decision matrix + Safety controls -->
+        <div class="grid xl:grid-cols-[1.05fr_0.95fr] gap-6">
+
+          <!-- Decision matrix -->
+          <div class="rounded-[30px] border border-white/8 overflow-hidden"
+               style="background:linear-gradient(180deg,rgba(14,15,23,0.96),rgba(8,9,14,0.98))">
+            <div class="px-6 py-5 border-b border-white/6 text-[11px] uppercase tracking-[0.22em] text-white/24">Decision matrix</div>
+            <div class="grid border-b border-white/6 px-6 py-4 text-[11px] uppercase tracking-[0.2em] text-white/24"
+                 style="grid-template-columns:1.1fr 1.1fr 1.3fr 0.8fr">
+              <div>Decision</div>
+              <div>Trigger</div>
+              <div>Action</div>
+              <div>Mode</div>
+            </div>
+
+            <!-- Kill row -->
+            <div class="grid items-center gap-4 px-6 py-5 border-b border-white/6"
+                 style="grid-template-columns:1.1fr 1.1fr 1.3fr 0.8fr">
+              <div>
+                <div class="h-9 px-3 rounded-full border inline-flex items-center text-xs uppercase tracking-[0.2em] text-rose-300"
+                     style="border-color:rgba(248,113,133,0.14);background:rgba(239,68,68,0.05)">Kill</div>
+              </div>
+              <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">ROI &lt; -30%</div>
+              <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">Pause campaign</div>
+              <div class="text-sm text-white/56">Automatic</div>
+            </div>
+
+            <!-- Watch row -->
+            <div class="grid items-center gap-4 px-6 py-5 border-b border-white/6"
+                 style="grid-template-columns:1.1fr 1.1fr 1.3fr 0.8fr">
+              <div>
+                <div class="h-9 px-3 rounded-full border inline-flex items-center text-xs uppercase tracking-[0.2em] text-amber-300"
+                     style="border-color:rgba(251,191,36,0.14);background:rgba(245,158,11,0.05)">Watch</div>
+              </div>
+              <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">ROI -15% → 0%</div>
+              <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">Flag for review</div>
+              <div class="text-sm text-white/56">Signal only</div>
+            </div>
+
+            <!-- Scale row -->
+            <div class="grid items-center gap-4 px-6 py-5"
+                 style="grid-template-columns:1.1fr 1.1fr 1.3fr 0.8fr">
+              <div>
+                <div class="h-9 px-3 rounded-full border inline-flex items-center text-xs uppercase tracking-[0.2em] text-emerald-300"
+                     style="border-color:rgba(52,211,153,0.14);background:rgba(16,185,129,0.05)">Scale</div>
+              </div>
+              <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">ROI &gt; +30%</div>
+              <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">Increase bid +10%</div>
+              <div class="text-sm text-white/56">Automatic</div>
+            </div>
+          </div>
+
+          <!-- Safety controls -->
+          <div class="rounded-[30px] border border-white/8 bg-white/[0.02] overflow-hidden">
+            <div class="px-6 py-5 border-b border-white/6 text-[11px] uppercase tracking-[0.22em] text-white/24">Safety controls</div>
+            <div class="grid sm:grid-cols-2 gap-3 p-5">
+              <!-- row -->
+              <div class="rounded-[20px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4">
+                <div class="text-sm text-white/52">Minimum spend</div>
+                <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">€20</div>
+              </div>
+              <div class="rounded-[20px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4">
+                <div class="text-sm text-white/52">Min conversions before scale</div>
+                <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">3</div>
+              </div>
+              <div class="rounded-[20px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4">
+                <div class="text-sm text-white/52">Kill hold time</div>
+                <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">30 min</div>
+              </div>
+              <div class="rounded-[20px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4">
+                <div class="text-sm text-white/52">Scale hold time</div>
+                <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">60 min</div>
+              </div>
+              <div class="rounded-[20px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4">
+                <div class="text-sm text-white/52">Kill cooldown</div>
+                <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">3h</div>
+              </div>
+              <div class="rounded-[20px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4">
+                <div class="text-sm text-white/52">Scale cooldown</div>
+                <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">6h</div>
+              </div>
+              <div class="rounded-[20px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4">
+                <div class="text-sm text-white/52">Max kills / day</div>
+                <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">5</div>
+              </div>
+              <div class="rounded-[20px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4">
+                <div class="text-sm text-white/52">Max scales / day</div>
+                <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">2</div>
+              </div>
+              <div class="rounded-[20px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4 sm:col-span-2">
+                <div class="text-sm text-white/52">Scale increment</div>
+                <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">+10%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Engine preview -->
+        <div class="rounded-[30px] overflow-hidden" style="border:1px solid rgba(52,211,153,0.12);background:rgba(16,185,129,0.04)">
+          <div class="px-6 py-5 border-b border-white/6 text-[11px] uppercase tracking-[0.22em]" style="color:rgba(167,243,208,0.72)">Engine preview</div>
+          <div class="p-5 grid gap-3">
+            <div class="rounded-[18px] px-4 py-4 text-sm text-white/84"
+                 style="border:1px solid rgba(248,113,133,0.14);background:rgba(239,68,68,0.05)">
+              If ROI stays below <strong style="color:#fca5a5">-30%</strong> for <strong style="color:rgba(255,255,255,0.92)">30 minutes</strong> and spend is above <strong style="color:rgba(255,255,255,0.92)">€20</strong>, ProfitDash will <strong style="color:rgba(255,255,255,0.92)">pause the campaign automatically</strong>.
+            </div>
+            <div class="rounded-[18px] px-4 py-4 text-sm text-white/84"
+                 style="border:1px solid rgba(251,191,36,0.14);background:rgba(245,158,11,0.05)">
+              If ROI stays between <strong style="color:#fcd34d">-15%</strong> and <strong style="color:#fcd34d">0%</strong>, ProfitDash will <strong style="color:rgba(255,255,255,0.92)">flag the campaign for manual review</strong>. <span style="color:rgba(255,255,255,0.38)">No automatic action is taken.</span>
+            </div>
+            <div class="rounded-[18px] px-4 py-4 text-sm text-white/84"
+                 style="border:1px solid rgba(52,211,153,0.14);background:rgba(16,185,129,0.05)">
+              If ROI stays above <strong style="color:#6ee7b7">+30%</strong>, spend is above <strong style="color:rgba(255,255,255,0.92)">€50</strong>, and conversions are at least <strong style="color:rgba(255,255,255,0.92)">3</strong>, ProfitDash will <strong style="color:rgba(255,255,255,0.92)">increase the bid by +10%</strong>.
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent actions + Network overrides -->
+        <div class="grid xl:grid-cols-[1.04fr_0.96fr] gap-6">
+
+          <!-- Recent engine actions -->
+          <div class="rounded-[30px] border border-white/8 bg-white/[0.02] overflow-hidden">
+            <div class="px-6 py-5 border-b border-white/6 text-[11px] uppercase tracking-[0.22em] text-white/24">Recent engine actions</div>
+            <div class="p-5 grid gap-3">
+
+              <!-- Kill -->
+              <div class="rounded-[18px] px-4 py-4 flex items-start justify-between gap-4"
+                   style="border:1px solid rgba(248,113,133,0.14);background:rgba(239,68,68,0.05)">
+                <div class="flex items-start gap-3">
+                  <div class="h-8 px-3 rounded-full border inline-flex items-center text-[10px] uppercase tracking-[0.2em] text-rose-300 shrink-0"
+                       style="border-color:rgba(248,113,133,0.14);background:rgba(239,68,68,0.05)">Kill</div>
+                  <div class="text-sm text-white/78">Xvideo 1 · ROI -100% · Spend €57.16</div>
+                </div>
+                <div class="text-xs text-white/32 whitespace-nowrap">31 Mar · 19:53</div>
+              </div>
+
+              <!-- Watch -->
+              <div class="rounded-[18px] px-4 py-4 flex items-start justify-between gap-4"
+                   style="border:1px solid rgba(251,191,36,0.14);background:rgba(245,158,11,0.05)">
+                <div class="flex items-start gap-3">
+                  <div class="h-8 px-3 rounded-full border inline-flex items-center text-[10px] uppercase tracking-[0.2em] text-amber-300 shrink-0"
+                       style="border-color:rgba(251,191,36,0.14);background:rgba(245,158,11,0.05)">Watch</div>
+                  <div class="text-sm text-white/78">Nutra_US_03 · surfaced for review</div>
+                </div>
+                <div class="text-xs text-white/32 whitespace-nowrap">31 Mar · 18:12</div>
+              </div>
+
+              <!-- Scale -->
+              <div class="rounded-[18px] px-4 py-4 flex items-start justify-between gap-4"
+                   style="border:1px solid rgba(52,211,153,0.14);background:rgba(16,185,129,0.05)">
+                <div class="flex items-start gap-3">
+                  <div class="h-8 px-3 rounded-full border inline-flex items-center text-[10px] uppercase tracking-[0.2em] text-emerald-300 shrink-0"
+                       style="border-color:rgba(52,211,153,0.14);background:rgba(16,185,129,0.05)">Scale</div>
+                  <div class="text-sm text-white/78">Dating_DE_04 · ROI +41% · bid +10%</div>
+                </div>
+                <div class="text-xs text-white/32 whitespace-nowrap">31 Mar · 17:40</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Network overrides -->
+          <div class="rounded-[30px] border border-white/8 bg-white/[0.02] overflow-hidden">
+            <div class="px-6 py-5 border-b border-white/6 text-[11px] uppercase tracking-[0.22em] text-white/24">Network overrides</div>
+            <div class="p-5 grid gap-3">
+
+              <div class="rounded-[18px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4">
+                <div>
+                  <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">Global default</div>
+                  <div class="mt-1 text-sm text-white/38">Applies everywhere</div>
+                </div>
+                <div class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/62">Enabled</div>
+              </div>
+
+              <div class="rounded-[18px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4">
+                <div>
+                  <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">ExoClick</div>
+                  <div class="mt-1 text-sm text-white/38">Using global rules</div>
+                </div>
+                <div class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/62">Enabled</div>
+              </div>
+
+              <div class="rounded-[18px] border border-white/8 bg-black/10 px-4 py-4 flex items-center justify-between gap-4">
+                <div>
+                  <div class="text-[22px] tracking-[-0.04em] font-light" style="color:rgba(255,255,255,0.92)">TrafficStars</div>
+                  <div class="mt-1 text-sm text-white/38">Using global rules</div>
+                </div>
+                <div class="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/62">Enabled</div>
+              </div>
+
+              <div class="rounded-[18px] bg-black/10 px-4 py-4 flex items-center justify-between gap-4"
+                   style="border:1px solid rgba(251,191,36,0.14)">
+                <div>
+                  <div class="text-[22px] tracking-[-0.04em] font-light text-amber-300">TrafficJunky</div>
+                  <div class="mt-1 text-sm" style="color:rgba(251,191,36,0.42)">Pending setup</div>
+                </div>
+                <div class="rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-amber-300"
+                     style="border:1px solid rgba(251,191,36,0.14);background:rgba(245,158,11,0.05)">Draft</div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

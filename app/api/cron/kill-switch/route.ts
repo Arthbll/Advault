@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   const settings = await prisma.userSettings.findUnique({ where: { userId: user.id } });
 
   if (!settings?.killSwitchEnabled) {
-    return NextResponse.json({ skipped: true, reason: "Kill-Switch désactivé" });
+    return NextResponse.json({ skipped: true, reason: "Kill-switch disabled" });
   }
 
   const roiThreshold      = settings.roiThreshold;       // ex: -50

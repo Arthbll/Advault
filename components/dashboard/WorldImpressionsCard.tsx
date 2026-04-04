@@ -60,7 +60,7 @@ export default function WorldImpressionsCard({
             {fmtN(totalImpressions)}
           </motion.p>
           <p style={{ fontSize: 11, color: "#6B7280", marginTop: 6 }}>
-            Impressions totales sur la période
+            Total impressions for the period
           </p>
         </div>
       </div>

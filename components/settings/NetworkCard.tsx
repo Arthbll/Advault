@@ -1,215 +1,441 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Key, Lock, CheckCircle, AlertCircle, Unplug, Loader } from "lucide-react";
+import { Key, Lock, CheckCircle, AlertCircle, Loader, ArrowRight, ChevronDown } from "lucide-react";
 import { saveAccount, disconnectAccount } from "@/app/actions/accounts";
 import { Network } from "@prisma/client";
 
 interface Props {
-  network: Network; label: string; description: string;
-  color: string; glow: string; hasSecret: boolean;
-  secretLabel?: string; keyLabel?: string;
-  isConnected: boolean; index: number;
+  network: Network;
+  label: string;
+  description: string;
+  color: string;
+  glow: string;
+  hasSecret: boolean;
+  secretLabel?: string;
+  keyLabel?: string;
+  isConnected: boolean;
+  index: number;
 }
 
-// Extract RGB from hex for rgba usage
-function hexToRgb(hex: string): string {
-  const r = parseInt(hex.slice(1,3),16);
-  const g = parseInt(hex.slice(3,5),16);
-  const b = parseInt(hex.slice(5,7),16);
-  return `${r},${g},${b}`;
+// ─── Tone map for network badges ──────────────────────────────────────────────
+const NETWORK_TONE: Record<string, { border: string; bg: string; text: string }> = {
+  EXOCLICK:     { border: "rgba(251,191,36,0.18)",  bg: "rgba(245,158,11,0.10)",  text: "rgba(253,230,138,1)"  },
+  TRAFFICSTARS: { border: "rgba(167,139,250,0.18)", bg: "rgba(139,92,246,0.10)",  text: "rgba(221,214,254,1)"  },
+  TRAFFICJUNKY: { border: "rgba(56,189,248,0.18)",  bg: "rgba(14,165,233,0.10)",  text: "rgba(186,230,253,1)"  },
+};
+
+const CONNECTED_STYLE = {
+  border: "rgba(52,211,153,0.18)", bg: "rgba(16,185,129,0.10)", text: "rgba(167,243,208,1)",
+};
+const PENDING_STYLE = {
+  border: "rgba(251,191,36,0.16)", bg: "rgba(245,158,11,0.08)", text: "rgba(253,230,138,1)",
+};
+
+const INPUT: React.CSSProperties = {
+  width: "100%",
+  padding: "10px 13px 10px 36px",
+  borderRadius: 12,
+  fontSize: 13,
+  outline: "none",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "rgba(255,255,255,0.85)",
+  transition: "border-color 0.15s, background 0.15s",
+  boxSizing: "border-box",
+  fontFamily: "monospace",
+  colorScheme: "dark",
+};
+
+function SmallBtn({
+  children, onClick, danger, disabled,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        borderRadius: 10,
+        border: danger ? "1px solid rgba(251,113,133,0.16)" : "1px solid rgba(255,255,255,0.10)",
+        background: danger ? "rgba(244,63,94,0.06)" : "rgba(255,255,255,0.03)",
+        color: danger ? "rgba(254,205,211,0.80)" : "rgba(255,255,255,0.65)",
+        padding: "7px 14px",
+        fontSize: 12,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        transition: "all 0.15s",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </button>
+  );
 }
 
-export default function NetworkCard({ network, label, description, color, hasSecret, secretLabel, keyLabel, isConnected: initConnected, index }: Props) {
-  const [connected, setConnected] = useState(initConnected);
-  const [expanded,  setExpanded]  = useState(!initConnected);
-  const [feedback,  setFeedback]  = useState<{ type: "success" | "error"; msg: string } | null>(null);
-  const [hov,       setHov]       = useState(false);
-  const [isPending, startTransition] = useTransition();
+export default function NetworkCard({
+  network,
+  label,
+  description,
+  hasSecret,
+  secretLabel,
+  keyLabel,
+  isConnected: initConnected,
+  index,
+}: Props) {
+  const router     = useRouter();
+  const inputRef   = useRef<HTMLInputElement>(null);
 
-  const rgb = hexToRgb(color);
+  const [connected, setConnected]   = useState(initConnected);
+  const [editing, setEditing]       = useState(false);
+  const [apiKey, setApiKey]         = useState("");
+  const [apiSecret, setApiSecret]   = useState("");
+  const [isPending, setIsPending]   = useState(false);
+  const [isSyncing, setIsSyncing]   = useState(false);
+  const [feedback, setFeedback]     = useState<{
+    type: "success" | "error";
+    msg: string;
+    synced?: boolean;
+  } | null>(null);
 
-  function handleSave(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault(); setFeedback(null);
-    const fd = new FormData(e.currentTarget); fd.set("network", network);
-    startTransition(async () => {
-      const result = await saveAccount(fd);
-      if (result?.error)   setFeedback({ type: "error",   msg: result.error   });
-      if (result?.success) { setFeedback({ type: "success", msg: result.success }); setConnected(true); setTimeout(() => setExpanded(false), 1200); }
-    });
+  const netTone = NETWORK_TONE[network] ?? NETWORK_TONE.EXOCLICK;
+
+  // Derive richer status from state
+  const syncState: "syncing" | "connected" | "error" | "not-connected" = isSyncing
+    ? "syncing"
+    : connected
+    ? "connected"
+    : feedback?.type === "error"
+    ? "error"
+    : "not-connected";
+
+  const STATUS_STYLES = {
+    connected:     CONNECTED_STYLE,
+    syncing:       { border: "rgba(56,189,248,0.18)", bg: "rgba(14,165,233,0.10)", text: "rgba(186,230,253,1)" },
+    error:         { border: "rgba(251,113,133,0.18)", bg: "rgba(244,63,94,0.08)", text: "rgba(254,205,211,1)" },
+    "not-connected": PENDING_STYLE,
+  };
+  const STATUS_LABELS = {
+    connected:     "Connected",
+    syncing:       "Syncing",
+    error:         "Error",
+    "not-connected": "Not connected",
+  };
+  const STATUS_SUBS = {
+    connected:     "API healthy · idle",
+    syncing:       "Importing campaigns…",
+    error:         "Could not reach API — check your credentials",
+    "not-connected": "Click Configure to add your credentials",
+  };
+
+  const statusTone  = STATUS_STYLES[syncState];
+  const statusLabel = STATUS_LABELS[syncState];
+  const statusSub   = STATUS_SUBS[syncState];
+
+  function openEdit() {
+    setEditing(true);
+    setFeedback(null);
+    setTimeout(() => inputRef.current?.focus(), 80);
   }
 
-  function handleDisconnect() {
+  function cancelEdit() {
+    setEditing(false);
+    setApiKey("");
+    setApiSecret("");
     setFeedback(null);
-    startTransition(async () => {
+  }
+
+  async function handleSave() {
+    setFeedback(null);
+    setIsPending(true);
+    try {
+      const fd = new FormData();
+      fd.set("network", String(network));
+      fd.set("apiKey", apiKey);
+      if (hasSecret) fd.set("apiSecret", apiSecret);
+
+      const result = await saveAccount(fd);
+      if (result?.error) {
+        setFeedback({ type: "error", msg: result.error });
+      }
+      if (result?.success) {
+        setConnected(true);
+        setEditing(false);
+        setApiKey("");
+        setApiSecret("");
+        setIsSyncing(true);
+        setFeedback({ type: "success", msg: "Credentials saved — importing campaigns…" });
+
+        fetch("/api/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "daily" }),
+        })
+          .then(r => r.json())
+          .then((data: { synced?: number }) => {
+            setIsSyncing(false);
+            const count = data.synced ?? 0;
+            setFeedback({
+              type: "success",
+              msg: count > 0
+                ? `${count} campaign(s) imported — all set.`
+                : "Connected — your campaigns will appear after the next sync.",
+              synced: true,
+            });
+            router.refresh();
+          })
+          .catch(() => {
+            setIsSyncing(false);
+            setFeedback({ type: "success", msg: "Connected — campaigns will be visible after the next sync.", synced: true });
+          });
+      }
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    setFeedback(null);
+    setIsPending(true);
+    try {
       const result = await disconnectAccount(network);
-      if (result?.error)   setFeedback({ type: "error",   msg: result.error   });
-      if (result?.success) { setFeedback({ type: "success", msg: result.success }); setConnected(false); setExpanded(true); }
-    });
+      if (result?.error) setFeedback({ type: "error", msg: result.error });
+      if (result?.success) {
+        setFeedback({ type: "success", msg: result.success });
+        setConnected(false);
+        setEditing(false);
+      }
+    } finally {
+      setIsPending(false);
+    }
   }
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index * 0.07, ease: [0.23, 1, 0.32, 1] }}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
+      initial={{ opacity: 0, y: 14, filter: "blur(4px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{ duration: 0.45, delay: index * 0.09, ease: [0.23, 1, 0.32, 1] }}
       style={{
-        background: "#111113",
-        border: hov ? `1px solid rgba(${rgb},0.2)` : "1px solid rgba(255,255,255,0.06)",
-        borderRadius: 20, overflow: "hidden",
-        boxShadow: hov
-          ? `0 0 0 1px rgba(${rgb},0.06), 0 8px 32px rgba(0,0,0,0.5), 0 0 40px rgba(${rgb},0.06)`
-          : "0 1px 3px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4)",
-        transform: hov ? "translateY(-1px)" : "translateY(0)",
-        transition: "border-color 0.2s, box-shadow 0.25s, transform 0.18s",
+        borderRadius: 24,
+        border: "1px solid rgba(255,255,255,0.08)",
+        background: "linear-gradient(180deg,rgba(17,18,25,0.98),rgba(12,13,19,0.98))",
+        overflow: "hidden",
       }}
     >
-      {/* Top accent */}
-      <div style={{ height: connected ? 2 : 1, background: connected ? `linear-gradient(90deg, transparent, rgba(${rgb},0.6), transparent)` : "rgba(255,255,255,0.04)" }} />
-
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 13, flexShrink: 0,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 10, fontWeight: 800, color,
-            background: `rgba(${rgb},0.1)`,
-            border: `1px solid rgba(${rgb},0.15)`,
-            letterSpacing: "0.03em",
-            boxShadow: hov ? `0 0 10px rgba(${rgb},0.2)` : "none",
-            transition: "box-shadow 0.2s",
-          }}>
-            {label.slice(0, 2).toUpperCase()}
+      {/* ── Collapsed row ── */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 20, padding: "20px 22px",
+      }}>
+        {/* Left: badges + name + sub */}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <span style={{
+              display: "inline-flex", borderRadius: 9999,
+              border: `1px solid ${netTone.border}`,
+              padding: "3px 12px", fontSize: 10, textTransform: "uppercase",
+              letterSpacing: "0.22em", background: netTone.bg, color: netTone.text,
+            }}>
+              {label}
+            </span>
+            <span style={{
+              display: "inline-flex", borderRadius: 9999,
+              border: `1px solid ${statusTone.border}`,
+              padding: "3px 12px", fontSize: 10, textTransform: "uppercase",
+              letterSpacing: "0.22em", background: statusTone.bg, color: statusTone.text,
+            }}>
+              {statusLabel}
+            </span>
           </div>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: "#F5F5F7", margin: 0 }}>{label}</p>
-            <p style={{ fontSize: 12, color: "#3F3F46", marginTop: 2 }}>{description}</p>
+          <div style={{ fontSize: 22, fontWeight: 200, letterSpacing: "-0.04em", color: "rgba(255,255,255,0.92)" }}>
+            {label} connection
+          </div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.36)", marginTop: 6 }}>
+            {statusSub}
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {connected && (
-            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 280 }}
-              style={{ display: "flex", alignItems: "center", gap: 5, padding: "5px 11px", borderRadius: 99, background: "rgba(0,255,135,0.08)", color: "#00FF87", fontSize: 11, fontWeight: 600, border: "1px solid rgba(0,255,135,0.15)" }}>
-              <CheckCircle size={10} strokeWidth={2} style={{ filter: "drop-shadow(0 0 3px rgba(0,255,135,0.5))" }} /> Connecté
-            </motion.div>
+        {/* Right: action buttons */}
+        <div style={{ display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>
+          {!editing && (
+            <>
+              <SmallBtn onClick={openEdit} disabled={isPending}>
+                {connected ? "Edit" : "Configure"}
+              </SmallBtn>
+              {connected && (
+                <SmallBtn onClick={handleDisconnect} danger disabled={isPending}>
+                  {isPending ? "…" : "Disconnect"}
+                </SmallBtn>
+              )}
+              {/* Expand chevron */}
+              <button
+                onClick={() => setEditing(v => !v)}
+                style={{
+                  width: 34, height: 34, borderRadius: 10,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(255,255,255,0.03)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", color: "rgba(255,255,255,0.36)",
+                  transition: "transform 0.2s",
+                }}
+              >
+                <ChevronDown size={14} strokeWidth={1.4} />
+              </button>
+            </>
           )}
-          <motion.button
-            whileHover={{ y: -1 }} whileTap={{ scale: 0.96 }}
-            onClick={() => setExpanded(v => !v)}
-            style={{
-              padding: "6px 14px", borderRadius: 99,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(255,255,255,0.04)", color: "#52525B",
-              fontSize: 12, fontWeight: 500, cursor: "pointer",
-              transition: "all 0.15s",
-            }}
-          >
-            {expanded ? "Replier" : connected ? "Modifier" : "Configurer"}
-          </motion.button>
+          {editing && (
+            <SmallBtn onClick={cancelEdit}>Cancel</SmallBtn>
+          )}
         </div>
       </div>
 
-      {/* Expandable form */}
-      <AnimatePresence initial={false}>
-        {expanded && (
+      {/* ── Feedback banner ── */}
+      <AnimatePresence>
+        {feedback && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            style={{ overflow: "hidden" }}
+          >
+            <div style={{
+              margin: "0 22px 16px",
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "10px 14px", borderRadius: 14, fontSize: 12,
+              background: feedback.type === "success" ? "rgba(74,222,128,0.07)" : "rgba(248,113,113,0.07)",
+              color: feedback.type === "success" ? "#6b9e82" : "#a07070",
+              border: `1px solid ${feedback.type === "success" ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)"}`,
+            }}>
+              {isSyncing ? (
+                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}>
+                  <Loader size={11} strokeWidth={1.3} />
+                </motion.div>
+              ) : feedback.type === "success" ? (
+                <CheckCircle size={11} strokeWidth={1.3} />
+              ) : (
+                <AlertCircle size={11} strokeWidth={1.3} />
+              )}
+              <span style={{ flex: 1 }}>{feedback.msg}</span>
+              {feedback.synced && !isSyncing && (
+                <button
+                  onClick={() => router.push("/dashboard")}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 4,
+                    padding: "3px 8px", borderRadius: 7, border: "none",
+                    background: "rgba(74,222,128,0.15)", color: "#6b9e82",
+                    fontSize: 11, fontWeight: 600, cursor: "pointer", flexShrink: 0,
+                  }}
+                >
+                  Dashboard <ArrowRight size={10} strokeWidth={1.4} />
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Expandable form ── */}
+      <AnimatePresence>
+        {editing && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-            style={{ overflow: "hidden", borderTop: "1px solid rgba(255,255,255,0.04)" }}
+            style={{ overflow: "hidden" }}
           >
-            <form onSubmit={handleSave} style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 14 }}>
-
-              {[
-                { name: "apiKey",    label: keyLabel    ?? "API Key",    Icon: Key,  show: true      },
-                { name: "apiSecret", label: secretLabel ?? "API Secret", Icon: Lock, show: hasSecret },
-              ].filter(f => f.show).map(({ name, label: lbl, Icon }) => (
-                <div key={name} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "#3F3F46" }}>
-                    {lbl}
+            <div style={{
+              padding: "0 22px 22px",
+              borderTop: "1px solid rgba(255,255,255,0.06)",
+              paddingTop: 20,
+            }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* API Key field */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(255,255,255,0.30)" }}>
+                    {keyLabel ?? "API Key"}
                   </label>
                   <div style={{ position: "relative" }}>
-                    <Icon size={11} strokeWidth={1.5} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#3F3F46", pointerEvents: "none" }} />
+                    <Key size={11} strokeWidth={1.3} style={{
+                      position: "absolute", left: 12, top: "50%",
+                      transform: "translateY(-50%)", color: "#52525b", pointerEvents: "none",
+                    }} />
                     <input
-                      type="text" name={name}
-                      required={name === "apiKey"}
+                      ref={inputRef}
+                      type="text"
+                      value={apiKey}
+                      onChange={e => setApiKey(e.target.value)}
                       autoComplete="off"
                       placeholder="••••••••••••••••"
-                      style={{
-                        width: "100%", paddingLeft: 38, paddingRight: 16, paddingTop: 12, paddingBottom: 12,
-                        borderRadius: 12, fontSize: 13, fontFamily: "monospace", outline: "none",
-                        background: "#1A1A1C", border: `1.5px solid rgba(255,255,255,0.06)`,
-                        color: "#E4E4E7", transition: "border-color 0.2s, background 0.2s, box-shadow 0.2s",
-                        boxSizing: "border-box" as const,
-                      }}
-                      onFocus={e => { e.currentTarget.style.borderColor = `rgba(${rgb},0.5)`; e.currentTarget.style.background = "#111113"; e.currentTarget.style.boxShadow = `0 0 0 3px rgba(${rgb},0.08)`; }}
-                      onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; e.currentTarget.style.background = "#1A1A1C"; e.currentTarget.style.boxShadow = "none"; }}
+                      style={INPUT}
+                      onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.16)"; e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
                     />
                   </div>
                 </div>
-              ))}
 
-              <AnimatePresence>
-                {feedback && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                {/* Secret field (optional) */}
+                {hasSecret && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <label style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(255,255,255,0.30)" }}>
+                      {secretLabel ?? "API Secret"}
+                    </label>
+                    <div style={{ position: "relative" }}>
+                      <Lock size={11} strokeWidth={1.3} style={{
+                        position: "absolute", left: 12, top: "50%",
+                        transform: "translateY(-50%)", color: "#52525b", pointerEvents: "none",
+                      }} />
+                      <input
+                        type="text"
+                        value={apiSecret}
+                        onChange={e => setApiSecret(e.target.value)}
+                        autoComplete="off"
+                        placeholder="••••••••••••••••"
+                        style={INPUT}
+                        onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.16)"; e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+                        onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Save button */}
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={handleSave}
+                    disabled={isPending || !apiKey.trim()}
                     style={{
-                      display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 12, fontSize: 13,
-                      background: feedback.type === "success" ? "rgba(0,255,135,0.08)"  : "rgba(255,69,58,0.08)",
-                      color:      feedback.type === "success" ? "#00FF87" : "#FF453A",
-                      border: `1px solid ${feedback.type === "success" ? "rgba(0,255,135,0.15)" : "rgba(255,69,58,0.15)"}`,
+                      borderRadius: 16, border: "none",
+                      background: "linear-gradient(90deg,#ec4899,#8b5cf6,#6366f1)",
+                      color: "#fff", padding: "10px 24px",
+                      fontSize: 13, fontWeight: 600,
+                      cursor: isPending || !apiKey.trim() ? "not-allowed" : "pointer",
+                      opacity: isPending || !apiKey.trim() ? 0.5 : 1,
+                      boxShadow: "0 8px 24px rgba(139,92,246,0.30)",
+                      display: "flex", alignItems: "center", gap: 8,
+                      transition: "opacity 0.2s",
                     }}
                   >
-                    {feedback.type === "success" ? <CheckCircle size={11} strokeWidth={1.5} /> : <AlertCircle size={11} strokeWidth={1.5} />}
-                    {feedback.msg}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <div style={{ display: "flex", gap: 8 }}>
-                <motion.button
-                  type="submit" disabled={isPending}
-                  whileHover={!isPending ? { y: -1, boxShadow: `0 4px 14px rgba(${rgb},0.3)` } : {}}
-                  whileTap={!isPending ? { scale: 0.97 } : {}}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 6,
-                    padding: "11px 20px", borderRadius: 12, border: "none",
-                    background: color, color: color === "#00FF87" ? "#000000" : "#FFFFFF",
-                    fontSize: 13, fontWeight: 700,
-                    cursor: isPending ? "not-allowed" : "pointer",
-                    opacity: isPending ? 0.6 : 1,
-                    boxShadow: `0 2px 10px rgba(${rgb},0.35)`,
-                    transition: "box-shadow 0.15s",
-                  }}
-                >
-                  {isPending
-                    ? <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.7, ease: "linear" }}><Loader size={11} strokeWidth={1.5} /></motion.div>
-                    : "Sauvegarder"
-                  }
-                </motion.button>
-
-                {connected && (
-                  <motion.button
-                    type="button" disabled={isPending} onClick={handleDisconnect}
-                    whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 6,
-                      padding: "11px 16px", borderRadius: 12,
-                      border: "1px solid rgba(255,69,58,0.15)",
-                      background: "rgba(255,69,58,0.08)", color: "#FF453A",
-                      fontSize: 13, fontWeight: 500, cursor: isPending ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    <Unplug size={11} strokeWidth={1.5} /> Déconnecter
-                  </motion.button>
-                )}
+                    {isPending ? (
+                      <>
+                        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.7, ease: "linear" }}>
+                          <Loader size={12} strokeWidth={1.3} />
+                        </motion.div>
+                        Saving…
+                      </>
+                    ) : (
+                      "Save credentials"
+                    )}
+                  </button>
+                </div>
               </div>
-            </form>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

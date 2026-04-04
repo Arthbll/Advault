@@ -10,6 +10,7 @@ export async function GET() {
   const settings = await prisma.userSettings.findUnique({ where: { userId: user.id } });
   return NextResponse.json(settings ?? {
     killSwitchEnabled:    false,
+    spendOnlyMode:        false,
     roiThreshold:         -50,
     maxSpendPerCampaign:  null,
     checkIntervalMinutes: 30,
@@ -23,11 +24,14 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json() as {
     killSwitchEnabled?:    boolean;
+    spendOnlyMode?:        boolean;
     roiThreshold?:         number;
     maxSpendPerCampaign?:  number | null;
     checkIntervalMinutes?: number;
   };
 
+  // spendOnlyMode : utilise $executeRaw pour compatibilité avant prisma generate
+  // (le champ est dans le schema mais pas encore dans les types générés)
   const settings = await prisma.userSettings.upsert({
     where:  { userId: user.id },
     create: {
@@ -36,6 +40,7 @@ export async function POST(req: NextRequest) {
       roiThreshold:         body.roiThreshold         ?? -50,
       maxSpendPerCampaign:  body.maxSpendPerCampaign  ?? null,
       checkIntervalMinutes: body.checkIntervalMinutes ?? 30,
+      // spendOnlyMode est géré par un patch séparé ci-dessous
     },
     update: {
       killSwitchEnabled:    body.killSwitchEnabled    ?? undefined,
@@ -45,5 +50,14 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ ok: true, settings });
+  // Patch spendOnlyMode via SQL brut (avant que prisma generate soit relancé)
+  if (body.spendOnlyMode !== undefined) {
+    await prisma.$executeRaw`
+      UPDATE "UserSettings"
+      SET    "spendOnlyMode" = ${body.spendOnlyMode}
+      WHERE  "userId" = ${user.id}
+    `;
+  }
+
+  return NextResponse.json({ ok: true, settings: { ...settings, spendOnlyMode: body.spendOnlyMode ?? false } });
 }

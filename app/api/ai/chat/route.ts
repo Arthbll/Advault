@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return new Response("Non authentifié", { status: 401 });
+    return new Response("Unauthorized", { status: 401 });
   }
 
   const { messages } = await req.json();
@@ -27,26 +27,26 @@ export async function POST(req: NextRequest) {
   const roi          = totalSpend > 0 ? (profit / totalSpend) * 100 : 0;
 
   const systemPrompt = [
-    "Tu es un expert en publicité adulte et optimisation de campagnes ad network.",
-    "L'utilisateur gère des campagnes sur ExoClick, TrafficStars et TrafficJunky via AdVault.",
+    "You are an expert in ad network campaign optimisation.",
+    "The user manages campaigns on ExoClick, TrafficStars and TrafficJunky via ProfitDash.",
     "",
-    "DONNÉES ACTUELLES :",
-    `- Dépenses totales : $${totalSpend.toFixed(2)}`,
-    `- Revenus totaux   : $${totalRevenue.toFixed(2)}`,
-    `- Profit net       : $${profit.toFixed(2)}`,
-    `- ROI global       : ${roi.toFixed(1)}%`,
-    `- Campagnes actives : ${campaigns.filter(c => c.status === "ACTIVE").length}`,
+    "CURRENT DATA:",
+    `- Total spend   : $${totalSpend.toFixed(2)}`,
+    `- Total revenue : $${totalRevenue.toFixed(2)}`,
+    `- Net profit    : $${profit.toFixed(2)}`,
+    `- Overall ROI   : ${roi.toFixed(1)}%`,
+    `- Active campaigns: ${campaigns.filter(c => c.status === "ACTIVE").length}`,
     "",
-    "DÉTAIL PAR CAMPAGNE :",
+    "CAMPAIGN BREAKDOWN:",
     ...campaigns.map(c => {
       const spend   = Number(c.spend);
       const revenue = Number(c.revenue);
       const cRoi = spend > 0 ? ((revenue - spend) / spend * 100).toFixed(1) : "0";
       const ctr  = c.impressions > 0 ? (c.clicks / c.impressions * 100).toFixed(2) : "0";
-      return `• ${c.name} [${c.network}] [${c.status}] — $${spend.toFixed(2)} dép | $${revenue.toFixed(2)} rev | ROI: ${cRoi}% | CTR: ${ctr}%`;
+      return `• ${c.name} [${c.network}] [${c.status}] — $${spend.toFixed(2)} spend | $${revenue.toFixed(2)} rev | ROI: ${cRoi}% | CTR: ${ctr}%`;
     }),
     "",
-    "Réponds en français, de façon concise et actionnable.",
+    "Reply in English, concisely and with actionable recommendations.",
   ].join("\n");
 
   const encoder = new TextEncoder();

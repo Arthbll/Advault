@@ -28,7 +28,7 @@ async function tryFetch(label: string, url: string, init: RequestInit) {
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const account = await prisma.account.findFirst({
     where: { userId: user.id, network: Network.EXOCLICK, isActive: true },
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
         "Content-Type": "application/json",
         Accept: "application/json",
         Authorization: `Bearer ${apiToken}`,
-        "User-Agent": "Mozilla/5.0 (compatible; AdVault/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; ProfitDash/1.0)",
       },
     }),
     // Méthode F : query param directement sur /campaigns

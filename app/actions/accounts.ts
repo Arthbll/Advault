@@ -10,14 +10,14 @@ import { Network } from "@prisma/client";
 export async function saveAccount(formData: FormData) {
   const supabase = await createClient();
   const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return { error: "Non authentifié." };
+  if (authErr || !user) return { error: "Not authenticated." };
 
   const network   = formData.get("network")   as Network;
   const apiKey    = formData.get("apiKey")    as string;
   const apiSecret = formData.get("apiSecret") as string | null;
 
   if (!network || !apiKey?.trim()) {
-    return { error: "La clé API est requise." };
+    return { error: "API key is required." };
   }
 
   // Ensure shadow User row exists (mirrors Supabase auth.users)
@@ -49,14 +49,14 @@ export async function saveAccount(formData: FormData) {
 
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/vault");
-  return { success: `${network} connecté avec succès.` };
+  return { success: `${network} connected successfully.` };
 }
 
 /** Disconnect (deactivate) a network account */
 export async function disconnectAccount(network: Network) {
   const supabase = await createClient();
   const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) return { error: "Non authentifié." };
+  if (authErr || !user) return { error: "Not authenticated." };
 
   await prisma.account.updateMany({
     where:  { userId: user.id, network },
@@ -65,5 +65,5 @@ export async function disconnectAccount(network: Network) {
 
   revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard/vault");
-  return { success: `${network} déconnecté.` };
+  return { success: `${network} disconnected.` };
 }

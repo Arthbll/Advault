@@ -94,7 +94,7 @@ export default function DateRangePicker({ value, onChange }: Props) {
 
           {/* Custom range */}
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: "#3f3f46" }}>Personnalisé</p>
+            <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: "#3f3f46" }}>Custom</p>
             <div className="flex items-center gap-2">
               <input
                 type="date"

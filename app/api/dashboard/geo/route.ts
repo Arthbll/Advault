@@ -3,11 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
 import { Network } from "@prisma/client";
+import { cookies } from "next/headers";
+import { resolveWorkspaceUserId } from "@/lib/workspace";
 
 // ─── Country coordinates (SVG viewBox 0 0 1000 500) ──────────────────────────
 const COUNTRY_COORDS: Record<string, { x: number; y: number; label: string }> = {
   US: { x: 210, y: 165, label: "USA" },        CA: { x: 195, y: 130, label: "Canada" },
-  MX: { x: 215, y: 235, label: "Mexico" },     BR: { x: 293, y: 318, label: "Brazil" },
+  MX: { x: 215, y: 235, label: "Mexico" },     BR: { x: 355, y: 300, label: "Brazil" },
   AR: { x: 273, y: 388, label: "Argentina" },  CO: { x: 255, y: 280, label: "Colombia" },
   GB: { x: 468, y: 132, label: "UK" },         FR: { x: 487, y: 148, label: "France" },
   DE: { x: 503, y: 138, label: "Germany" },    ES: { x: 475, y: 165, label: "Spain" },
@@ -63,10 +65,20 @@ async function getSessionToken(apiToken: string): Promise<string> {
   return token;
 }
 
+// Hardcoded targeting for fake seed campaigns (bypasses ExoClick API)
+const FAKE_TARGETING: Record<string, string[]> = {
+  "fake-001": ["US"],
+  "fake-002": ["BR", "MX"],
+  "fake-003": ["DE", "FR"],
+  "fake-004": ["IN", "PH"],
+  "fake-005": ["US", "CA", "GB"],
+};
+
 async function getCampaignCountries(
   campaignId: string,
   bearer: string
 ): Promise<string[]> {
+  if (FAKE_TARGETING[campaignId]) return FAKE_TARGETING[campaignId];
   try {
     const res = await fetch(`${BASE}/campaigns/${campaignId}`, {
       headers: {
@@ -97,15 +109,46 @@ export async function GET(req: NextRequest) {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = new URL(req.url);
-  const dateFrom = searchParams.get("dateFrom") ?? new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-  const dateTo   = searchParams.get("dateTo")   ?? new Date().toISOString().slice(0, 10);
+  const userId = await resolveWorkspaceUserId(user.id);
 
-  // Get synced ExoClick campaigns from DB for the date range
+  const { searchParams } = new URL(req.url);
+  const dateFrom    = searchParams.get("dateFrom") ?? new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+  const dateTo      = searchParams.get("dateTo")   ?? new Date().toISOString().slice(0, 10);
+  const networkParam = searchParams.get("network") ?? "ALL"; // "ALL" | "EXOCLICK" | "TRAFFICSTARS"
+
+  // ── Mode démo ─────────────────────────────────────────────────────────────
+  const cookieStore = await cookies();
+  if (cookieStore.get("profitdash_demo")?.value === "1") {
+    const demoDots = [
+      { countryCode: "US", label: "USA",         x: 210, y: 165, impr: 1_240_000, spend: 4200 },
+      { countryCode: "DE", label: "Germany",     x: 503, y: 138, impr:   980_000, spend: 3100 },
+      { countryCode: "FR", label: "France",      x: 487, y: 148, impr:   740_000, spend: 2400 },
+      { countryCode: "GB", label: "UK",          x: 468, y: 132, impr:   620_000, spend: 1900 },
+      { countryCode: "BR", label: "Brazil",      x: 355, y: 300, impr:   510_000, spend: 1400 },
+      { countryCode: "AU", label: "Australia",   x: 882, y: 355, impr:   380_000, spend: 980  },
+      { countryCode: "JP", label: "Japan",       x: 895, y: 170, impr:   310_000, spend: 870  },
+      { countryCode: "ES", label: "Spain",       x: 475, y: 165, impr:   270_000, spend: 720  },
+    ];
+    const maxImpr = Math.max(...demoDots.map(d => d.impr));
+    return NextResponse.json({
+      dots: demoDots.map(d => ({
+        countryCode: d.countryCode,
+        label:       d.label,
+        x:           d.x,
+        y:           d.y,
+        impressions: d.impr.toLocaleString("en-GB"),
+        clicks:      "—",
+        spent:       d.spend.toFixed(2),
+        size:        3 + (d.impr / maxImpr) * 3,
+      })),
+    });
+  }
+
+  // Get synced campaigns from DB for the date range
   const allRows = await prisma.campaign.findMany({
     where: {
-      userId:   user.id,
-      network:  Network.EXOCLICK,
+      userId:   userId,
+      ...(networkParam !== "ALL" ? { network: networkParam as Network } : {}),
       dateFrom: { gte: new Date(dateFrom) },
       dateTo:   { lte: new Date(dateTo + "T23:59:59Z") },
     },
@@ -137,15 +180,14 @@ export async function GET(req: NextRequest) {
 
   // Find ExoClick account to get bearer token
   const account = await prisma.account.findFirst({
-    where: { userId: user.id, network: Network.EXOCLICK, isActive: true },
+    where: { userId: userId, network: Network.EXOCLICK, isActive: true },
   });
-  if (!account) return NextResponse.json({ dots: [] });
-
+  // Bearer token needed only for real campaigns — fake campaigns use FAKE_TARGETING
   let bearer = "";
   try {
-    bearer = await getSessionToken(decrypt(account.apiKeyEnc));
+    if (account) bearer = await getSessionToken(decrypt(account.apiKeyEnc));
   } catch {
-    return NextResponse.json({ dots: [] });
+    // Login failed (e.g. network blocked) — fake campaigns still work without bearer
   }
 
   // Fetch targeting for top 10 campaigns by impressions (limit API calls)
@@ -190,7 +232,7 @@ export async function GET(req: NextRequest) {
         countryCode: code,
         x:           coords.x,
         y:           coords.y,
-        impressions: Math.round(imps).toLocaleString("fr-FR"),
+        impressions: Math.round(imps).toLocaleString("en-GB"),
         clicks:      "—",
         spent:       (countrySpend.get(code) ?? 0).toFixed(2),
         size,
