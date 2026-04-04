@@ -5,9 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, RefreshCw } from "lucide-react";
 import {
   AreaChart, Area, XAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Cell,
 } from "recharts";
 import WorldMap from "./WorldMap";
+import AlertBanner, { AlertCampaign } from "./AlertBanner";
+import { CampaignRow } from "./CampaignsPnL";
 
 // ─── Geo types ────────────────────────────────────────────────────────────────
 
@@ -28,30 +29,31 @@ function countryFlag(code: string): string {
 
 interface Totals {
   totalSpend: number; totalRevenue: number; totalProfit: number; roi: number;
-  totalImps: number; totalClicks: number; totalConvs: number; ctr: number;
+  totalImps: number; totalClicks: number; totalConvs: number; ctr: number; ctrNoPop: number;
 }
-interface NetworkRow { network: string; spend: number; revenue: number; profit: number; roi: number; campaigns: number; impressions?: number; }
-interface ChartPoint  { date: string; spend: number; revenue: number; profit: number; }
+interface NetworkRow {
+  network: string; spend: number; revenue: number; profit: number; roi: number;
+  campaigns: number; impressions?: number;
+}
+interface ChartPoint { date: string; spend: number; revenue: number; profit: number; }
 
 interface DashboardData {
   totals: Totals;
   chartData: ChartPoint[];
   networkBreakdown: NetworkRow[];
   activeCampaigns: number;
+  alerts: AlertCampaign[];
+  topCampaigns: CampaignRow[];
+  trend: number | null;
 }
 
 interface Props extends DashboardData {
-  /* formatted strings from server (initial render) */
   profitLabel: string; roiLabel: string; spendLabel: string;
   convLabel: string; spendSub: string; convSub: string;
-  /* extra props from page (unused in this component, accepted for compatibility) */
-  alerts?: any[];
-  topCampaigns?: any[];
-  trend?: number | null;
   needsSync?: boolean;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Design tokens ────────────────────────────────────────────────────────────
 
 const NET_META: Record<string, { label: string; color: string }> = {
   EXOCLICK:     { label: "ExoClick",     color: "#f59e0b" },
@@ -61,31 +63,32 @@ const NET_META: Record<string, { label: string; color: string }> = {
   BEMOB:        { label: "Bemob",        color: "#f43f5e" },
 };
 
+const BASE_SHADOW = "0 1px 0 rgba(255,255,255,0.055) inset, 0 -1px 0 rgba(0,0,0,0.25) inset, 0 16px 40px rgba(0,0,0,0.22)";
+
 const CARD: React.CSSProperties = {
-  background: "#17171e",
-  border: "1px solid rgba(255,255,255,0.07)",
-  borderRadius: 18,
-  overflow: "hidden",
+  background: "rgba(255,255,255,0.028)",
+  border: "1px solid rgba(255,255,255,0.058)",
+  borderRadius: 20,
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  boxShadow: BASE_SHADOW,
 };
 
-const BAR_COLORS = ["#8b5cf6", "#fbbf24", "#0ea5e9", "#10b981", "#f59e0b"];
+const LABEL: React.CSSProperties = {
+  fontSize: 10, fontWeight: 500,
+  textTransform: "uppercase", letterSpacing: "0.11em",
+  color: "rgba(255,255,255,0.22)",
+  margin: 0,
+};
 
 // ─── Typography helpers ───────────────────────────────────────────────────────
 
-/** Section label — tiny uppercase */
-const LABEL: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600,
-  textTransform: "uppercase", letterSpacing: "0.12em",
-  color: "#3f3f46",
-};
-
-/** Big metric number */
-function BigNum({ value, color = "rgba(255,255,255,0.92)", size = 38 }: {
+function BigNum({ value, color = "rgba(255,255,255,0.9)", size = 38 }: {
   value: string | number; color?: string; size?: number;
 }) {
   return (
     <span style={{
-      fontSize: size, fontWeight: 200,
+      fontSize: size, fontWeight: 100,
       letterSpacing: "-0.04em", lineHeight: 1,
       color, display: "block",
     }}>
@@ -94,20 +97,29 @@ function BigNum({ value, color = "rgba(255,255,255,0.92)", size = 38 }: {
   );
 }
 
-/** Zero-aware display — shows "—" at low opacity when value is 0 */
+function MoneyNum({ value, color, size = 28 }: { value: number; color: string; size?: number }) {
+  if (value === 0) return <BigNum value="—" color="rgba(255,255,255,0.1)" size={size} />;
+  const sign = value < 0 ? "−" : "";
+  const abs = Math.abs(value);
+  const formatted = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(abs);
+  return (
+    <span style={{ fontSize: size, fontWeight: 100, letterSpacing: "-0.04em", lineHeight: 1, color, display: "block" }}>
+      {sign && <span style={{ opacity: 0.45 }}>{sign}</span>}
+      <span style={{ opacity: 0.18 }}>€</span>
+      {formatted}
+    </span>
+  );
+}
+
 function zeroFmt(n: number, fmt: (n: number) => string): string {
   return n === 0 ? "—" : fmt(n);
 }
 function zeroColor(n: number, activeColor: string): string {
-  return n === 0 ? "rgba(255,255,255,0.18)" : activeColor;
+  return n === 0 ? "rgba(255,255,255,0.1)" : activeColor;
 }
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
 
-function fmtEuro(n: number) {
-  if (n === 0) return "—";
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
-}
 function fmtPct(n: number) {
   if (n === 0) return "—";
   return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
@@ -121,7 +133,7 @@ function fmtBig(n: number) {
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
-function isoToday()   { return new Date().toISOString().slice(0, 10); }
+function isoToday() { return new Date().toISOString().slice(0, 10); }
 function daysAgo(n: number) {
   const d = new Date(); d.setDate(d.getDate() - n);
   return d.toISOString().slice(0, 10);
@@ -134,10 +146,10 @@ function firstOfMonth() {
 interface DateRange { from: string; to: string; label: string; }
 
 const PRESETS: DateRange[] = [
-  { from: isoToday(),      to: isoToday(),      label: "Auj."  },
-  { from: daysAgo(7),      to: isoToday(),      label: "7J"    },
-  { from: daysAgo(30),     to: isoToday(),      label: "30J"   },
-  { from: firstOfMonth(),  to: isoToday(),      label: "Mois"  },
+  { from: isoToday(),     to: isoToday(),  label: "Auj." },
+  { from: daysAgo(7),     to: isoToday(),  label: "7J"   },
+  { from: daysAgo(30),    to: isoToday(),  label: "30J"  },
+  { from: firstOfMonth(), to: isoToday(),  label: "Mois" },
 ];
 
 // ─── Date Range Selector ──────────────────────────────────────────────────────
@@ -153,48 +165,48 @@ function DateSelector({ range, onChange, loading }: {
 
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 4 }}>
-      {/* Preset pills */}
-      {PRESETS.map(p => (
-        <button
-          key={p.label}
-          onClick={() => { onChange(p); setCustomOpen(false); }}
-          style={{
-            padding: "6px 14px", borderRadius: 99, fontSize: 12, cursor: "pointer",
-            fontWeight: range.label === p.label ? 600 : 400,
-            background: range.label === p.label ? "#ffffff" : "transparent",
-            color:      range.label === p.label ? "#000000" : "rgba(113,113,122,0.9)",
-            border:     range.label === p.label ? "none"    : "1px solid rgba(255,255,255,0.08)",
-            transition: "all 0.15s",
-          }}
-        >
-          {p.label}
-        </button>
-      ))}
+      {PRESETS.map(p => {
+        const active = range.label === p.label;
+        return (
+          <button
+            key={p.label}
+            onClick={() => { onChange(p); setCustomOpen(false); }}
+            style={{
+              padding: "6px 14px", borderRadius: 99, fontSize: 12, cursor: "pointer",
+              fontWeight: active ? 600 : 400,
+              background: active ? "rgba(255,255,255,0.88)" : "transparent",
+              color:      active ? "#0a0a0f" : "rgba(255,255,255,0.28)",
+              border:     active ? "none" : "1px solid rgba(255,255,255,0.07)",
+              transition: "all 0.15s",
+            }}
+          >
+            {p.label}
+          </button>
+        );
+      })}
 
-      {/* Custom button */}
       <button
         onClick={() => setCustomOpen(v => !v)}
         style={{
           display: "flex", alignItems: "center", gap: 6,
           padding: "6px 14px", borderRadius: 99, fontSize: 12, cursor: "pointer",
           fontWeight: range.label === "Custom" ? 600 : 400,
-          background: range.label === "Custom" ? "#ffffff" : "rgba(255,255,255,0.04)",
-          color:      range.label === "Custom" ? "#000000" : "rgba(113,113,122,0.9)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          background: range.label === "Custom" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.04)",
+          color:      range.label === "Custom" ? "#0a0a0f" : "rgba(255,255,255,0.28)",
+          border: "1px solid rgba(255,255,255,0.07)",
+          transition: "all 0.15s",
         }}
       >
         <Calendar size={11} />
         {range.label === "Custom" ? `${range.from} → ${range.to}` : "Custom"}
       </button>
 
-      {/* Loading spinner */}
       {loading && (
         <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-          <RefreshCw size={13} color="#52525b" />
+          <RefreshCw size={13} color="rgba(255,255,255,0.18)" />
         </motion.div>
       )}
 
-      {/* Custom dropdown */}
       <AnimatePresence>
         {customOpen && (
           <motion.div
@@ -204,11 +216,10 @@ function DateSelector({ range, onChange, loading }: {
             transition={{ duration: 0.18 }}
             style={{
               position: "absolute", top: "calc(100% + 10px)", right: 0, zIndex: 100,
-              background: "#1a1a22",
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 16,
-              padding: "16px",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.7)",
+              background: "#111118",
+              border: "1px solid rgba(255,255,255,0.09)",
+              borderRadius: 16, padding: "16px",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.8)",
               minWidth: 260,
             }}
           >
@@ -216,17 +227,17 @@ function DateSelector({ range, onChange, loading }: {
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
               <input type="date" value={customFrom} max={customTo}
                 onChange={e => setCustomFrom(e.target.value)}
-                style={{ flex: 1, padding: "8px 10px", borderRadius: 10, fontSize: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", colorScheme: "dark", outline: "none" }}
+                style={{ flex: 1, padding: "8px 10px", borderRadius: 10, fontSize: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", color: "#fff", colorScheme: "dark", outline: "none" }}
               />
-              <span style={{ color: "#3f3f46", fontSize: 12 }}>→</span>
+              <span style={{ color: "rgba(255,255,255,0.15)", fontSize: 12 }}>→</span>
               <input type="date" value={customTo} min={customFrom} max={isoToday()}
                 onChange={e => setCustomTo(e.target.value)}
-                style={{ flex: 1, padding: "8px 10px", borderRadius: 10, fontSize: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", colorScheme: "dark", outline: "none" }}
+                style={{ flex: 1, padding: "8px 10px", borderRadius: 10, fontSize: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", color: "#fff", colorScheme: "dark", outline: "none" }}
               />
             </div>
             <button
               onClick={() => { onChange({ from: customFrom, to: customTo, label: "Custom" }); setCustomOpen(false); }}
-              style={{ width: "100%", padding: "9px", borderRadius: 10, fontSize: 12, fontWeight: 600, background: "rgba(139,92,246,0.15)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.2)", cursor: "pointer" }}
+              style={{ width: "100%", padding: "9px", borderRadius: 10, fontSize: 12, fontWeight: 600, background: "rgba(139,92,246,0.1)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.16)", cursor: "pointer" }}
             >
               Appliquer
             </button>
@@ -237,37 +248,66 @@ function DateSelector({ range, onChange, loading }: {
   );
 }
 
-// ─── Stagger ─────────────────────────────────────────────────────────────────
+// ─── Stagger helper ───────────────────────────────────────────────────────────
 
 function s(i: number) {
-  return { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.45, delay: i * 0.07 } };
+  return {
+    initial: { opacity: 0, y: 18 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.52, delay: i * 0.065, ease: [0.25, 0.46, 0.45, 0.94] as const },
+  };
+}
+
+// ─── Stat pill (Row 2) ────────────────────────────────────────────────────────
+
+function StatPill({ label, children, glow, delay }: {
+  label: string; children: React.ReactNode; glow?: string; delay: number;
+}) {
+  return (
+    <motion.div
+      {...s(delay)}
+      whileHover={{ y: -2, boxShadow: `${BASE_SHADOW}, 0 0 0 1px rgba(255,255,255,0.09)` }}
+      style={{
+        ...CARD,
+        padding: "20px 22px",
+        ...(glow ? { boxShadow: `${BASE_SHADOW}, ${glow}` } : {}),
+        transition: "box-shadow 0.2s ease",
+      }}
+    >
+      <p style={{ ...LABEL, marginBottom: 10 }}>{label}</p>
+      {children}
+    </motion.div>
+  );
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function BentoDashboard(props: Props) {
   const [dateRange, setDateRange] = useState<DateRange>({ from: daysAgo(30), to: isoToday(), label: "30J" });
-  const [data, setData]           = useState<DashboardData>({
+  const [data, setData] = useState<DashboardData>({
     totals:           props.totals,
     chartData:        props.chartData,
     networkBreakdown: props.networkBreakdown,
     activeCampaigns:  props.activeCampaigns,
+    alerts:           props.alerts,
+    topCampaigns:     props.topCampaigns,
+    trend:            props.trend,
   });
-  const [loading, setLoading] = useState(false);
-  const [geoDots, setGeoDots] = useState<GeoDot[]>([]);
+  const [loading, setLoading]     = useState(false);
+  const [geoDots, setGeoDots]     = useState<GeoDot[]>([]);
+  const [mapNetwork, setMapNetwork] = useState("ALL");
+  const [excludePop, setExcludePop] = useState(false);
 
-  const fetchGeo = useCallback(async (range: DateRange) => {
+  const fetchGeo = useCallback(async (range: DateRange, network = mapNetwork) => {
     try {
-      const res = await fetch(`/api/dashboard/geo?dateFrom=${range.from}&dateTo=${range.to}`);
+      const res = await fetch(`/api/dashboard/geo?dateFrom=${range.from}&dateTo=${range.to}&network=${network}`);
       if (!res.ok) return;
       const json = await res.json();
       if (json.dots?.length) {
-        setGeoDots(json.dots.map((d: GeoDot, i: number) => ({
-          ...d, delay: `${(i * 0.35).toFixed(1)}s`,
-        })));
+        setGeoDots(json.dots.map((d: GeoDot, i: number) => ({ ...d, delay: `${(i * 0.35).toFixed(1)}s` })));
       }
-    } catch { /* silently ignore */ }
-  }, []);
+    } catch { /* silent */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchData = useCallback(async (range: DateRange) => {
     setLoading(true);
@@ -282,29 +322,44 @@ export default function BentoDashboard(props: Props) {
     }
   }, [fetchGeo]);
 
-  // Initial geo fetch on mount
-  useEffect(() => { fetchGeo(dateRange); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchGeo(dateRange, mapNetwork); }, [mapNetwork]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchGeo(dateRange); }, []);               // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleDateChange(range: DateRange) {
     setDateRange(range);
     fetchData(range);
   }
 
-  const { totals, chartData, networkBreakdown, activeCampaigns } = data;
+  const { totals, chartData, networkBreakdown, activeCampaigns, alerts, trend } = data;
   const profitPos   = totals.totalProfit >= 0;
-  const profitColor = zeroColor(totals.totalProfit, profitPos ? "#4ade80" : "#f87171");
-  const revenueColor = zeroColor(totals.totalRevenue, "#a78bfa");
+  const profitColor = totals.totalProfit === 0
+    ? "rgba(255,255,255,0.1)"
+    : profitPos ? "#4ade80" : "#f87171";
+
+  // Dynamic glow that bleeds from the hero card
+  const heroGlow = totals.totalProfit === 0
+    ? ""
+    : profitPos
+      ? "0 0 140px rgba(74,222,128,0.055)"
+      : "0 0 140px rgba(248,113,113,0.07)";
+
+  const ctrVal = excludePop ? totals.ctrNoPop : totals.ctr;
 
   return (
-    <div style={{ padding: "18px 22px 48px", display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ padding: "22px 26px 64px", display: "flex", flexDirection: "column", gap: 10 }}>
 
-      {/* ── Title + Date Selector ──────────────────────────────────────────── */}
+      {/* ── Alert Banner ───────────────────────────────────────────────────── */}
+      {alerts.length > 0 && <AlertBanner initialAlerts={alerts} />}
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <motion.div {...s(0)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div>
           <p style={LABEL}>
-            {activeCampaigns > 0 ? `${activeCampaigns} campagne${activeCampaigns > 1 ? "s" : ""} actives` : "Aucune campagne active"}
+            {activeCampaigns > 0
+              ? `${activeCampaigns} campagne${activeCampaigns > 1 ? "s" : ""} actives`
+              : "Aucune campagne active"}
           </p>
-          <h1 style={{ fontSize: 26, fontWeight: 300, color: "rgba(255,255,255,0.92)", margin: "4px 0 0", letterSpacing: "-0.03em" }}>
+          <h1 style={{ fontSize: 23, fontWeight: 200, color: "rgba(255,255,255,0.82)", margin: "3px 0 0", letterSpacing: "-0.03em" }}>
             Overview
           </h1>
         </div>
@@ -312,300 +367,276 @@ export default function BentoDashboard(props: Props) {
       </motion.div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
-          ROW 1  —  3 colonnes
+          HERO — Profit + Chart (pleine largeur)
       ═══════════════════════════════════════════════════════════════════════ */}
-      <div style={{ display: "grid", gridTemplateColumns: "5fr 3fr 4fr", gap: 10 }}>
+      <motion.div
+        {...s(1)}
+        whileHover={{ boxShadow: `${BASE_SHADOW}, ${heroGlow}, 0 0 0 1px rgba(255,255,255,0.07)` }}
+        style={{
+          ...CARD,
+          boxShadow: `${BASE_SHADOW}${heroGlow ? `, ${heroGlow}` : ""}`,
+          display: "grid",
+          gridTemplateColumns: "300px 1fr",
+          overflow: "hidden",
+          minHeight: 220,
+        }}
+      >
+        {/* Left — big number */}
+        <div style={{
+          padding: "28px 30px",
+          display: "flex", flexDirection: "column", justifyContent: "space-between",
+          borderRight: "1px solid rgba(255,255,255,0.04)",
+        }}>
+          <div>
+            <p style={{ ...LABEL, marginBottom: 14 }}>Profit Net</p>
+            <MoneyNum value={totals.totalProfit} color={profitColor} size={54} />
 
-        {/* ── Card 1 : Profit Net chart ────────────────────────────────────── */}
-        <motion.div {...s(1)} style={{ ...CARD, padding: "18px 20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.85)" }}>Profit Net</span>
-            {/* Legend */}
-            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-              {[{ c: "#a78bfa", l: "Revenue" }, { c: profitColor, l: "Profit" }].map(({ c, l }) => (
-                <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <div style={{ width: 5, height: 5, borderRadius: "50%", background: c }} />
-                  <span style={{ fontSize: 10, color: "#52525b" }}>{l}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Big numbers */}
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 24, marginBottom: 16 }}>
-            <div>
-              <p style={{ ...LABEL, marginBottom: 5 }}>Profit</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <BigNum value={fmtEuro(totals.totalProfit)} color={profitColor} size={34} />
+            {/* ROI + Trend */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+              <span style={{
+                padding: "4px 11px", borderRadius: 99, fontSize: 11, fontWeight: 600,
+                background: profitPos ? "rgba(74,222,128,0.09)" : "rgba(248,113,113,0.09)",
+                color: profitColor,
+                border: `1px solid ${profitPos ? "rgba(74,222,128,0.14)" : "rgba(248,113,113,0.14)"}`,
+                opacity: totals.totalProfit === 0 ? 0.3 : 1,
+                letterSpacing: "-0.01em",
+              }}>
+                {fmtPct(totals.roi)}
+              </span>
+              {trend !== null && (
                 <span style={{
-                  padding: "3px 8px", borderRadius: 99, fontSize: 10, fontWeight: 700,
-                  background: profitPos ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)",
-                  color: profitColor, opacity: totals.totalProfit === 0 ? 0.4 : 1,
+                  fontSize: 10, fontWeight: 500,
+                  color: trend >= 0 ? "#4ade80" : "#f87171",
+                  opacity: 0.55, letterSpacing: "0.02em",
                 }}>
-                  {fmtPct(totals.roi)}
+                  {trend >= 0 ? "↑" : "↓"} {Math.abs(trend).toFixed(0)}% vs préc.
                 </span>
-              </div>
-            </div>
-            <div style={{ borderLeft: "1px solid rgba(255,255,255,0.06)", paddingLeft: 20 }}>
-              <p style={{ ...LABEL, marginBottom: 5 }}>Revenue</p>
-              <BigNum value={fmtEuro(totals.totalRevenue)} color={revenueColor} size={24} />
-            </div>
-            <div>
-              <p style={{ ...LABEL, marginBottom: 5 }}>Spend</p>
-              <BigNum value={fmtEuro(totals.totalSpend)} color={zeroColor(totals.totalSpend, "#fbbf24")} size={24} />
+              )}
             </div>
           </div>
 
-          <ResponsiveContainer width="100%" height={140}>
-            <AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 0, left: -22 }}>
+          {/* Secondary: Revenue + Spend */}
+          <div style={{ display: "flex", gap: 0, marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ ...LABEL, marginBottom: 7 }}>Revenue</p>
+              <MoneyNum value={totals.totalRevenue} color="rgba(167,139,250,0.85)" size={19} />
+            </div>
+            <div style={{ flex: 1, borderLeft: "1px solid rgba(255,255,255,0.04)", paddingLeft: 16 }}>
+              <p style={{ ...LABEL, marginBottom: 7 }}>Dépenses</p>
+              <MoneyNum value={totals.totalSpend} color="rgba(251,191,36,0.75)" size={19} />
+            </div>
+          </div>
+        </div>
+
+        {/* Right — chart */}
+        <div style={{ position: "relative", minHeight: 200 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chartData} margin={{ top: 28, right: 24, bottom: 8, left: 0 }}>
               <defs>
                 <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.22} />
                   <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="gPro" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#4ade80" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#4ade80" stopOpacity={0} />
+                  <stop offset="0%" stopColor={profitPos ? "#4ade80" : "#f87171"} stopOpacity={0.18} />
+                  <stop offset="100%" stopColor={profitPos ? "#4ade80" : "#f87171"} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="date" tick={{ fontSize: 9, fill: "#3f3f46" }} tickLine={false} axisLine={false}
-                interval={chartData.length > 20 ? Math.floor(chartData.length / 5) : 0} />
-              <Tooltip
-                formatter={(v: any, key: any) => [`€${Math.round(v ?? 0).toLocaleString("fr-FR")}`, key === "profit" ? "Profit" : "Revenue"]}
-                labelFormatter={(l: any) => l}
-                contentStyle={{ background: "#1e1e26", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, fontSize: 11 }}
-                labelStyle={{ color: "#71717a", marginBottom: 4 }}
-                itemStyle={{ color: "#a1a1aa" }}
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 9, fill: "rgba(255,255,255,0.16)" }}
+                tickLine={false} axisLine={false}
+                interval={chartData.length > 20 ? Math.floor(chartData.length / 6) : 0}
               />
-              <Area type="monotone" dataKey="revenue" stroke="#8b5cf6"  fill="url(#gRev)" strokeWidth={1.5} dot={false} />
-              <Area type="monotone" dataKey="profit"  stroke="#4ade80"  fill="url(#gPro)" strokeWidth={2}   dot={false} activeDot={{ r: 3, fill: "#4ade80", strokeWidth: 0 }} />
+              <Tooltip
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={(v: any, key: any) => [`€${Math.round(Number(v)).toLocaleString("fr-FR")}`, key === "profit" ? "Profit" : "Revenue"]}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                labelFormatter={(l: any) => String(l)}
+                contentStyle={{ background: "#0d0d14", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, fontSize: 11, boxShadow: "0 16px 40px rgba(0,0,0,0.7)" }}
+                labelStyle={{ color: "rgba(255,255,255,0.25)", marginBottom: 4 }}
+                itemStyle={{ color: "rgba(255,255,255,0.65)" }}
+              />
+              <Area type="monotone" dataKey="revenue" stroke="#8b5cf6"                                    fill="url(#gRev)" strokeWidth={1.5} dot={false} />
+              <Area type="monotone" dataKey="profit"  stroke={profitPos ? "#4ade80" : "#f87171"}          fill="url(#gPro)" strokeWidth={2}   dot={false}
+                activeDot={{ r: 3, fill: profitPos ? "#4ade80" : "#f87171", strokeWidth: 0 }}
+              />
             </AreaChart>
           </ResponsiveContainer>
-        </motion.div>
 
-        {/* ── Card 2 : Campagnes ───────────────────────────────────────────── */}
-        <motion.div {...s(2)} style={{ ...CARD, padding: "18px 20px", display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.85)" }}>Campagnes</span>
-            <span style={{ ...LABEL, padding: "4px 9px", borderRadius: 99, border: "1px solid rgba(255,255,255,0.07)" }}>
-              {dateRange.label}
-            </span>
-          </div>
-
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 20 }}>
-            <div>
-              <p style={{ ...LABEL, marginBottom: 6 }}>Actives</p>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <BigNum value={activeCampaigns === 0 ? "—" : activeCampaigns} color={zeroColor(activeCampaigns, "rgba(255,255,255,0.92)")} size={52} />
-                {activeCampaigns > 0 && (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "3px 8px", borderRadius: 99,
-                    background: "rgba(74,222,128,0.08)",
-                    border: "1px solid rgba(74,222,128,0.15)" }}>
-                    <span className="live-dot" style={{ width: 5, height: 5 }} />
-                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: "#4ade80", textTransform: "uppercase" }}>Live</span>
-                  </span>
-                )}
-              </div>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", marginTop: 4 }}>campagnes en cours</p>
-            </div>
-
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 16 }}>
-              <p style={{ ...LABEL, marginBottom: 8 }}>Dépenses</p>
-              <div style={{
-                background: "rgba(251,191,36,0.06)", borderRadius: 12, padding: "12px 14px",
-                border: "1px solid rgba(251,191,36,0.1)",
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-              }}>
-                <BigNum value={fmtEuro(totals.totalSpend)} color={zeroColor(totals.totalSpend, "#fbbf24")} size={22} />
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(251,191,36,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fbbf24", opacity: 0.7 }} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* ── Card 3 : Impressions ─────────────────────────────────────────── */}
-        <motion.div {...s(3)} style={{ ...CARD, padding: "18px 20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.85)" }}>Impressions</span>
-          </div>
-
-          <div style={{ marginBottom: 14 }}>
-            <p style={{ ...LABEL, marginBottom: 5 }}>Total période</p>
-            <BigNum value={fmtBig(totals.totalImps)} color={zeroColor(totals.totalImps, "rgba(255,255,255,0.92)")} size={36} />
-          </div>
-
-          {/* Two stat boxes */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-            {[
-              { label: "Clics",  value: fmtBig(totals.totalClicks), color: "#a78bfa", bg: "rgba(139,92,246,0.08)", n: totals.totalClicks },
-              { label: "Conv.",  value: fmtBig(totals.totalConvs),  color: "#4ade80",  bg: "rgba(74,222,128,0.07)",  n: totals.totalConvs  },
-            ].map(({ label, value, color, bg, n }) => (
-              <div key={label} style={{ background: bg, borderRadius: 12, padding: "10px 12px", border: `1px solid ${bg.replace("0.08", "0.12").replace("0.07", "0.1")}` }}>
-                <p style={{ ...LABEL, marginBottom: 5 }}>{label}</p>
-                <BigNum value={zeroFmt(n, () => value)} color={zeroColor(n, color)} size={20} />
+          {/* Chart legend — top right */}
+          <div style={{ position: "absolute", top: 18, right: 20, display: "flex", gap: 14, alignItems: "center" }}>
+            {[{ c: "#8b5cf6", l: "Revenue" }, { c: profitPos ? "#4ade80" : "#f87171", l: "Profit" }].map(({ c, l }) => (
+              <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ width: 4, height: 4, borderRadius: "50%", background: c, boxShadow: `0 0 6px ${c}` }} />
+                <span style={{ fontSize: 9, color: "rgba(255,255,255,0.2)", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase" }}>{l}</span>
               </div>
             ))}
           </div>
+        </div>
+      </motion.div>
 
-          {/* CTR */}
-          <div style={{ marginTop: 4 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+      {/* ═══════════════════════════════════════════════════════════════════════
+          ROW 2 — 4 métriques secondaires
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+
+        {/* Campagnes actives */}
+        <StatPill
+          label="Campagnes"
+          delay={2}
+          glow={activeCampaigns > 0 ? "0 0 50px rgba(74,222,128,0.04)" : undefined}
+        >
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+            <BigNum
+              value={activeCampaigns === 0 ? "—" : activeCampaigns}
+              color={zeroColor(activeCampaigns, "rgba(255,255,255,0.88)")}
+              size={42}
+            />
+            {activeCampaigns > 0 && (
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "3px 8px", borderRadius: 99,
+                background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.14)",
+              }}>
+                <span className="live-dot" style={{ width: 5, height: 5 }} />
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: "#4ade80", textTransform: "uppercase" }}>Live</span>
+              </span>
+            )}
+          </div>
+          <p style={{ ...LABEL, marginTop: 8 }}>actives</p>
+        </StatPill>
+
+        {/* Impressions */}
+        <StatPill label="Impressions" delay={3}>
+          <BigNum
+            value={fmtBig(totals.totalImps)}
+            color={zeroColor(totals.totalImps, "rgba(255,255,255,0.88)")}
+            size={42}
+          />
+          <p style={{ ...LABEL, marginTop: 8 }}>sur la période</p>
+        </StatPill>
+
+        {/* Clics + CTR */}
+        <StatPill label="Clics" delay={4}>
+          <BigNum
+            value={fmtBig(totals.totalClicks)}
+            color={zeroColor(totals.totalClicks, "rgba(255,255,255,0.88)")}
+            size={42}
+          />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <p style={LABEL}>CTR</p>
-              <span style={{ fontSize: 12, fontWeight: 500, color: zeroColor(totals.ctr, "#fbbf24"), letterSpacing: "-0.02em" }}>
-                {totals.ctr === 0 ? "—" : `${totals.ctr.toFixed(2)}%`}
+              <span style={{ fontSize: 11, fontWeight: 400, color: zeroColor(ctrVal, "#fbbf24"), letterSpacing: "-0.01em" }}>
+                {ctrVal === 0 ? "—" : `${ctrVal.toFixed(2)}%`}
               </span>
             </div>
-            {/* CTR visual track */}
-            <div style={{ height: 3, borderRadius: 99, background: "rgba(255,255,255,0.05)", marginBottom: 14 }}>
-              <div style={{ width: totals.ctr > 0 ? `${Math.min(totals.ctr * 10, 100)}%` : "0%", height: "100%", borderRadius: 99, background: zeroColor(totals.ctr, "#fbbf24"), transition: "width 0.6s ease" }} />
-            </div>
-
-            {/* Per-network horizontal bars */}
-            {(networkBreakdown.length > 0 ? networkBreakdown : []).slice(0, 3).map((row, i) => {
-              const meta  = NET_META[row.network] ?? { label: row.network, color: "#71717a" };
-              const maxImp = Math.max(...networkBreakdown.map(r => r.impressions ?? 0), 1);
-              const pct = row.impressions ? Math.round((row.impressions / maxImp) * 100) : 0;
-              return (
-                <div key={row.network} style={{ marginBottom: i < 2 ? 8 : 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                    <span style={{ fontSize: 10, color: meta.color, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" }}>{meta.label}</span>
-                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", fontVariantNumeric: "tabular-nums" }}>
-                      {fmtBig(row.impressions ?? 0)}
-                    </span>
-                  </div>
-                  <div style={{ height: 2, borderRadius: 99, background: "rgba(255,255,255,0.05)" }}>
-                    <div style={{ width: `${pct}%`, height: "100%", borderRadius: 99, background: meta.color, opacity: 0.6, transition: "width 0.6s ease" }} />
-                  </div>
-                </div>
-              );
-            })}
+            {/* Exclude pop toggle */}
+            <button
+              onClick={() => setExcludePop(v => !v)}
+              title="Exclure formats Pop"
+              style={{
+                padding: "2px 7px", borderRadius: 99, cursor: "pointer",
+                background: excludePop ? "rgba(251,191,36,0.09)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${excludePop ? "rgba(251,191,36,0.18)" : "rgba(255,255,255,0.06)"}`,
+                transition: "all 0.15s",
+              }}
+            >
+              <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", color: excludePop ? "#fbbf24" : "rgba(255,255,255,0.2)", textTransform: "uppercase" }}>
+                −Pop
+              </span>
+            </button>
           </div>
-        </motion.div>
+        </StatPill>
+
+        {/* Conversions */}
+        <StatPill label="Conversions" delay={5}>
+          <BigNum
+            value={zeroFmt(totals.totalConvs, fmtBig)}
+            color={zeroColor(totals.totalConvs, "rgba(255,255,255,0.88)")}
+            size={42}
+          />
+          <p style={{ ...LABEL, marginTop: 8 }}>sur la période</p>
+        </StatPill>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
-          ROW 2  —  4 colonnes
+          ROW 3 — Réseaux + World Map
       ═══════════════════════════════════════════════════════════════════════ */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr 1.2fr", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 2.2fr", gap: 10 }}>
 
-        {/* ── Card 4 : Top réseaux ─────────────────────────────────────────── */}
-        <motion.div {...s(4)} style={{ ...CARD, padding: "16px 18px" }}>
-          <p style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.85)", marginBottom: 16 }}>Réseaux</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Networks */}
+        <motion.div
+          {...s(6)}
+          whileHover={{ y: -1, boxShadow: `${BASE_SHADOW}, 0 0 0 1px rgba(255,255,255,0.08)` }}
+          style={{ ...CARD, padding: "22px 24px" }}
+        >
+          <p style={{ fontSize: 13, fontWeight: 300, color: "rgba(255,255,255,0.65)", marginBottom: 22, letterSpacing: "-0.01em" }}>
+            Réseaux
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {(networkBreakdown.length > 0
-              ? [...networkBreakdown].sort((a, b) => b.profit - a.profit).slice(0, 4)
+              ? [...networkBreakdown].sort((a, b) => b.profit - a.profit).slice(0, 5)
               : [
-                  { network: "EXOCLICK",     profit: 0, campaigns: 0 } as NetworkRow,
-                  { network: "TRAFFICSTARS", profit: 0, campaigns: 0 } as NetworkRow,
-                  { network: "TRAFFICJUNKY", profit: 0, campaigns: 0 } as NetworkRow,
+                  { network: "EXOCLICK",     profit: 0, campaigns: 0, spend: 0, revenue: 0, roi: 0 } as NetworkRow,
+                  { network: "TRAFFICSTARS", profit: 0, campaigns: 0, spend: 0, revenue: 0, roi: 0 } as NetworkRow,
+                  { network: "TRAFFICJUNKY", profit: 0, campaigns: 0, spend: 0, revenue: 0, roi: 0 } as NetworkRow,
                 ]
             ).map((row) => {
               const meta  = NET_META[row.network] ?? { label: row.network, color: "#71717a" };
               const isPos = row.profit >= 0;
               return (
                 <div key={row.network} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, background: `${meta.color}14`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: meta.color, boxShadow: `0 0 5px ${meta.color}` }} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+                      background: `${meta.color}10`,
+                      border: `1px solid ${meta.color}20`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: meta.color, boxShadow: `0 0 8px ${meta.color}99` }} />
                     </div>
                     <div>
-                      <p style={{ fontSize: 12, fontWeight: 500, color: "rgba(212,212,216,0.9)", margin: 0 }}>{meta.label}</p>
-                      <p style={{ ...LABEL, marginTop: 1 }}>{row.campaigns > 0 ? `${row.campaigns} camp.` : "—"}</p>
+                      <p style={{ fontSize: 12, fontWeight: 300, color: "rgba(255,255,255,0.65)", margin: 0, letterSpacing: "-0.01em" }}>
+                        {meta.label}
+                      </p>
+                      <p style={{ ...LABEL, marginTop: 2 }}>
+                        {row.campaigns > 0 ? `${row.campaigns} camp.` : "—"}
+                      </p>
                     </div>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em", color: row.profit === 0 ? "rgba(255,255,255,0.18)" : (isPos ? "#4ade80" : "#f87171") }}>
-                    {row.profit === 0 ? "—" : `${row.profit >= 0 ? "+" : ""}${row.profit.toFixed(0)}€`}
-                  </span>
+                  <div style={{ textAlign: "right" }}>
+                    <span style={{
+                      fontSize: 14, fontWeight: 200, letterSpacing: "-0.03em",
+                      color: row.profit === 0 ? "rgba(255,255,255,0.1)" : (isPos ? "#4ade80" : "#f87171"),
+                    }}>
+                      {row.profit === 0 ? "—" : `${row.profit >= 0 ? "+" : ""}${row.profit.toFixed(0)}€`}
+                    </span>
+                    {row.profit !== 0 && (
+                      <p style={{ ...LABEL, marginTop: 2 }}>{fmtPct(row.roi)}</p>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         </motion.div>
 
-        {/* ── Card 5 : ROI ─────────────────────────────────────────────────── */}
-        <motion.div {...s(5)} style={{ ...CARD, padding: "16px 18px" }}>
-          <p style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.85)", marginBottom: 16 }}>ROI Global</p>
-
-          {/* Circle */}
-          <div style={{
-            width: 120, height: 120, borderRadius: "50%", margin: "0 auto 16px",
-            background: totals.roi === 0
-              ? "rgba(255,255,255,0.03)"
-              : profitPos
-                ? "radial-gradient(circle at 35% 35%, rgba(74,222,128,0.2), rgba(74,222,128,0.04))"
-                : "radial-gradient(circle at 35% 35%, rgba(248,113,113,0.2), rgba(248,113,113,0.04))",
-            border: `1px solid ${totals.roi === 0 ? "rgba(255,255,255,0.06)" : profitPos ? "rgba(74,222,128,0.18)" : "rgba(248,113,113,0.18)"}`,
-            display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center",
-          }}>
-            <span style={{ fontSize: 26, fontWeight: 200, letterSpacing: "-0.04em", color: totals.roi === 0 ? "rgba(255,255,255,0.18)" : profitColor }}>
-              {fmtPct(totals.roi)}
-            </span>
-            <span style={LABEL}>ROI</span>
-          </div>
-
-          {/* Bars */}
-          {[
-            { label: "Revenue", value: fmtEuro(totals.totalRevenue), color: "#a78bfa", n: totals.totalRevenue, total: Math.max(totals.totalRevenue, totals.totalSpend) },
-            { label: "Spend",   value: fmtEuro(totals.totalSpend),   color: "#fbbf24", n: totals.totalSpend,   total: Math.max(totals.totalRevenue, totals.totalSpend) },
-          ].map(({ label, value, color, n, total }) => (
-            <div key={label} style={{ marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={LABEL}>{label}</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: zeroColor(n, color) }}>{value}</span>
-              </div>
-              <div style={{ height: 3, borderRadius: 99, background: "rgba(255,255,255,0.05)" }}>
-                <div style={{ width: total > 0 ? `${(n / total) * 100}%` : "0%", height: "100%", borderRadius: 99, background: zeroColor(n, color) }} />
-              </div>
-            </div>
-          ))}
+        {/* World Map — plus grande */}
+        <motion.div
+          {...s(7)}
+          whileHover={{ y: -1, boxShadow: `${BASE_SHADOW}, 0 0 0 1px rgba(255,255,255,0.07)` }}
+          style={{ ...CARD, overflow: "hidden", minHeight: 320 }}
+        >
+          <WorldMap
+            dots={geoDots}
+            activeNetwork={mapNetwork}
+            onNetworkChange={(n) => setMapNetwork(n)}
+          />
         </motion.div>
 
-        {/* ── Card 6 : World Map ───────────────────────────────────────────── */}
-        <motion.div {...s(6)} style={{ ...CARD, height: 300 }}>
-          <WorldMap dots={geoDots} />
-        </motion.div>
-
-        {/* ── Card 7 : Country breakdown ───────────────────────────────────── */}
-        <motion.div {...s(7)} style={{ ...CARD, padding: "16px 18px" }}>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <p style={{ ...LABEL, marginBottom: 4 }}>Worldwide</p>
-                <BigNum value={fmtBig(totals.totalImps)} size={34} color={zeroColor(totals.totalImps, "rgba(255,255,255,0.92)")} />
-              </div>
-            </div>
-            <p style={{ ...LABEL, marginTop: 3 }}>Impressions worldwide</p>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-            {geoDots.length > 0
-              ? geoDots.slice(0, 5).map(({ countryCode, label, impressions }, i, arr) => (
-                  <div key={countryCode} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "8px 0",
-                    borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                      <span style={{ fontSize: 16, lineHeight: 1 }}>{countryFlag(countryCode)}</span>
-                      <span style={{ fontSize: 12, color: "rgba(212,212,216,0.8)" }}>{label}</span>
-                    </div>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.45)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>{impressions}</span>
-                  </div>
-                ))
-              : /* Skeleton while loading */
-                Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} style={{ padding: "8px 0", borderBottom: i < 4 ? "1px solid rgba(255,255,255,0.04)" : "none", display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 18, height: 12, borderRadius: 4, background: "rgba(255,255,255,0.04)", flexShrink: 0 }} />
-                    <div style={{ height: 10, borderRadius: 5, background: "rgba(255,255,255,0.04)", flex: 1, maxWidth: `${75 - i * 12}%` }} />
-                  </div>
-                ))
-            }
-          </div>
-        </motion.div>
       </div>
+
     </div>
   );
 }
