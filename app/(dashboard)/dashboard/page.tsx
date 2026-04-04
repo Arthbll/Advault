@@ -30,71 +30,84 @@ function iso30DaysAgo(): string {
   return new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
 }
 
+// ─── Empty fallback ───────────────────────────────────────────────────────────
+
+const EMPTY = {
+  totals: { totalSpend: 0, totalRevenue: 0, totalProfit: 0, roi: 0, totalImps: 0, totalClicks: 0, totalConvs: 0, ctr: 0 },
+  chartData: [] as ChartPoint[],
+  networkBreakdown: [] as { network: string; spend: number; revenue: number; campaigns: number; impressions: number; profit: number; roi: number }[],
+  activeCampaigns: 0,
+};
+
 // ─── Data Fetching ────────────────────────────────────────────────────────────
 
 async function getDashboardData(userId: string, dateFrom: string, dateTo: string) {
-  // Sum all daily records within the date range
-  const campaigns = await prisma.campaign.findMany({
-    where: {
-      userId,
-      dateFrom: { gte: new Date(dateFrom) },
-      dateTo:   { lte: new Date(dateTo + "T23:59:59Z") },
-    },
-  });
-
-  const totalSpend   = campaigns.reduce((s, c) => s + toNum(c.spend),   0);
-  const totalRevenue = campaigns.reduce((s, c) => s + toNum(c.revenue), 0);
-  const totalProfit  = totalRevenue - totalSpend;
-  const roi          = totalSpend > 0 ? (totalProfit / totalSpend) * 100 : 0;
-  const totalImps    = campaigns.reduce((s, c) => s + c.impressions, 0);
-  const totalClicks  = campaigns.reduce((s, c) => s + c.clicks,      0);
-  const totalConvs   = campaigns.reduce((s, c) => s + c.conversions, 0);
-  const ctr          = totalImps > 0 ? (totalClicks / totalImps) * 100 : 0;
-
-  // Chart — group by day
-  const byDate = new Map<string, { spend: number; revenue: number }>();
-  for (const c of campaigns) {
-    const key = c.dateFrom.toISOString().slice(0, 10);
-    const cur = byDate.get(key) ?? { spend: 0, revenue: 0 };
-    byDate.set(key, {
-      spend:   cur.spend   + toNum(c.spend),
-      revenue: cur.revenue + toNum(c.revenue),
+  try {
+    const campaigns = await prisma.campaign.findMany({
+      where: {
+        userId,
+        dateFrom: { gte: new Date(dateFrom) },
+        dateTo:   { lte: new Date(dateTo + "T23:59:59Z") },
+      },
     });
+
+    const totalSpend   = campaigns.reduce((s, c) => s + toNum(c.spend),   0);
+    const totalRevenue = campaigns.reduce((s, c) => s + toNum(c.revenue), 0);
+    const totalProfit  = totalRevenue - totalSpend;
+    const roi          = totalSpend > 0 ? (totalProfit / totalSpend) * 100 : 0;
+    const totalImps    = campaigns.reduce((s, c) => s + c.impressions, 0);
+    const totalClicks  = campaigns.reduce((s, c) => s + c.clicks,      0);
+    const totalConvs   = campaigns.reduce((s, c) => s + c.conversions, 0);
+    const ctr          = totalImps > 0 ? (totalClicks / totalImps) * 100 : 0;
+
+    // Chart — group by day
+    const byDate = new Map<string, { spend: number; revenue: number }>();
+    for (const c of campaigns) {
+      const key = c.dateFrom.toISOString().slice(0, 10);
+      const cur = byDate.get(key) ?? { spend: 0, revenue: 0 };
+      byDate.set(key, {
+        spend:   cur.spend   + toNum(c.spend),
+        revenue: cur.revenue + toNum(c.revenue),
+      });
+    }
+    const chartData: ChartPoint[] = Array.from(byDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, { spend, revenue }]) => {
+        const [, m, d] = date.split("-");
+        return {
+          date:    `${d}/${m}`,
+          spend:   Math.round(spend * 100) / 100,
+          revenue: Math.round(revenue * 100) / 100,
+          profit:  Math.round((revenue - spend) * 100) / 100,
+        };
+      });
+
+    // Per-network breakdown
+    const netMap = new Map<string, { spend: number; revenue: number; campaigns: number; impressions: number }>();
+    for (const c of campaigns) {
+      const cur = netMap.get(c.network) ?? { spend: 0, revenue: 0, campaigns: 0, impressions: 0 };
+      netMap.set(c.network, {
+        spend:       cur.spend       + toNum(c.spend),
+        revenue:     cur.revenue     + toNum(c.revenue),
+        campaigns:   cur.campaigns   + 1,
+        impressions: cur.impressions + c.impressions,
+      });
+    }
+
+    return {
+      totals: { totalSpend, totalRevenue, totalProfit, roi, totalImps, totalClicks, totalConvs, ctr },
+      chartData,
+      networkBreakdown: Array.from(netMap.entries()).map(([network, stats]) => ({
+        network, ...stats,
+        profit: stats.revenue - stats.spend,
+        roi: stats.spend > 0 ? ((stats.revenue - stats.spend) / stats.spend) * 100 : 0,
+      })),
+      activeCampaigns: new Set(campaigns.filter(c => c.status === "ACTIVE").map(c => c.externalId)).size,
+    };
+  } catch (err) {
+    console.error("[dashboard] getDashboardData error:", err);
+    return EMPTY;
   }
-  const chartData: ChartPoint[] = Array.from(byDate.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, { spend, revenue }]) => {
-      const [, m, d] = date.split("-");
-      return {
-        date:    `${d}/${m}`,
-        spend:   Math.round(spend * 100) / 100,
-        revenue: Math.round(revenue * 100) / 100,
-        profit:  Math.round((revenue - spend) * 100) / 100,
-      };
-    });
-
-  // Per-network breakdown
-  const netMap = new Map<string, { spend: number; revenue: number; campaigns: number; impressions: number }>();
-  for (const c of campaigns) {
-    const cur = netMap.get(c.network) ?? { spend: 0, revenue: 0, campaigns: 0, impressions: 0 };
-    netMap.set(c.network, {
-      spend:       cur.spend       + toNum(c.spend),
-      revenue:     cur.revenue     + toNum(c.revenue),
-      campaigns:   cur.campaigns   + 1,
-      impressions: cur.impressions + c.impressions,
-    });
-  }
-
-  return {
-    totals: { totalSpend, totalRevenue, totalProfit, roi, totalImps, totalClicks, totalConvs, ctr },
-    chartData,
-    networkBreakdown: Array.from(netMap.entries()).map(([network, stats]) => ({
-      network, ...stats,
-      profit: stats.revenue - stats.spend,
-      roi: stats.spend > 0 ? ((stats.revenue - stats.spend) / stats.spend) * 100 : 0,
-    })),
-    activeCampaigns: new Set(campaigns.filter(c => c.status === "ACTIVE").map(c => c.externalId)).size,
-  };
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
