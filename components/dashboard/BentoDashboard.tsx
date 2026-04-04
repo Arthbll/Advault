@@ -367,7 +367,7 @@ export default function BentoDashboard(props: Props) {
                 interval={chartData.length > 20 ? Math.floor(chartData.length / 5) : 0} />
               <Tooltip
                 formatter={(v: any, key: any) => [`€${Math.round(v ?? 0).toLocaleString("fr-FR")}`, key === "profit" ? "Profit" : "Revenue"]}
-                labelFormatter={(l: string) => l}
+                labelFormatter={(l: any) => l}
                 contentStyle={{ background: "#1e1e26", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, fontSize: 11 }}
                 labelStyle={{ color: "#71717a", marginBottom: 4 }}
                 itemStyle={{ color: "#a1a1aa" }}
