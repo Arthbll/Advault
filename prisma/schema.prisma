@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -21,8 +22,10 @@ enum Network {
 enum CampaignStatus {
   ACTIVE
   PAUSED
-  KILLED // terminated by Kill-Switch
+  KILLED    // terminated by Kill-Switch
+  WATCH     // flagged by Decision Rules engine — signal only, no automatic action
   DRAFT
+  ARCHIVED  // removed from active flow, history preserved
 }
 
 enum LogType {
@@ -34,6 +37,9 @@ enum LogType {
   AUTH_ERROR
   API_ERROR
   BUDGET_ALERT
+  DECISION_KILL    // Decision Rules engine paused a campaign automatically
+  DECISION_WATCH   // Decision Rules engine flagged a campaign for review
+  DECISION_SCALE   // Decision Rules engine increased bid automatically
 }
 
 // ─── MODELS ───────────────────────────────────────────────────────────────────
@@ -44,10 +50,49 @@ model User {
   email     String    @unique
   createdAt DateTime  @default(now())
 
-  accounts  Account[]
-  campaigns Campaign[]
-  logs      Log[]
-  settings  UserSettings?
+  accounts      Account[]
+  campaigns     Campaign[]
+  logs          Log[]
+  settings      UserSettings?
+  conversions   Conversion[]
+  decisionRule  DecisionRule?
+
+  // Team relations
+  teamInvitesSent     TeamInvite[]  @relation("TeamInviteOwner")
+  teamMembershipsOwned TeamMember[] @relation("WorkspaceOwner")
+  teamMembership       TeamMember?  @relation("WorkspaceMember")
+}
+
+// Pending invites sent by a Command-plan workspace owner
+model TeamInvite {
+  id        String   @id @default(uuid())
+  ownerId   String
+  email     String
+  token     String   @unique @default(uuid())
+  role      String   @default("member")
+  status    String   @default("pending") // pending | accepted | revoked
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  owner User @relation("TeamInviteOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([ownerId])
+  @@index([email])
+}
+
+// Active team memberships — member sees owner's workspace data
+model TeamMember {
+  id        String   @id @default(uuid())
+  ownerId   String   // Command-plan workspace owner
+  memberId  String   @unique // invited user (one workspace per member)
+  role      String   @default("member")
+  createdAt DateTime @default(now())
+
+  owner  User @relation("WorkspaceOwner",  fields: [ownerId],  references: [id], onDelete: Cascade)
+  member User @relation("WorkspaceMember", fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
 }
 
 // One row per network per user — API keys stored AES-256-GCM encrypted
@@ -90,6 +135,10 @@ model Campaign {
   clicks      Int      @default(0)
   conversions Int      @default(0)
 
+  // Decision Engine controls (Bloc 4)
+  excludeFromEngine Boolean @default(false) // "Manual only" — excluded from all engine actions
+  automationPaused  Boolean @default(false) // "Auto paused" — engine won't act until manually re-enabled
+
   dateFrom    DateTime
   dateTo      DateTime
   syncedAt    DateTime @default(now())
@@ -104,22 +153,83 @@ model Campaign {
 
 // Kill-Switch & alert settings per user
 model UserSettings {
-  id                    String   @id @default(uuid())
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                    String    @id @default(uuid())
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Kill-Switch
-  killSwitchEnabled     Boolean  @default(false)
-  roiThreshold          Float    @default(-50)   // % — kill si ROI < ce seuil
-  maxSpendPerCampaign   Float?                   // $ — kill si spend dépasse ce montant
-  checkIntervalMinutes  Int      @default(30)    // fréquence de vérification
+  killSwitchEnabled     Boolean   @default(false)
+  spendOnlyMode         Boolean   @default(false)  // si true, ignore le ROI — kill uniquement sur maxSpend
+  roiThreshold          Float     @default(-50)    // % — kill si ROI < ce seuil (ignoré si spendOnlyMode)
+  maxSpendPerCampaign   Float?                     // € — kill si spend dépasse ce montant
+  checkIntervalMinutes  Int       @default(30)     // fréquence de vérification
 
   // Budget alerts
-  budgetAlertEnabled    Boolean  @default(false)
-  dailyBudgetLimit      Float?                   // $ — alerte si dépense journalière dépasse
+  budgetAlertEnabled    Boolean   @default(false)
+  dailyBudgetLimit      Float?                     // $ — alerte si dépense journalière dépasse
 
-  updatedAt             DateTime @updatedAt
-  createdAt             DateTime @default(now())
+  // Decision Engine — Emergency stop (Bloc 6)
+  enginePausedUntil     DateTime?                  // si non-null et dans le futur, toute automation est suspendue
+
+  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime  @default(now())
+}
+
+// Conversions reçues via postback URL (CrakRevenue, Voluum, etc.)
+model Conversion {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  campaignId   String?  // externalId de la campagne ExoClick (passé dans l'URL)
+  clickId      String?  // {clickid} du CPA network — pour déduplication
+  revenue      Float    @default(0)
+  currency     String   @default("USD")
+  source       String?  // ex: "crakrevenue", "maxbounty", "manual"
+  ip           String?  // IP pour audit
+
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, campaignId])
+  @@index([clickId]) // déduplication
+}
+
+// Decision Rules — per-user engine configuration (Kill / Watch / Scale)
+model DecisionRule {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Active preset name (soft | balanced | aggressive | custom)
+  preset  String @default("balanced")
+
+  // Engine operating mode (Bloc 5)
+  engineMode String @default("automatic") // "automatic" | "recommendation"
+
+  // Kill thresholds
+  killRoi      Float @default(-30)   // ROI % floor — kill below this
+
+  // Watch thresholds
+  watchLow     Float @default(-15)   // lower bound of watch zone
+  watchHigh    Float @default(0)     // upper bound of watch zone (fixed at 0)
+
+  // Scale thresholds
+  scaleRoi       Float @default(30)   // ROI % target — scale above this
+  scaleIncrement Float @default(10)   // bid increase %
+
+  // Safety controls
+  minSpend       Float @default(20)   // € minimum spend before any decision
+  minConversions Int   @default(3)    // min conversions required before scale
+  killHoldMin    Int   @default(30)   // minutes condition must hold before Kill fires
+  scaleHoldMin   Int   @default(60)   // minutes condition must hold before Scale fires
+  killCooldownH  Int   @default(3)    // hours between Kill actions
+  scaleCooldownH Int   @default(6)    // hours between Scale actions
+  maxKillsDay    Int   @default(5)    // max Kill actions per day
+  maxScalesDay   Int   @default(2)    // max Scale actions per day
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
 }
 
 // Audit trail — Kill-Switch events, sync errors, budget alerts
