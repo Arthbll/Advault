@@ -222,9 +222,9 @@ function HeroSection() {
       position: "relative", minHeight: "100vh", overflow: "hidden",
       borderBottom: `1px solid ${BORDER_FAINT}`,
       background: [
-        "radial-gradient(circle at 14% 12%, rgba(220,38,38,0.09), transparent 22%)",
-        "radial-gradient(circle at 76% 14%, rgba(99,102,241,0.13), transparent 20%)",
-        "radial-gradient(circle at 82% 76%, rgba(56,189,248,0.07), transparent 20%)",
+        "radial-gradient(circle at 14% 12%, rgba(220,38,38,0.08), transparent 22%)",
+        "radial-gradient(circle at 76% 14%, rgba(255,255,255,0.03), transparent 20%)",
+        "radial-gradient(circle at 82% 76%, rgba(255,255,255,0.02), transparent 20%)",
       ].join(","),
     }}>
       {/* Grid overlay */}
@@ -469,8 +469,7 @@ function HeroSection() {
                           display: "grid", gridTemplateColumns: "1.1fr 0.8fr 0.5fr 0.7fr",
                           alignItems: "center", gap: 10, padding: "11px 16px 11px 14px", fontSize: 13,
                           borderBottom: `1px solid ${BORDER_FAINT}`,
-                          background: t === "kill" ? "rgba(239,68,68,0.09)" : undefined,
-                          borderLeft: t === "kill" ? "2px solid rgba(248,113,113,0.38)" : "2px solid transparent",
+                          background: t === "kill" ? "rgba(239,68,68,0.07)" : undefined,
                         }}
                       >
                         <div style={{ color: t === "kill" ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.70)" }}>{name}</div>
@@ -547,11 +546,11 @@ function SyncStrip() {
           {SYNC_NODES.map(({ label, color, delay }) => (
             <div key={label} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: "rgba(255,255,255,0.50)" }}>
               <motion.span
-                animate={{ opacity: [0.25, 1, 0.25], scale: [0.88, 1.18, 0.88] }}
+                animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }}
                 transition={{ duration: 2.8, repeat: Infinity, delay, ease: "easeInOut" }}
                 style={{
                   display: "inline-block", width: 7, height: 7, borderRadius: "50%",
-                  background: color, boxShadow: `0 0 8px ${color}`,
+                  background: color,
                 }}
               />
               {label}
@@ -1228,7 +1227,7 @@ function SetupSection() {
           transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
           style={{
             height: 1, marginTop: -1,
-            background: `linear-gradient(to right, ${SKY}, ${VIOLET}, ${SCALE_COL})`,
+            background: "linear-gradient(to right, transparent, rgba(255,255,255,0.18), transparent)",
             transformOrigin: "left",
           }}
         />
@@ -1534,10 +1533,9 @@ function PricingSection() {
             <a href="/register?plan=dominion" style={{ textDecoration: "none", display: "block", marginTop: 24 }}>
               <button style={{
                 width: "100%", height: 48, borderRadius: 12,
-                border: "1px solid rgba(74,222,128,0.24)",
-                background: "linear-gradient(105deg,rgba(74,222,128,0.18),rgba(74,222,128,0.10))",
+                border: "1px solid rgba(74,222,128,0.22)",
+                background: "rgba(74,222,128,0.10)",
                 fontSize: 13, fontWeight: 600, color: "#86efac", cursor: "pointer",
-                boxShadow: "0 8px 28px rgba(74,222,128,0.10)",
               }}>Get Dominion →</button>
             </a>
           </motion.div>
@@ -1590,10 +1588,7 @@ function FinalCTA() {
   return (
     <section style={{
       position: "relative", overflow: "hidden", padding: "120px 48px 110px",
-      background: [
-        "radial-gradient(circle at 48% 22%, rgba(99,102,241,0.09), transparent 22%)",
-        "radial-gradient(circle at 62% 74%, rgba(56,189,248,0.07), transparent 20%)",
-      ].join(","),
+      background: "radial-gradient(circle at 50% 30%, rgba(255,255,255,0.025), transparent 28%)",
     }}>
       <div style={{ margin: "0 auto", maxWidth: 1000, textAlign: "center" }}>
         <motion.div
