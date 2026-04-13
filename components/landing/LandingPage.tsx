@@ -1391,10 +1391,10 @@ function PricingSection() {
   const p = (plan: keyof typeof PRICES) =>
     annual ? PRICES[plan].annual : PRICES[plan].monthly;
 
-  const FEAT = ({ children, dim }: { children: React.ReactNode; dim?: boolean }) => (
+  const FEAT = ({ children, dim, inv }: { children: React.ReactNode; dim?: boolean; inv?: boolean }) => (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 9 }}>
-      <span style={{ color: dim ? "rgba(255,255,255,0.22)" : SCALE_COL, fontSize: 11, marginTop: 2, flexShrink: 0 }}>✓</span>
-      <span style={{ fontSize: 13, lineHeight: "20px", color: dim ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.54)" }}>{children}</span>
+      <span style={{ color: inv ? "#15803d" : dim ? "rgba(255,255,255,0.22)" : SCALE_COL, fontSize: 11, marginTop: 2, flexShrink: 0 }}>✓</span>
+      <span style={{ fontSize: 13, lineHeight: "20px", color: inv ? "rgba(0,0,0,0.60)" : dim ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.54)" }}>{children}</span>
     </div>
   );
 
@@ -1526,48 +1526,47 @@ function PricingSection() {
             </a>
           </motion.div>
 
-          {/* Dominion */}
+          {/* Dominion — inverted white card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }} transition={{ delay: 0.16, duration: 0.6 }}
             style={{
               borderRadius: 20, padding: "28px 24px",
-              border: "1px solid rgba(74,222,128,0.20)",
-              background: "rgba(74,222,128,0.035)",
+              background: "#ffffff",
+              boxShadow: "0 2px 0 rgba(0,0,0,0.06), 0 12px 40px rgba(0,0,0,0.22)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(74,222,128,0.70)" }}>Dominion</div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(0,0,0,0.38)" }}>Dominion</div>
               <div style={{
-                borderRadius: 6, border: "1px solid rgba(74,222,128,0.16)",
-                background: "rgba(74,222,128,0.07)", padding: "3px 9px",
-                fontSize: 8, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(74,222,128,0.72)",
+                borderRadius: 6, border: "1px solid rgba(0,0,0,0.10)",
+                background: "rgba(0,0,0,0.05)", padding: "3px 9px",
+                fontSize: 8, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(0,0,0,0.50)",
               }}>Most automated</div>
             </div>
-            <div style={{ marginTop: 18, display: "flex", alignItems: "baseline", gap: 6 }}>
-              <span style={{ fontSize: 48, fontWeight: 200, letterSpacing: "-0.06em", color: T_PRIMARY }}>€{p("dominion")}</span>
+            <div style={{ marginTop: 18 }}>
+              <span style={{ fontSize: 48, fontWeight: 200, letterSpacing: "-0.06em", color: "#000000" }}>€{p("dominion")}</span>
             </div>
-            <div style={{ fontSize: 12, color: T_DIM, marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "rgba(0,0,0,0.40)", marginTop: 2 }}>
               per month{annual ? ", billed annually" : ""}
             </div>
-            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid rgba(74,222,128,0.08)" }}>
-              <div style={{ fontSize: 13, lineHeight: "22px", color: "rgba(255,255,255,0.58)", marginBottom: 18 }}>
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid rgba(0,0,0,0.07)" }}>
+              <div style={{ fontSize: 13, lineHeight: "22px", color: "rgba(0,0,0,0.52)", marginBottom: 18 }}>
                 Kill, watch, and scale — automatically, around the clock. For operators who want the engine to run without them.
               </div>
-              <FEAT>Everything in Operator</FEAT>
-              <FEAT>Fully automated kill &amp; scale decisions</FEAT>
-              <FEAT>Priority signal refresh rate</FEAT>
-              <FEAT>Multi-network automation</FEAT>
-              <FEAT>Unlimited rules &amp; thresholds</FEAT>
-              <FEAT>Full engine access</FEAT>
+              <FEAT inv>Everything in Operator</FEAT>
+              <FEAT inv>Fully automated kill &amp; scale decisions</FEAT>
+              <FEAT inv>Priority signal refresh rate</FEAT>
+              <FEAT inv>Multi-network automation</FEAT>
+              <FEAT inv>Unlimited rules &amp; thresholds</FEAT>
+              <FEAT inv>Full engine access</FEAT>
             </div>
             <a href="/register?plan=dominion" style={{ textDecoration: "none", display: "block", marginTop: 22 }}>
               <button style={{
                 width: "100%", height: 44, borderRadius: 11,
-                border: "1px solid rgba(74,222,128,0.22)",
-                background: "rgba(74,222,128,0.10)",
-                fontSize: 13, fontWeight: 600, color: "#86efac", cursor: "pointer",
-                transition: "background 0.15s",
+                border: "none", background: "#000000",
+                fontSize: 13, fontWeight: 600, color: "#ffffff", cursor: "pointer",
+                transition: "opacity 0.15s",
               }}>Get Dominion →</button>
             </a>
           </motion.div>
