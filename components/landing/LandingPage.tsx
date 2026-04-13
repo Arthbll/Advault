@@ -855,10 +855,13 @@ function EngineRevealSection() {
   const morphOp   = useTransform(scrollYProgress, [0.70, 0.78], [1, 0]);
 
   // Split cards
-  const splitOp   = useTransform(scrollYProgress, [0.74, 0.84], [0, 1]);
-  const killX     = useTransform(scrollYProgress, [0.74, 0.94], [180, 0]);
-  const scaleX    = useTransform(scrollYProgress, [0.74, 0.94], [-180, 0]);
-  const splitSc   = useTransform(scrollYProgress, [0.74, 0.88], [0.92, 1]);
+  const splitOp   = useTransform(scrollYProgress, [0.74, 0.82], [0, 1]);
+  const killX     = useTransform(scrollYProgress, [0.74, 0.92], [-120, 0]);
+  const scaleX    = useTransform(scrollYProgress, [0.74, 0.92], [120, 0]);
+  const killOp2   = useTransform(scrollYProgress, [0.74, 0.84], [0, 1]);
+  const trackOp2  = useTransform(scrollYProgress, [0.77, 0.86], [0, 1]);
+  const scaleOp2  = useTransform(scrollYProgress, [0.80, 0.88], [0, 1]);
+  const splitSc   = useTransform(scrollYProgress, [0.74, 0.88], [0.95, 1]);
   // Green bridge: inherits resolved state from LosingCampaign
   const greenBridgeOp = useTransform(scrollYProgress, [0, 0.09], [1, 0]);
 
@@ -1050,9 +1053,9 @@ function EngineRevealSection() {
               <motion.div style={{
                 position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                gap: 16, opacity: splitOp,
+                gap: 16,
               }}>
-                <motion.div style={{ x: killX, scale: splitSc, width: SW, flexShrink: 0 }}>
+                <motion.div style={{ x: killX, scale: splitSc, width: SW, flexShrink: 0, opacity: killOp2 }}>
                   <div style={{
                     borderRadius: 24, border: "1px solid rgba(248,113,113,0.24)",
                     background: "rgba(28,10,10,0.97)", padding: "28px 24px",
@@ -1063,7 +1066,7 @@ function EngineRevealSection() {
                     <div style={{ fontSize: 12, color: T_DIM, lineHeight: "20px" }}>Stop the loss instantly</div>
                   </div>
                 </motion.div>
-                <motion.div style={{ scale: splitSc, width: SW, flexShrink: 0 }}>
+                <motion.div style={{ scale: splitSc, width: SW, flexShrink: 0, opacity: trackOp2 }}>
                   <div style={{
                     borderRadius: 24, border: "1px solid rgba(251,191,36,0.24)",
                     background: "rgba(26,20,4,0.97)", padding: "28px 24px",
@@ -1074,7 +1077,7 @@ function EngineRevealSection() {
                     <div style={{ fontSize: 12, color: T_DIM, lineHeight: "20px" }}>See real profit</div>
                   </div>
                 </motion.div>
-                <motion.div style={{ x: scaleX, scale: splitSc, width: SW, flexShrink: 0 }}>
+                <motion.div style={{ x: scaleX, scale: splitSc, width: SW, flexShrink: 0, opacity: scaleOp2 }}>
                   <div style={{
                     borderRadius: 24, border: "1px solid rgba(74,222,128,0.24)",
                     background: "rgba(6,22,12,0.97)", padding: "28px 24px",
