@@ -539,9 +539,8 @@ export default function CampaignsPage() {
               style={{
                 display: "flex", alignItems: "center", gap: 7,
                 padding: "9px 18px", borderRadius: 14, fontSize: 12, fontWeight: 600,
-                background: "linear-gradient(90deg, #ec4899, #8b5cf6, #6366f1)",
-                boxShadow: "0 6px 24px rgba(139,92,246,0.35)",
-                color: "#fff", border: "none", cursor: "pointer",
+                background: "#ffffff",
+                color: "#000000", border: "none", cursor: "pointer",
               }}
             >
               Launch new campaign
@@ -576,27 +575,27 @@ export default function CampaignsPage() {
               style={{ cursor: "pointer", borderRadius: 28 }}
             >
               <motion.div
-                variants={{ hover: { borderColor: "rgba(244,114,182,0.3)" } }}
+                variants={{ hover: { borderColor: "rgba(255,255,255,0.14)" } }}
                 style={{
                   borderRadius: 28, overflow: "hidden", position: "relative",
-                  border: "1px solid rgba(244,114,182,0.16)",
+                  border: "1px solid rgba(255,255,255,0.08)",
                   background: "linear-gradient(180deg, rgba(18,19,28,0.98), rgba(13,14,21,0.98))",
                   padding: "28px 28px 26px",
                   transition: "border-color 0.22s",
                 }}
               >
-                {/* Blobs */}
+                {/* Subtle ambient glow */}
                 <div style={{
                   position: "absolute", inset: 0, pointerEvents: "none",
                   background: [
-                    "radial-gradient(circle at 16% 38%, rgba(236,72,153,0.14), transparent 26%)",
-                    "radial-gradient(circle at 72% 45%, rgba(99,102,241,0.12), transparent 24%)",
+                    "radial-gradient(circle at 16% 38%, rgba(255,255,255,0.03), transparent 28%)",
+                    "radial-gradient(circle at 75% 45%, rgba(255,255,255,0.02), transparent 26%)",
                   ].join(", "),
                 }} />
                 {/* Top hairline */}
                 <div style={{
                   position: "absolute", top: 0, left: 0, right: 0, height: 1, pointerEvents: "none",
-                  background: "linear-gradient(90deg, transparent, rgba(244,114,182,0.5), rgba(167,139,250,0.35), transparent)",
+                  background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent)",
                 }} />
 
                 <div style={{ position: "relative" }}>
@@ -604,18 +603,18 @@ export default function CampaignsPage() {
                   <div style={{
                     display: "inline-flex", alignItems: "center", gap: 7, marginBottom: 20,
                     padding: "5px 12px 5px 10px", borderRadius: 99,
-                    background: "rgba(236,72,153,0.08)", border: "1px solid rgba(244,114,182,0.18)",
+                    background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
                   }}>
                     <motion.span
-                      animate={{ opacity: [1, 0.25, 1] }}
-                      transition={{ duration: 2.2, repeat: Infinity }}
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ duration: 2.4, repeat: Infinity }}
                       style={{
                         width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
-                        background: "#f472b6", boxShadow: "0 0 10px rgba(244,114,182,0.85)",
+                        background: "#4ade80",
                         display: "inline-block",
                       }}
                     />
-                    <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(240,171,252,0.9)" }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.55)" }}>
                       New campaign · Decision Engine enabled
                     </span>
                   </div>
@@ -625,10 +624,7 @@ export default function CampaignsPage() {
                     <div>
                       <h2 style={{ fontSize: 30, fontWeight: 300, letterSpacing: "-0.04em", lineHeight: 1.05, margin: "0 0 12px", maxWidth: 400 }}>
                         Launch in minutes.{" "}
-                        <span style={{
-                          background: "linear-gradient(90deg, #f0abfc, #c4b5fd, #a5b4fc)",
-                          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
-                        } as React.CSSProperties}>
+                        <span style={{ color: "rgba(255,255,255,0.72)" }}>
                           ProfitDash watches the rest.
                         </span>
                       </h2>
@@ -637,16 +633,15 @@ export default function CampaignsPage() {
                       </p>
                     </div>
                     <motion.div
-                      variants={{ hover: { x: 2, boxShadow: "0 14px 40px rgba(139,92,246,0.52), 0 0 28px rgba(236,72,153,0.22)" } }}
-                      transition={{ duration: 0.2 }}
+                      variants={{ hover: { x: 2 } }}
+                      transition={{ duration: 0.18 }}
                       style={{
                         flexShrink: 0,
                         display: "flex", alignItems: "center", gap: 8,
                         padding: "13px 22px", borderRadius: 18,
-                        background: "linear-gradient(90deg, #ec4899, #8b5cf6, #6366f1)",
-                        boxShadow: "0 8px 28px rgba(139,92,246,0.36), 0 0 20px rgba(236,72,153,0.14)",
-                        color: "#fff", fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em",
-                        whiteSpace: "nowrap",
+                        background: "#ffffff",
+                        color: "#000000", fontSize: 13, fontWeight: 600, letterSpacing: "-0.01em",
+                        whiteSpace: "nowrap", cursor: "pointer",
                       }}
                     >
                       Start new campaign
@@ -689,7 +684,7 @@ export default function CampaignsPage() {
                         borderRadius: 16, cursor: "pointer", padding: "14px 16px",
                         border: `1px solid rgba(${dim ? "255,255,255" : rgb},${dim ? "0.06" : "0.14"})`,
                         background: `rgba(${dim ? "255,255,255" : rgb},${dim ? "0.02" : "0.07"})`,
-                        transition: "all 0.15s",
+                        transition: "background 0.15s, border-color 0.15s",
                       }}
                     >
                       <div style={{

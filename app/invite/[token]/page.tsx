@@ -239,8 +239,7 @@ const inputStyle: React.CSSProperties = {
 
 const primaryBtn: React.CSSProperties = {
   borderRadius: 14, border: "none",
-  background: "linear-gradient(90deg,#ec4899,#8b5cf6,#6366f1)",
-  color: "#fff", padding: "12px 24px",
+  background: "#ffffff",
+  color: "#000000", padding: "12px 24px",
   fontSize: 13, fontWeight: 600, cursor: "pointer",
-  boxShadow: "0 10px 28px rgba(139,92,246,0.30)",
 };

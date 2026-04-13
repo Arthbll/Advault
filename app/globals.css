@@ -2,6 +2,15 @@
 @source "../components";
 @source "../app";
 
+/* ── Design tokens ─────────────────────────────────────────── */
+/* Emil Kowalski easing curves — use these everywhere          */
+:root {
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);    /* enters, openings — starts fast */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);   /* on-screen movement */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);    /* drawers, sheets */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* playful, subtle bounce */
+}
+
 * {
   box-sizing: border-box;
 }
@@ -20,6 +29,30 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* ── Button press feedback ─────────────────────────────────── */
+/* Every button physically "clicks" — 160ms, instant response  */
+button {
+  transition: transform 160ms var(--ease-out), opacity 160ms var(--ease-out);
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+/* Hover effects only on devices that support hover (not touch) */
+@media (hover: hover) and (pointer: fine) {
+  button:hover {
+    opacity: 0.88;
+  }
+}
+
+/* ── Focus ring (accessibility) ────────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(255,255,255,0.4);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 /* ── Premium scrollbar ─────────────────────────────────────── */
@@ -52,7 +85,7 @@ body {
 @keyframes bentoFadeUp {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
@@ -62,7 +95,7 @@ body {
 
 .bento-item {
   opacity: 0;
-  animation: bentoFadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: bentoFadeUp 0.5s var(--ease-out) forwards;
   will-change: transform, opacity;
 }
 
@@ -86,8 +119,8 @@ body {
 
 /* ── World map glow pulse ──────────────────────────────────── */
 @keyframes glowPulse {
-  0%, 100% { opacity: 0.45; }
-  50%       { opacity: 1;   }
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.9; }
 }
 
 .glow-dot {
@@ -96,9 +129,10 @@ body {
 }
 
 /* ── Live indicator ────────────────────────────────────────── */
+/* Subtle emerald pulse — no neon blast, just a quiet signal   */
 @keyframes liveBlink {
-  0%, 100% { opacity: 1;    box-shadow: 0 0 5px 2px #4ade80; }
-  50%       { opacity: 0.2; box-shadow: 0 0 2px 0px #4ade80; }
+  0%, 100% { opacity: 1;   }
+  50%       { opacity: 0.3; }
 }
 
 .live-dot {
@@ -107,26 +141,14 @@ body {
   height: 6px;
   border-radius: 50%;
   background: #4ade80;
-  box-shadow: 0 0 5px 2px #4ade80;
-  animation: liveBlink 1.8s ease-in-out infinite;
+  opacity: 0.85;
+  animation: liveBlink 2.4s ease-in-out infinite;
 }
 
 /* ── Spin utility ──────────────────────────────────────────── */
 @keyframes spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
-}
-
-/* ── Soft float (e.g. signal icons) ───────────────────────── */
-@keyframes softFloat {
-  0%, 100% { transform: translateY(0);   }
-  50%       { transform: translateY(-4px); }
-}
-
-/* ── Glow breathe (active indicators) ─────────────────────── */
-@keyframes glowBreathe {
-  0%, 100% { box-shadow: 0 0 0   0   rgba(139,92,246,0.2); }
-  50%       { box-shadow: 0 0 18px 4px rgba(139,92,246,0.35); }
 }
 
 /* ── Number count-up flash ─────────────────────────────────── */
@@ -136,108 +158,44 @@ body {
 }
 
 .num-update {
-  animation: numFlash 0.3s ease-out forwards;
-}
-
-/* ── Focus ring (accessibility) ────────────────────────────── */
-:focus-visible {
-  outline: 2px solid rgba(139,92,246,0.6);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
-
-/* ── Grain / noise overlay ─────────────────────────────────── */
-/* Subtle film grain on cards for texture depth */
-.grain-overlay::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  background-size: 128px 128px;
-  opacity: 0.025;
-  pointer-events: none;
-  z-index: 1;
-  mix-blend-mode: overlay;
-}
-
-/* ── Card hover shimmer (sweep effect) ─────────────────────── */
-@keyframes sweepRight {
-  from { transform: translateX(-100%) skewX(-15deg); }
-  to   { transform: translateX(300%) skewX(-15deg); }
-}
-
-.card-sweep::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255,255,255,0.04) 50%,
-    transparent 100%
-  );
-  width: 60%;
-  transform: translateX(-100%) skewX(-15deg);
-  pointer-events: none;
-  z-index: 1;
-}
-
-.card-sweep:hover::after {
-  animation: sweepRight 0.65s ease-out forwards;
-}
-
-/* ── Floating ambient orb ──────────────────────────────────── */
-@keyframes floatOrb {
-  0%   { transform: translate(0px, 0px)   scale(1); }
-  33%  { transform: translate(20px, -15px) scale(1.05); }
-  66%  { transform: translate(-10px, 10px) scale(0.97); }
-  100% { transform: translate(0px, 0px)   scale(1); }
-}
-
-.ambient-orb {
-  animation: floatOrb 18s ease-in-out infinite;
-  will-change: transform;
-}
-
-/* ── Pulse ring (for important indicators) ─────────────────── */
-@keyframes pulseRing {
-  0%   { box-shadow: 0 0 0 0   rgba(139,92,246,0.4); }
-  70%  { box-shadow: 0 0 0 8px rgba(139,92,246,0); }
-  100% { box-shadow: 0 0 0 0   rgba(139,92,246,0); }
-}
-
-.pulse-ring {
-  animation: pulseRing 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-}
-
-/* ── Text shimmer (for gradient text) ─────────────────────── */
-@keyframes textShimmer {
-  0%   { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
-.shimmer-text {
-  background: linear-gradient(
-    90deg,
-    rgba(255,255,255,0.4) 0%,
-    rgba(255,255,255,0.9) 40%,
-    rgba(139,92,246,0.7)  60%,
-    rgba(255,255,255,0.4) 100%
-  );
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: textShimmer 4s linear infinite;
+  animation: numFlash 0.25s var(--ease-out) forwards;
 }
 
 /* ── Page entrance vignette ────────────────────────────────── */
 .page-vignette {
   background: radial-gradient(
     ellipse 80% 50% at 50% 0%,
-    rgba(139,92,246,0.04) 0%,
+    rgba(255,255,255,0.018) 0%,
     transparent 60%
   );
   pointer-events: none;
+}
+
+/* ── Reduced motion — respect user preferences ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .bento-item {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .skeleton {
+    animation: none;
+    background: rgba(255,255,255,0.05);
+  }
+
+  .glow-dot,
+  .live-dot,
+  .num-update {
+    animation: none;
+  }
+
+  button {
+    transition: opacity 100ms linear;
+  }
+
+  button:active {
+    transform: none;
+    opacity: 0.7;
+  }
 }

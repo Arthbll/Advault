@@ -58,9 +58,9 @@ const GHOST: React.CSSProperties = {
 };
 const PRIMARY: React.CSSProperties = {
   borderRadius: 16, border: "none",
-  background: "linear-gradient(90deg,#ec4899,#8b5cf6,#6366f1)",
-  padding: "10px 20px", fontSize: 14, fontWeight: 600, color: "#fff",
-  cursor: "pointer", boxShadow: "0 14px 35px rgba(139,92,246,0.35)", whiteSpace: "nowrap",
+  background: "#ffffff",
+  padding: "10px 20px", fontSize: 14, fontWeight: 600, color: "#000000",
+  cursor: "pointer", whiteSpace: "nowrap",
 };
 const BADGE_BASE: React.CSSProperties = {
   display: "inline-flex", borderRadius: 999, padding: "5px 12px",

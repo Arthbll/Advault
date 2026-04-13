@@ -578,9 +578,8 @@ export default function NewCampaignPage() {
                       onClick={() => router.push("/dashboard/campaigns")}
                       style={{
                         height: 44, borderRadius: 14, padding: "0 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none",
-                        background: "linear-gradient(90deg, #ec4899, #8b5cf6)",
-                        boxShadow: "0 12px 36px rgba(139,92,246,0.22)",
-                        color: "#fff",
+                        background: "#ffffff",
+                        color: "#000000",
                       }}
                     >
                       View campaign
@@ -1587,30 +1586,24 @@ export default function NewCampaignPage() {
                   style={{
                     padding: "11px 28px", borderRadius: 16, fontSize: 14, fontWeight: 600,
                     border: "none", cursor: stepValid[step] ? "pointer" : "not-allowed",
-                    background: stepValid[step]
-                      ? "linear-gradient(90deg, #ec4899, #8b5cf6, #6366f1)"
-                      : "rgba(255,255,255,0.06)",
-                    color: stepValid[step] ? "#fff" : "rgba(255,255,255,0.22)",
-                    boxShadow: stepValid[step] ? "0 14px 35px rgba(139,92,246,0.35)" : "none",
-                    transition: "all 0.18s",
+                    background: stepValid[step] ? "#ffffff" : "rgba(255,255,255,0.06)",
+                    color: stepValid[step] ? "#000000" : "rgba(255,255,255,0.22)",
+                    transition: "background 0.18s, color 0.18s",
                   }}
                 >
                   Continue →
                 </motion.button>
               ) : (
                 <motion.button
-                  whileHover={{ scale: 1.013, boxShadow: "0 18px 44px rgba(139,92,246,0.48)" }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => setShowPreview(true)}
                   disabled={submitting}
                   style={{
                     padding: "11px 28px", borderRadius: 16, fontSize: 14, fontWeight: 600,
                     border: "none", cursor: "pointer",
-                    background: "linear-gradient(90deg, #ec4899, #8b5cf6, #6366f1)",
-                    color: "#fff",
-                    boxShadow: "0 14px 35px rgba(139,92,246,0.35)",
+                    background: "#ffffff",
+                    color: "#000000",
                     display: "flex", alignItems: "center", gap: 7,
-                    transition: "all 0.18s",
                   }}
                 >
                   <Film size={13} strokeWidth={1.4} />
@@ -2441,14 +2434,13 @@ function AdPreviewScreen({ form, onBack, onLaunch, submitting, error, onUpdateMe
                   <motion.button
                     onClick={onLaunch}
                     disabled={submitting}
-                    whileHover={!submitting ? { scale: 1.013, boxShadow: "0 18px 44px rgba(139,92,246,0.48)" } : {}}
                     whileTap={!submitting ? { scale: 0.97 } : {}}
                     style={{
                       borderRadius: 16, padding: "11px 24px", fontSize: 14, fontWeight: 600,
-                      border: "none", color: "#fff", cursor: submitting ? "not-allowed" : "pointer",
-                      background: submitting ? "rgba(255,255,255,0.06)" : "linear-gradient(90deg, #ec4899, #8b5cf6, #6366f1)",
-                      boxShadow: submitting ? "none" : "0 14px 35px rgba(139,92,246,0.35)",
-                      transition: "box-shadow 0.18s, transform 0.18s",
+                      border: "none", cursor: submitting ? "not-allowed" : "pointer",
+                      background: submitting ? "rgba(255,255,255,0.06)" : "#ffffff",
+                      color: submitting ? "rgba(255,255,255,0.22)" : "#000000",
+                      transition: "background 0.18s, color 0.18s",
                       display: "flex", alignItems: "center", gap: 7,
                     }}
                   >

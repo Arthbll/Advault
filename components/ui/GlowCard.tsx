@@ -9,7 +9,7 @@ interface Props {
   onClick?:   () => void;
 }
 
-export default function GlowCard({ children, glowColor = "0,255,135", style, onClick }: Props) {
+export default function GlowCard({ children, glowColor = "255,255,255", style, onClick }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [spot, setSpot] = useState<{ x: number; y: number } | null>(null);
 
@@ -44,7 +44,7 @@ export default function GlowCard({ children, glowColor = "0,255,135", style, onC
         border:     "1px solid rgba(255,255,255,0.06)",
         borderRadius: 20,
         boxShadow:  BASE_SHADOW,
-        transition: "border-color 0.2s, box-shadow 0.25s, transform 0.18s",
+        transition: "border-color 0.18s cubic-bezier(0.23,1,0.32,1), box-shadow 0.22s cubic-bezier(0.23,1,0.32,1), transform 0.18s cubic-bezier(0.23,1,0.32,1)",
         cursor:     onClick ? "pointer" : "default",
         ...style,
       }}

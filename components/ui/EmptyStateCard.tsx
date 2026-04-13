@@ -56,9 +56,8 @@ export default function EmptyStateCard({
   const PrimaryCTA = () => {
     const style: React.CSSProperties = {
       borderRadius: 16, border: "none",
-      background: "linear-gradient(90deg, #ec4899, #8b5cf6, #6366f1)",
-      padding: "12px 22px", fontSize: 14, fontWeight: 600, color: "#fff",
-      boxShadow: "0 14px 35px rgba(139,92,246,0.32)",
+      background: "#ffffff",
+      padding: "12px 22px", fontSize: 14, fontWeight: 600, color: "#000000",
       cursor: "pointer", fontFamily: "inherit",
       display: "inline-block", textDecoration: "none",
       lineHeight: 1, whiteSpace: "nowrap" as const,

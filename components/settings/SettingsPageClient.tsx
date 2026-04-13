@@ -917,9 +917,9 @@ export default function SettingsPageClient({
               onClick={() => setTab("plan")}
               style={{
                 marginTop: 8, borderRadius: 16, border: "none",
-                background: "linear-gradient(90deg,#ec4899,#8b5cf6,#6366f1)",
-                color: "#fff", padding: "10px 24px", fontSize: 13, fontWeight: 600,
-                cursor: "pointer", boxShadow: "0 14px 35px rgba(139,92,246,0.25)",
+                background: "#ffffff",
+                color: "#000000", padding: "10px 24px", fontSize: 13, fontWeight: 600,
+                cursor: "pointer",
               }}
             >
               Upgrade to Command →
@@ -958,12 +958,11 @@ export default function SettingsPageClient({
               onClick={handleInvite}
               style={{
                 borderRadius: 14, border: "none",
-                background: canInvite ? "linear-gradient(90deg,#ec4899,#8b5cf6,#6366f1)" : "rgba(255,255,255,0.05)",
-                color: canInvite ? "#fff" : "rgba(255,255,255,0.25)",
+                background: canInvite ? "#ffffff" : "rgba(255,255,255,0.05)",
+                color: canInvite ? "#000000" : "rgba(255,255,255,0.25)",
                 padding: "10px 20px", fontSize: 13, fontWeight: 600,
                 cursor: canInvite ? "pointer" : "default",
-                whiteSpace: "nowrap", transition: "all 0.2s",
-                boxShadow: canInvite ? "0 10px 28px rgba(139,92,246,0.30)" : "none",
+                whiteSpace: "nowrap", transition: "background 0.2s, color 0.2s",
               }}
             >
               {inviting ? "Inviting…" : "+ Invite member"}

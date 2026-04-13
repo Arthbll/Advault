@@ -313,14 +313,12 @@ function HeroSection() {
                     disabled={submitState === "loading"}
                     style={{
                       height: 56, borderRadius: 16,
-                      background: submitState === "loading"
-                        ? "rgba(239,68,68,0.40)"
-                        : "linear-gradient(105deg,#fb7185,#ef4444)",
+                      background: submitState === "loading" ? "rgba(255,255,255,0.12)" : "#ffffff",
                       padding: "0 32px", fontSize: 15, fontWeight: 600,
-                      color: "#000", border: "none",
+                      color: submitState === "loading" ? "rgba(255,255,255,0.40)" : "#000000",
+                      border: "none",
                       cursor: submitState === "loading" ? "default" : "pointer",
-                      boxShadow: "0 12px 40px rgba(239,68,68,0.26)",
-                      whiteSpace: "nowrap", transition: "background 0.2s",
+                      whiteSpace: "nowrap", transition: "background 0.2s, color 0.2s",
                     }}
                   >
                     {submitState === "loading" ? "Joining..." : "Claim early access \u2192"}
@@ -1640,10 +1638,9 @@ function FinalCTA() {
           <a href="/register" style={{ textDecoration: "none" }}>
             <button style={{
               height: 56, borderRadius: 16,
-              background: "linear-gradient(105deg,#fb7185,#ef4444)",
+              background: "#ffffff",
               padding: "0 36px", fontSize: 15, fontWeight: 600,
-              color: "#000", border: "none", cursor: "pointer",
-              boxShadow: "0 12px 40px rgba(239,68,68,0.24)",
+              color: "#000000", border: "none", cursor: "pointer",
             }}>Get early access →</button>
           </a>
           <a href="#the-system" style={{ textDecoration: "none" }}>
@@ -1687,9 +1684,11 @@ export default function LandingPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
               width: 32, height: 32, borderRadius: 10,
-              background: "linear-gradient(145deg,#8b5cf6,#38bdf8)",
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.14)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 14, fontWeight: 700, color: "white",
+              fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.9)",
+              letterSpacing: "-0.01em",
             }}>P</div>
             <div style={{ fontSize: 26, letterSpacing: "-0.05em", fontWeight: 300 }}>ProfitDash</div>
           </div>
@@ -1711,10 +1710,9 @@ export default function LandingPage() {
           <a href="/register" style={{ textDecoration: "none" }}>
             <button style={{
               height: 44, borderRadius: 12,
-              background: "linear-gradient(105deg,#fb7185,#ef4444)",
+              background: "#ffffff",
               padding: "0 22px", fontSize: 13, fontWeight: 600,
-              color: "#000", border: "none", cursor: "pointer",
-              boxShadow: "0 8px 28px rgba(239,68,68,0.22)",
+              color: "#000000", border: "none", cursor: "pointer",
             }}>Get early access</button>
           </a>
         </div>
