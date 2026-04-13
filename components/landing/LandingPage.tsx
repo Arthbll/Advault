@@ -1381,115 +1381,193 @@ function ProofSection() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PricingSection() {
-  const scrollToPricing = () => document.getElementById("hero")?.scrollIntoView({ behavior: "smooth" });
+  const [annual, setAnnual] = useState(false);
 
-  const FEAT_ITEM = ({ children }: { children: React.ReactNode }) => (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
-      <span style={{ color: SCALE_COL, fontSize: 12, marginTop: 1, flexShrink: 0 }}>&#x2713;</span>
-      <span style={{ fontSize: 13, lineHeight: "20px", color: "rgba(255,255,255,0.52)" }}>{children}</span>
+  const PRICES = {
+    operator: { monthly: 99,  annual: 79  },
+    dominion: { monthly: 249, annual: 199 },
+  };
+
+  const p = (plan: keyof typeof PRICES) =>
+    annual ? PRICES[plan].annual : PRICES[plan].monthly;
+
+  const FEAT = ({ children, dim }: { children: React.ReactNode; dim?: boolean }) => (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 9 }}>
+      <span style={{ color: dim ? "rgba(255,255,255,0.22)" : SCALE_COL, fontSize: 11, marginTop: 2, flexShrink: 0 }}>✓</span>
+      <span style={{ fontSize: 13, lineHeight: "20px", color: dim ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.54)" }}>{children}</span>
     </div>
   );
 
   return (
     <section id="pricing" style={SEC}>
-      <div style={{ margin: "0 auto", maxWidth: 1560 }}>
-        <Pill color={VIOLET}>Pricing</Pill>
-        <h2 style={{
-          marginTop: 28, fontSize: 72, fontWeight: 600, lineHeight: 0.93,
-          letterSpacing: "-0.065em", color: T_PRIMARY, maxWidth: "11ch",
-        }}>
-          Start free. Scale when you are ready.
-        </h2>
-        <p style={{ marginTop: 20, maxWidth: "36ch", fontSize: 18, lineHeight: "30px", color: T_MUTED }}>
-          Every operator starts the same way. What changes is how much of the engine you unlock.
-        </p>
+      <div style={{ margin: "0 auto", maxWidth: 1100 }}>
 
-        <div style={{ marginTop: 52, display: "grid", gridTemplateColumns: "1fr 1fr 1.1fr", gap: 16, alignItems: "start" }}>
+        {/* ── Header centered ── */}
+        <div style={{ textAlign: "center", marginBottom: 52 }}>
+          <Pill color={VIOLET}>Pricing</Pill>
+          <h2 style={{
+            marginTop: 24, fontSize: 56, fontWeight: 600, lineHeight: 1.0,
+            letterSpacing: "-0.055em", color: T_PRIMARY,
+          }}>
+            Start free. Scale when ready.
+          </h2>
+          <p style={{ marginTop: 16, fontSize: 17, lineHeight: "28px", color: T_MUTED }}>
+            Every operator starts the same way. What changes is how much of the engine you unlock.
+          </p>
 
-          {/* ── Observer ── */}
-          <motion.div initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0, duration: 0.7 }}
-            style={{ borderRadius: 24, padding: "32px 28px", border: BORDER, background: "rgba(255,255,255,0.02)" }}>
+          {/* ── Billing toggle ── */}
+          <div style={{ marginTop: 28, display: "inline-flex", alignItems: "center", gap: 14 }}>
+            <span style={{ fontSize: 13, color: annual ? T_MUTED : T_PRIMARY, transition: "color 0.2s" }}>Monthly</span>
+            <button
+              onClick={() => setAnnual(!annual)}
+              style={{
+                position: "relative", width: 44, height: 24, borderRadius: 12,
+                background: annual ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer",
+                transition: "background 0.2s",
+              }}
+            >
+              <span style={{
+                position: "absolute", top: 3, left: annual ? 23 : 3,
+                width: 16, height: 16, borderRadius: "50%",
+                background: "#ffffff",
+                transition: "left 0.2s cubic-bezier(0.23,1,0.32,1)",
+                display: "block",
+              }} />
+            </button>
+            <span style={{ fontSize: 13, color: annual ? T_PRIMARY : T_MUTED, transition: "color 0.2s" }}>Annual</span>
+            {annual && (
+              <span style={{
+                fontSize: 11, fontWeight: 600, letterSpacing: "0.06em",
+                color: SCALE_COL, background: "rgba(74,222,128,0.10)",
+                border: "1px solid rgba(74,222,128,0.18)",
+                borderRadius: 6, padding: "2px 8px",
+              }}>2 months free</span>
+            )}
+          </div>
+        </div>
+
+        {/* ── Cards ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, alignItems: "start" }}>
+
+          {/* Observer */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }} transition={{ delay: 0, duration: 0.6 }}
+            style={{ borderRadius: 20, padding: "28px 24px", border: BORDER, background: "rgba(255,255,255,0.015)" }}
+          >
             <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_DIM }}>Observer</div>
-            <div style={{ marginTop: 20, fontSize: 52, fontWeight: 200, letterSpacing: "-0.065em", color: T_PRIMARY }}>€0</div>
-            <div style={{ fontSize: 13, color: T_DIM, marginTop: 4 }}>Free, no credit card</div>
-            <div style={{ marginTop: 22, paddingTop: 22, borderTop: `1px solid ${BORDER_FAINT}` }}>
-              <div style={{ fontSize: 14, lineHeight: "24px", color: T_MUTED, marginBottom: 20 }}>
-                For operators who want to understand where their budget goes before committing to anything.
-              </div>
-              <FEAT_ITEM>Campaign ROI &amp; profit tracking</FEAT_ITEM>
-              <FEAT_ITEM>Budget leak detection</FEAT_ITEM>
-              <FEAT_ITEM>Up to 2 connected networks</FEAT_ITEM>
-              <FEAT_ITEM>Live dashboard</FEAT_ITEM>
+            <div style={{ marginTop: 18, display: "flex", alignItems: "baseline", gap: 6 }}>
+              <span style={{ fontSize: 48, fontWeight: 200, letterSpacing: "-0.06em", color: T_PRIMARY }}>€0</span>
             </div>
-            <a href="/register?plan=observer" style={{ textDecoration: "none", display: "block", marginTop: 24 }}>
+            <div style={{ fontSize: 12, color: T_DIM, marginTop: 2 }}>Free forever, no credit card</div>
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${BORDER_FAINT}` }}>
+              <div style={{ fontSize: 13, lineHeight: "22px", color: T_MUTED, marginBottom: 18 }}>
+                Understand where your budget goes before committing to anything.
+              </div>
+              <FEAT>Campaign ROI &amp; profit tracking</FEAT>
+              <FEAT>Budget leak detection</FEAT>
+              <FEAT>Up to 2 connected networks</FEAT>
+              <FEAT>Live dashboard</FEAT>
+            </div>
+            <a href="/register?plan=observer" style={{ textDecoration: "none", display: "block", marginTop: 22 }}>
               <button style={{
-                width: "100%", height: 44, borderRadius: 12,
-                border: BORDER, background: "rgba(255,255,255,0.03)",
-                fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.60)", cursor: "pointer",
+                width: "100%", height: 42, borderRadius: 11,
+                border: BORDER, background: "transparent",
+                fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.45)", cursor: "pointer",
+                transition: "border-color 0.15s, color 0.15s",
               }}>Start free →</button>
             </a>
           </motion.div>
 
-          {/* ── Operator ── */}
-          <motion.div initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1, duration: 0.7 }}
-            style={{ borderRadius: 24, padding: "32px 28px", border: BORDER, background: "rgba(255,255,255,0.025)" }}>
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_DIM }}>Operator</div>
-            <div style={{ marginTop: 20, fontSize: 52, fontWeight: 200, letterSpacing: "-0.065em", color: T_PRIMARY }}>€99</div>
-            <div style={{ fontSize: 13, color: T_DIM, marginTop: 4 }}>per month</div>
-            <div style={{ marginTop: 22, paddingTop: 22, borderTop: `1px solid ${BORDER_FAINT}` }}>
-              <div style={{ fontSize: 14, lineHeight: "24px", color: T_MUTED, marginBottom: 20 }}>
-                For solo operators running live campaigns daily. Real clarity on profit and your first layer of decision automation.
-              </div>
-              <FEAT_ITEM>Everything in Observer</FEAT_ITEM>
-              <FEAT_ITEM>Auto-kill rules by ROI threshold</FEAT_ITEM>
-              <FEAT_ITEM>Revenue signal tracking (all networks)</FEAT_ITEM>
-              <FEAT_ITEM>Full campaign detail view</FEAT_ITEM>
-              <FEAT_ITEM>Kill / Scale signal alerts</FEAT_ITEM>
+          {/* Operator — most popular, elevated */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }} transition={{ delay: 0.08, duration: 0.6 }}
+            style={{
+              borderRadius: 20, padding: "32px 24px",
+              border: "1px solid rgba(255,255,255,0.20)",
+              background: "rgba(255,255,255,0.055)",
+              boxShadow: "0 0 0 1px rgba(255,255,255,0.06), 0 20px 50px rgba(0,0,0,0.32)",
+              marginTop: -12,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_PRIMARY }}>Operator</div>
+              <div style={{
+                borderRadius: 6, border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(255,255,255,0.07)", padding: "3px 9px",
+                fontSize: 8, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(255,255,255,0.70)",
+              }}>Most popular</div>
             </div>
-            <a href="/register?plan=operator" style={{ textDecoration: "none", display: "block", marginTop: 24 }}>
+            <div style={{ marginTop: 18, display: "flex", alignItems: "baseline", gap: 6 }}>
+              <span style={{ fontSize: 48, fontWeight: 200, letterSpacing: "-0.06em", color: T_PRIMARY }}>€{p("operator")}</span>
+            </div>
+            <div style={{ fontSize: 12, color: T_MUTED, marginTop: 2 }}>
+              per month{annual ? ", billed annually" : ""}
+            </div>
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+              <div style={{ fontSize: 13, lineHeight: "22px", color: "rgba(255,255,255,0.62)", marginBottom: 18 }}>
+                Real clarity on profit and your first layer of decision automation — for operators running live campaigns daily.
+              </div>
+              <FEAT>Everything in Observer</FEAT>
+              <FEAT>Auto-kill rules by ROI threshold</FEAT>
+              <FEAT>Revenue signal tracking (all networks)</FEAT>
+              <FEAT>Full campaign detail view</FEAT>
+              <FEAT>Kill / Scale signal alerts</FEAT>
+            </div>
+            <a href="/register?plan=operator" style={{ textDecoration: "none", display: "block", marginTop: 22 }}>
               <button style={{
-                width: "100%", height: 44, borderRadius: 12,
-                border: BORDER, background: "rgba(255,255,255,0.04)",
-                fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.70)", cursor: "pointer",
+                width: "100%", height: 44, borderRadius: 11,
+                border: "none", background: "#ffffff",
+                fontSize: 13, fontWeight: 600, color: "#000000", cursor: "pointer",
+                transition: "opacity 0.15s",
               }}>Start with Operator →</button>
             </a>
           </motion.div>
 
-          {/* ── Dominion ── */}
-          <motion.div initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.2, duration: 0.7 }}
+          {/* Dominion */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }} transition={{ delay: 0.16, duration: 0.6 }}
             style={{
-              borderRadius: 24, padding: "32px 28px",
-              border: "1px solid rgba(74,222,128,0.22)",
-              background: "rgba(74,222,128,0.04)",
-              boxShadow: "0 0 0 1px rgba(74,222,128,0.08), 0 24px 60px rgba(0,0,0,0.28)",
-            }}>
+              borderRadius: 20, padding: "28px 24px",
+              border: "1px solid rgba(74,222,128,0.20)",
+              background: "rgba(74,222,128,0.035)",
+            }}
+          >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(74,222,128,0.72)" }}>Dominion</div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(74,222,128,0.70)" }}>Dominion</div>
               <div style={{
-                borderRadius: 8, border: "1px solid rgba(74,222,128,0.18)",
-                background: "rgba(74,222,128,0.08)", padding: "3px 10px",
-                fontSize: 8, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(74,222,128,0.80)",
+                borderRadius: 6, border: "1px solid rgba(74,222,128,0.16)",
+                background: "rgba(74,222,128,0.07)", padding: "3px 9px",
+                fontSize: 8, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(74,222,128,0.72)",
               }}>Most automated</div>
             </div>
-            <div style={{ marginTop: 20, fontSize: 52, fontWeight: 200, letterSpacing: "-0.065em", color: T_PRIMARY }}>€249</div>
-            <div style={{ fontSize: 13, color: T_DIM, marginTop: 4 }}>per month</div>
-            <div style={{ marginTop: 22, paddingTop: 22, borderTop: "1px solid rgba(74,222,128,0.10)" }}>
-              <div style={{ fontSize: 14, lineHeight: "24px", color: "rgba(255,255,255,0.60)", marginBottom: 20 }}>
-                For operators who want the engine to run without them. Kill, watch, and scale — automatically, around the clock.
-              </div>
-              <FEAT_ITEM>Everything in Operator</FEAT_ITEM>
-              <FEAT_ITEM>Fully automated kill &amp; scale decisions</FEAT_ITEM>
-              <FEAT_ITEM>Priority signal refresh rate</FEAT_ITEM>
-              <FEAT_ITEM>Multi-network automation</FEAT_ITEM>
-              <FEAT_ITEM>Unlimited rules &amp; thresholds</FEAT_ITEM>
-              <FEAT_ITEM>Full engine access</FEAT_ITEM>
+            <div style={{ marginTop: 18, display: "flex", alignItems: "baseline", gap: 6 }}>
+              <span style={{ fontSize: 48, fontWeight: 200, letterSpacing: "-0.06em", color: T_PRIMARY }}>€{p("dominion")}</span>
             </div>
-            <a href="/register?plan=dominion" style={{ textDecoration: "none", display: "block", marginTop: 24 }}>
+            <div style={{ fontSize: 12, color: T_DIM, marginTop: 2 }}>
+              per month{annual ? ", billed annually" : ""}
+            </div>
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid rgba(74,222,128,0.08)" }}>
+              <div style={{ fontSize: 13, lineHeight: "22px", color: "rgba(255,255,255,0.58)", marginBottom: 18 }}>
+                Kill, watch, and scale — automatically, around the clock. For operators who want the engine to run without them.
+              </div>
+              <FEAT>Everything in Operator</FEAT>
+              <FEAT>Fully automated kill &amp; scale decisions</FEAT>
+              <FEAT>Priority signal refresh rate</FEAT>
+              <FEAT>Multi-network automation</FEAT>
+              <FEAT>Unlimited rules &amp; thresholds</FEAT>
+              <FEAT>Full engine access</FEAT>
+            </div>
+            <a href="/register?plan=dominion" style={{ textDecoration: "none", display: "block", marginTop: 22 }}>
               <button style={{
-                width: "100%", height: 48, borderRadius: 12,
+                width: "100%", height: 44, borderRadius: 11,
                 border: "1px solid rgba(74,222,128,0.22)",
                 background: "rgba(74,222,128,0.10)",
                 fontSize: 13, fontWeight: 600, color: "#86efac", cursor: "pointer",
+                transition: "background 0.15s",
               }}>Get Dominion →</button>
             </a>
           </motion.div>
@@ -1499,36 +1577,37 @@ function PricingSection() {
         {/* ── Command ── */}
         <motion.div
           initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }} transition={{ delay: 0.3, duration: 0.7 }}
+          viewport={{ once: true }} transition={{ delay: 0.2, duration: 0.6 }}
           style={{
-            marginTop: 16, borderRadius: 24,
-            border: "1px solid rgba(251,191,36,0.16)",
-            background: "rgba(245,158,11,0.025)", padding: "32px 36px",
+            marginTop: 14, borderRadius: 20,
+            border: "1px solid rgba(251,191,36,0.14)",
+            background: "rgba(245,158,11,0.02)", padding: "28px 32px",
             display: "grid", gridTemplateColumns: "1fr auto",
             alignItems: "center", gap: 32,
           }}
         >
           <div>
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(251,191,36,0.70)", marginBottom: 14 }}>
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(251,191,36,0.65)", marginBottom: 10 }}>
               Command — team plan
             </div>
-            <div style={{ fontSize: 28, fontWeight: 300, letterSpacing: "-0.05em", color: T_PRIMARY, marginBottom: 12 }}>
+            <div style={{ fontSize: 22, fontWeight: 400, letterSpacing: "-0.04em", color: T_PRIMARY, marginBottom: 8 }}>
               Built for teams and agencies.
             </div>
-            <div style={{ fontSize: 15, lineHeight: "26px", color: T_MUTED, maxWidth: "54ch" }}>
+            <div style={{ fontSize: 14, lineHeight: "24px", color: T_MUTED, maxWidth: "52ch" }}>
               Multi-seat decision layer for agencies and trading desks. Shared rules, operator-level oversight, and governance controls — not just more seats.
             </div>
           </div>
           <a href="mailto:hello@profitdash.io" style={{ textDecoration: "none" }}>
             <button style={{
-              height: 48, borderRadius: 14,
-              border: "1px solid rgba(251,191,36,0.20)",
-              background: "rgba(251,191,36,0.06)", padding: "0 28px",
+              height: 44, borderRadius: 12,
+              border: "1px solid rgba(251,191,36,0.18)",
+              background: "rgba(251,191,36,0.05)", padding: "0 24px",
               fontSize: 13, fontWeight: 600, color: "#fde68a",
               cursor: "pointer", whiteSpace: "nowrap",
             }}>Talk to us →</button>
           </a>
         </motion.div>
+
       </div>
     </section>
   );
