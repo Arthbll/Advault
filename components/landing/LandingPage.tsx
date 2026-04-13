@@ -1526,23 +1526,23 @@ function PricingSection() {
             </a>
           </motion.div>
 
-          {/* Dominion — amber / precision tier */}
+          {/* Dominion — slate/steel tier */}
           <motion.div
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }} transition={{ delay: 0.16, duration: 0.6 }}
             style={{
               borderRadius: 20, padding: "28px 24px",
-              background: "rgba(251,191,36,0.06)",
-              border: "1px solid rgba(251,191,36,0.28)",
-              boxShadow: "0 0 0 1px rgba(251,191,36,0.05), 0 20px 50px rgba(0,0,0,0.30)",
+              background: "rgba(100,116,139,0.10)",
+              border: "1px solid rgba(148,163,184,0.26)",
+              boxShadow: "0 0 0 1px rgba(148,163,184,0.04), 0 20px 50px rgba(0,0,0,0.32)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "#fbbf24" }}>Dominion</div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "#94a3b8" }}>Dominion</div>
               <div style={{
-                borderRadius: 6, border: "1px solid rgba(251,191,36,0.26)",
-                background: "rgba(251,191,36,0.10)", padding: "3px 9px",
-                fontSize: 8, textTransform: "uppercase", letterSpacing: "0.18em", color: "#fde68a",
+                borderRadius: 6, border: "1px solid rgba(148,163,184,0.22)",
+                background: "rgba(148,163,184,0.08)", padding: "3px 9px",
+                fontSize: 8, textTransform: "uppercase", letterSpacing: "0.18em", color: "#cbd5e1",
               }}>Most automated</div>
             </div>
             <div style={{ marginTop: 18 }}>
@@ -1551,7 +1551,7 @@ function PricingSection() {
             <div style={{ fontSize: 12, color: T_MUTED, marginTop: 2 }}>
               per month{annual ? ", billed annually" : ""}
             </div>
-            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid rgba(251,191,36,0.10)" }}>
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid rgba(148,163,184,0.10)" }}>
               <div style={{ fontSize: 13, lineHeight: "22px", color: "rgba(255,255,255,0.58)", marginBottom: 18 }}>
                 Kill, watch, and scale — automatically, around the clock. For operators who want the engine to run without them.
               </div>
@@ -1565,9 +1565,10 @@ function PricingSection() {
             <a href="/register?plan=dominion" style={{ textDecoration: "none", display: "block", marginTop: 22 }}>
               <button style={{
                 width: "100%", height: 44, borderRadius: 11,
-                border: "none", background: "#f59e0b",
-                fontSize: 13, fontWeight: 700, color: "#1c1004", cursor: "pointer",
-                transition: "opacity 0.15s",
+                border: "1px solid rgba(148,163,184,0.22)",
+                background: "rgba(148,163,184,0.12)",
+                fontSize: 13, fontWeight: 600, color: "#e2e8f0", cursor: "pointer",
+                transition: "background 0.15s",
               }}>Get Dominion →</button>
             </a>
           </motion.div>
@@ -1595,14 +1596,25 @@ function PricingSection() {
           <div style={{ fontSize: 15, lineHeight: "26px", color: T_MUTED, maxWidth: "48ch", margin: "0 auto 24px" }}>
             Multi-seat decision layer for agencies and trading desks. Shared rules, operator-level oversight, and governance controls — not just more seats.
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 32 }}>
-            {["Shared kill/scale rules", "Multi-seat access", "Operator-level oversight", "Governance controls", "Priority support"].map((chip) => (
-              <span key={chip} style={{
-                fontSize: 12, color: "rgba(255,255,255,0.46)",
-                border: "1px solid rgba(255,255,255,0.09)",
-                borderRadius: 20, padding: "4px 12px",
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 1, marginBottom: 32, marginTop: 8,
+            border: "1px solid rgba(255,255,255,0.07)",
+            borderRadius: 14, overflow: "hidden",
+          }}>
+            {[
+              { value: "3+",  label: "Seats minimum" },
+              { value: "∞",   label: "Shared rules" },
+              { value: "1",   label: "Unified dashboard" },
+            ].map(({ value, label }, i) => (
+              <div key={i} style={{
+                padding: "18px 12px", textAlign: "center",
                 background: "rgba(255,255,255,0.02)",
-              }}>{chip}</span>
+                borderRight: i < 2 ? "1px solid rgba(255,255,255,0.07)" : "none",
+              }}>
+                <div style={{ fontSize: 28, fontWeight: 300, letterSpacing: "-0.04em", color: T_PRIMARY, lineHeight: 1 }}>{value}</div>
+                <div style={{ fontSize: 11, color: T_DIM, marginTop: 5, letterSpacing: "0.02em" }}>{label}</div>
+              </div>
             ))}
           </div>
           <a href="mailto:hello@profitdash.io" style={{ textDecoration: "none" }}>
