@@ -49,43 +49,6 @@ function Pill({ children, color = "#fb7185" }: { children: React.ReactNode; colo
   );
 }
 
-function BrandRibbon({ size = 420, glowAlpha = 0.22 }: { size?: number; glowAlpha?: number }) {
-  return (
-    <div style={{ position: "relative", width: size, height: size }}>
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-        borderRadius: "50%",
-        background: `radial-gradient(circle, rgba(99,102,241,${glowAlpha}), transparent 62%)`,
-        filter: "blur(60px)",
-      }} />
-      <div style={{
-        position: "absolute", top: "12%", left: "12%", right: "12%", bottom: "12%",
-        borderRadius: "50%", border: "1px solid rgba(34,211,238,0.14)",
-      }} />
-      <div style={{
-        position: "absolute", top: "22%", left: "22%", right: "22%", bottom: "22%",
-        borderRadius: "50%", border: "1px solid rgba(167,139,250,0.11)",
-      }} />
-      <div style={{
-        position: "absolute", left: "20%", top: "8%", height: "70%", width: "34%",
-        borderRadius: 999,
-        background: "linear-gradient(180deg,rgba(196,181,253,0.98),rgba(99,102,241,0.98),rgba(37,99,235,0.98))",
-        boxShadow: "0 20px 70px rgba(99,102,241,0.24)",
-        clipPath: "polygon(28% 0%,100% 0%,74% 100%,0% 100%)",
-        transform: "rotate(15deg)",
-      }} />
-      <div style={{
-        position: "absolute", left: "30%", top: "26%", height: "52%", width: "18%",
-        borderRadius: 999, background: BG, transform: "rotate(15deg)",
-      }} />
-      <div style={{
-        position: "absolute", left: "26%", top: "42%", height: "22%", width: "52%",
-        borderRadius: 999, border: "1px solid rgba(103,232,249,0.28)",
-        boxShadow: "0 0 40px rgba(56,189,248,0.16)", transform: "rotate(-8deg)",
-      }} />
-    </div>
-  );
-}
 
 function SignalLine({ id = "sig" }: { id?: string }) {
   return (
@@ -344,15 +307,6 @@ function HeroSection() {
             position: "relative", minHeight: 780,
             display: "flex", alignItems: "center", justifyContent: "flex-end",
           }}>
-            {/* Floating ribbon — the hero brand object */}
-            <motion.div
-              animate={{ y: [0, -12, 0], rotate: [0, 1.5, 0] }}
-              transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
-              style={{ position: "absolute", top: "2%", right: "3%", opacity: 0.96 }}
-            >
-              <BrandRibbon size={450} />
-            </motion.div>
-
             {/* Signal connector — anchored at hero bottom, bleeds toward SyncStrip */}
             <div style={{
               position: "absolute", left: 0, right: 0, bottom: 0,
@@ -1591,14 +1545,6 @@ function FinalCTA() {
       background: "radial-gradient(circle at 50% 30%, rgba(255,255,255,0.025), transparent 28%)",
     }}>
       <div style={{ margin: "0 auto", maxWidth: 1000, textAlign: "center" }}>
-        <motion.div
-          animate={{ y: [0, -8, 0], rotate: [0, 0.8, 0] }}
-          transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
-          style={{ margin: "0 auto", width: "fit-content", opacity: 0.88 }}
-        >
-          <BrandRibbon size={200} glowAlpha={0.15} />
-        </motion.div>
-
         <motion.h2
           initial={{ opacity: 0, y: 22 }}
           whileInView={{ opacity: 1, y: 0 }}
