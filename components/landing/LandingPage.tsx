@@ -1567,9 +1567,11 @@ function PricingSection() {
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }} transition={{ delay: 0.16, duration: 0.6 }}
             style={{
-              borderRadius: 20, padding: "26px 22px",
-              background: "rgba(100,116,139,0.10)",
-              border: "1px solid rgba(148,163,184,0.26)",
+              borderRadius: 20, padding: "34px 24px",
+              background: "rgba(100,116,139,0.12)",
+              border: "1px solid rgba(148,163,184,0.36)",
+              boxShadow: "0 0 0 1px rgba(148,163,184,0.05), 0 20px 52px rgba(0,0,0,0.32)",
+              marginTop: -10,
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -1584,7 +1586,7 @@ function PricingSection() {
               Best for full automation at scale
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-              <span style={{ fontSize: 40, fontWeight: 200, letterSpacing: "-0.06em", color: T_PRIMARY, lineHeight: 1 }}>€{p("dominion")}</span>
+              <span style={{ fontSize: 52, fontWeight: 200, letterSpacing: "-0.06em", color: T_PRIMARY, lineHeight: 1 }}>€{p("dominion")}</span>
               <span style={{ fontSize: 13, color: T_DIM }}>/month</span>
             </div>
             <div style={{ fontSize: 11, color: T_DIM, marginTop: 4, marginBottom: 18 }}>
