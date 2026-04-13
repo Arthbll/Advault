@@ -1495,17 +1495,17 @@ function PricingSection() {
               marginTop: -20,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.52)", fontStyle: "italic" }}>
-                Running live campaigns daily
-              </div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.52)", fontStyle: "italic", marginBottom: 10 }}>
+              Running live campaigns daily
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_PRIMARY }}>Operator</div>
               <div style={{
                 borderRadius: 6, border: "1px solid rgba(255,255,255,0.16)",
                 background: "rgba(255,255,255,0.08)", padding: "3px 10px",
                 fontSize: 8, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(255,255,255,0.72)",
               }}>Chosen by most operators</div>
             </div>
-            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_PRIMARY }}>Operator</div>
             <div style={{ marginTop: 14 }}>
               <span style={{ fontSize: 64, fontWeight: 200, letterSpacing: "-0.06em", color: T_PRIMARY, lineHeight: 1 }}>€{p("operator")}</span>
             </div>
