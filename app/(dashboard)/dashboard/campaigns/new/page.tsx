@@ -530,100 +530,103 @@ export default function NewCampaignPage() {
   // SUCCESS SCREEN
   // ─────────────────────────────────────────────────────────────────────────────
   if (success) {
+    const networkLabel = form.network === "EXOCLICK" ? "ExoClick" : form.network === "TRAFFICSTARS" ? "TrafficStars" : "TrafficJunky";
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ minHeight: "100vh", background: "#04050a", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
         <motion.div
-          initial={{ opacity: 0, scale: 0.92 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-          style={{ textAlign: "center", maxWidth: 420 }}
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+          style={{ width: "100%", maxWidth: 520, textAlign: "center" as const }}
         >
-          {/* Animated ring */}
-          <div style={{ position: "relative", width: 96, height: 96, margin: "0 auto 28px" }}>
-            <svg viewBox="0 0 96 96" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
-              <motion.circle
-                cx="48" cy="48" r="44"
-                fill="none"
-                stroke="rgba(107,158,130,0.18)"
-                strokeWidth="3"
-              />
-              <motion.circle
-                cx="48" cy="48" r="44"
-                fill="none"
-                stroke="#6b9e82"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeDasharray={`${2 * Math.PI * 44}`}
-                initial={{ strokeDashoffset: 2 * Math.PI * 44, rotate: -90 }}
-                animate={{ strokeDashoffset: 0 }}
-                style={{ transformOrigin: "center", rotate: "-90deg" }}
-                transition={{ duration: 0.8, ease: "easeOut", delay: 0.1 }}
-              />
-            </svg>
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.5, duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-              style={{
-                position: "absolute", inset: 0, display: "flex",
-                alignItems: "center", justifyContent: "center",
-              }}
-            >
-              <Check size={32} strokeWidth={1.4} color="#6b9e82" />
-            </motion.div>
-          </div>
 
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.4 }}>
-            <p style={{ fontSize: 11, fontWeight: 300, letterSpacing: "0.12em", textTransform: "uppercase", color: "#6b9e82", marginBottom: 8 }}>
-              Campaign created
-            </p>
-            <h2 style={{ fontSize: 26, fontWeight: 300, letterSpacing: "-0.03em", color: "#F5F5F7", marginBottom: 8 }}>
-              {createdName}
-            </h2>
-            <p style={{ fontSize: 14, color: "#52525B", marginBottom: 32, lineHeight: 1.6 }}>
-              Your campaign has been sent to {form.network === "EXOCLICK" ? "ExoClick" : form.network === "TRAFFICSTARS" ? "TrafficStars" : "TrafficJunky"} and saved in ProfitDash.
-            </p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-              <motion.button
-                whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }}
-                onClick={() => router.push("/dashboard/campaigns")}
-                style={{
-                  padding: "12px 22px", borderRadius: 14, fontSize: 13, fontWeight: 600,
-                  background: "rgba(107,158,130,0.1)", border: "1px solid rgba(107,158,130,0.22)",
-                  color: "#6b9e82", cursor: "pointer",
-                }}
-              >
-                View my campaigns
-              </motion.button>
-              <motion.button
-                whileHover={{ y: -1 }} whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  setSuccess(false);
-                  setStep(0);
-                  setDir(1);
-                  setForm({
-                    network: "EXOCLICK", name: "", url: "", adFormat: 2, countries: [],
-                    devices: ["desktop","mobile","tablet"], os: ["windows","macos","linux","android","ios"],
-                    timeSlots: [], publisherSites: [],
-                    bidType: "cpm", bid: "", dailyBudget: "", totalBudget: "",
-                    freqCapImps: "", freqCapHrs: "24", active: false,
-                    imageFile: null, imagePreview: null, mediaType: null, vaultAssetName: null,
-                    engineActive: false,
-                    killThreshold: -30, watchMinRoi: -10, watchMaxRoi: 30, scaleThreshold: 50,
-                    scaleBy: 25, maxScalingBudget: 200, minSpendBeforeAction: 10,
-                    cooldownMins: 120, maxActionsPerDay: 5, scanFreqMins: 60,
-                  });
-                }}
-                style={{
-                  padding: "12px 22px", borderRadius: 14, fontSize: 13, fontWeight: 500,
-                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-                  color: "#52525B", cursor: "pointer",
-                }}
-              >
-                New campaign
-              </motion.button>
-            </div>
-          </motion.div>
+                {/* Icon */}
+                <motion.div
+                  initial={{ scale: 0.72, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.42, ease: [0.23, 1, 0.32, 1] }}
+                  style={{
+                    margin: "0 auto", width: 72, height: 72, borderRadius: "50%",
+                    border: "1px solid rgba(52,211,153,0.18)",
+                    background: "rgba(16,185,129,0.06)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ color: "rgba(167,243,208,0.90)" }}>
+                    <path d="M5 12.5L10 17L19 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </motion.div>
+
+                {/* Text */}
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22, duration: 0.38 }}>
+                  <p style={{ marginTop: 24, fontSize: 10, textTransform: "uppercase" as const, letterSpacing: "0.26em", color: "rgba(167,243,208,0.60)" }}>
+                    Campaign created
+                  </p>
+                  <h1 style={{ marginTop: 12, fontSize: 38, lineHeight: 1.0, letterSpacing: "-0.05em", fontWeight: 300, color: "rgba(255,255,255,0.92)" }}>
+                    {createdName}
+                  </h1>
+                  <p style={{ margin: "14px auto 0", maxWidth: 380, fontSize: 15, lineHeight: 1.7, color: "rgba(255,255,255,0.38)" }}>
+                    Live on {networkLabel}.
+                  </p>
+                </motion.div>
+
+                {/* Actions */}
+                <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36, duration: 0.36 }}>
+                  <div style={{ marginTop: 32, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => router.push("/dashboard/campaigns")}
+                      style={{
+                        height: 44, borderRadius: 14, padding: "0 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none",
+                        background: "linear-gradient(90deg, #ec4899, #8b5cf6)",
+                        boxShadow: "0 12px 36px rgba(139,92,246,0.22)",
+                        color: "#fff",
+                      }}
+                    >
+                      View campaign
+                    </motion.button>
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => router.push("/dashboard/campaigns")}
+                      style={{
+                        height: 44, borderRadius: 14, padding: "0 22px", fontSize: 13, fontWeight: 500, cursor: "pointer",
+                        background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)",
+                        color: "rgba(255,255,255,0.60)",
+                      }}
+                    >
+                      Back to campaigns
+                    </motion.button>
+                  </div>
+
+                  {/* Discreet link */}
+                  <motion.button
+                    whileHover={{ color: "rgba(255,255,255,0.60)" }}
+                    onClick={() => {
+                      setSuccess(false);
+                      setStep(0);
+                      setDir(1);
+                      setForm({
+                        network: "EXOCLICK", name: "", url: "", adFormat: 2, countries: [],
+                        devices: ["desktop","mobile","tablet"], os: ["windows","macos","linux","android","ios"],
+                        timeSlots: [], publisherSites: [],
+                        bidType: "cpm", bid: "", dailyBudget: "", totalBudget: "",
+                        freqCapImps: "", freqCapHrs: "24", active: false,
+                        imageFile: null, imagePreview: null, mediaType: null, vaultAssetName: null,
+                        engineActive: false,
+                        killThreshold: -30, watchMinRoi: -10, watchMaxRoi: 30, scaleThreshold: 50,
+                        scaleBy: 25, maxScalingBudget: 200, minSpendBeforeAction: 10,
+                        cooldownMins: 120, maxActionsPerDay: 5, scanFreqMins: 60,
+                      });
+                    }}
+                    style={{
+                      marginTop: 20, fontSize: 14, color: "rgba(255,255,255,0.40)",
+                      background: "none", border: "none", cursor: "pointer", transition: "color 0.2s",
+                    }}
+                  >
+                    Create another
+                  </motion.button>
+                </motion.div>
+
         </motion.div>
       </div>
     );

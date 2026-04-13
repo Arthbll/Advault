@@ -305,6 +305,15 @@ export class ExoClickAdapter {
       2: 1, 4: 7, 5: 5, 8: 8, 13: 13, 14: 14,
     };
 
+    // NOTE: le champ "size" est omis du payload.
+    // ExoClick rejette toute valeur string ("300x250", "", etc.) avec "Size is not valid".
+    // Le sizing est géré via run_on_responsive_zones:true + les zones ciblées.
+
+    // ── adType → media_storage_template ──────────────────────────────────────
+    // ExoClick n'accepte que 'img_banner' ou 'video_banner' (pas 'link')
+    const getMediaTemplate = (at: number): string =>
+      at === 5 ? "video_banner" : "img_banner";
+
     // ── advertiser_ad_type → publisher_ad_types (capturé depuis l'UI ExoClick) ─
     const AD_TYPE_TO_PUBLISHER_TYPES: Record<number, number[]> = {
       7: [12, 3, 22],  // popunder
@@ -327,8 +336,9 @@ export class ExoClickAdapter {
     const categoryIds = params.categories?.length ? params.categories : [97];
 
     // ── Payload exact capturé depuis l'UI ExoClick (structure plate) ──────────
-    const adType = FORMAT_TO_AD_TYPE[params.adFormat] ?? 7;
+    const adType           = FORMAT_TO_AD_TYPE[params.adFormat] ?? 7;
     const publisherAdTypes = AD_TYPE_TO_PUBLISHER_TYPES[adType] ?? [];
+    const mediaTemplate    = getMediaTemplate(adType);
     // ⚠️ ExoClick price = centimes entiers (ex: 0.55€ → 55, 2€ → 200)
     // Source: https://docs.exoclick.com/docs/create-campaign-step4/
     const priceCents = Math.round(params.bid * 100);
@@ -362,9 +372,9 @@ export class ExoClickAdapter {
       publisher_ad_types:     publisherAdTypes,
       is_internal:            0,
       categories:             { type: "targeted", elements: categoryIds },
-      size:                   "",
+      // "size" intentionnellement omis — ExoClick rejette toute valeur string
       run_on_responsive_zones: true,
-      media_storage_template: "link",
+      media_storage_template: mediaTemplate, // "img_banner" ou "video_banner"
       variations:             [],   // ExoClick ignore ce champ au POST — variation créée via PUT après
       optimization_algorithm: 1,
       optimization_idgoal:    null,
@@ -378,15 +388,17 @@ export class ExoClickAdapter {
       email_passing:          0,
       pricing:                { model: pricingModelId, price: priceCents },
       frequency_capping:      { enabled: false, impressions: 0, minutes: 0, level: null },
-      // Budgets : ExoClick attend des centimes. daily_limit_type:0 impose max_daily_budget:-1 (illimité)
-      max_daily_budget:       params.dailyBudget ? Math.round(params.dailyBudget * 100) : -1,
+      // Budgets : ExoClick stocke en centimes MAIS exige des euros entiers (pas de centimes fractionnaires)
+      // → toujours arrondir à l'euro avant de multiplier par 100
+      // ex: 20.01€ → Math.round(20.01)*100 = 2000 ✓  (pas Math.round(20.01*100)=2001 ✗)
+      max_daily_budget:       params.dailyBudget ? Math.round(params.dailyBudget) * 100 : -1,
       daily_limit_delivery_mode: 1,
       daily_limit_type:       params.dailyBudget ? 1 : 0,  // 0=pas de limite, 1=budget journalier actif
       max_daily_impressions:  null,
       start_date:             params.startAt ?? null,
       end_date:               params.endAt   ?? null,
-      // total_budget_limit en centimes (min 2000 = 20€), null si non défini
-      total_budget_limit:     params.totalBudget ? Math.round(params.totalBudget * 100) : null,
+      // total_budget_limit en centimes, euros entiers uniquement (même règle que max_daily_budget)
+      total_budget_limit:     params.totalBudget ? Math.round(params.totalBudget) * 100 : null,
       total_impressions:      null,
       allowed_throttling_down: 0,
       zones:                  [],

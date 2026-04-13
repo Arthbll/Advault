@@ -35,6 +35,8 @@ const NET_META: Record<string, { color: string; label: string }> = {
   EXOCLICK:     { color: "#f59e0b", label: "ExoClick"     },
   TRAFFICSTARS: { color: "#8b5cf6", label: "TrafficStars" },
   TRAFFICJUNKY: { color: "#0ea5e9", label: "TrafficJunky" },
+  PROPELLERADS: { color: "#f97316", label: "PropellerAds" },
+  ADSTERRA:     { color: "#06b6d4", label: "Adsterra"     },
 };
 
 const STATUS_CFG: Record<string, { color: string; label: string; bg: string }> = {
@@ -333,6 +335,7 @@ export default function CampaignDetailPage({
   const [data,       setData]       = useState<DetailData | null>(null);
   const [variations, setVariations] = useState<Variation[]>([]);
   const [loading,    setLoading]    = useState(true);
+  const [loadError,  setLoadError]  = useState(false);
   const [varLoading, setVarLoading] = useState(false);
   const [acting,     setActing]     = useState<string | null>(null);
   const [metric,     setMetric]     = useState<MetricKey>("revenue");
@@ -343,8 +346,12 @@ export default function CampaignDetailPage({
   useEffect(() => {
     async function load() {
       setLoading(true);
+      setLoadError(false);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
       try {
-        const res = await fetch(`/api/campaigns/${id}`);
+        const res = await fetch(`/api/campaigns/${id}`, { signal: controller.signal });
+        clearTimeout(timeout);
         if (!res.ok) { router.replace("/dashboard/campaigns"); return; }
         const json = await res.json() as DetailData;
         setData(json);
@@ -363,7 +370,9 @@ export default function CampaignDetailPage({
           }
         }
       } catch (e) {
-        console.error(e);
+        clearTimeout(timeout);
+        if ((e as Error)?.name !== "AbortError") console.error(e);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -421,6 +430,20 @@ export default function CampaignDetailPage({
         <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
           <IconRefresh size={20} color={TEXT_DIM} />
         </motion.div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60vh", background: BG, gap: 16 }}>
+        <span style={{ fontSize: 13, color: TEXT_MID }}>Could not load campaign data.</span>
+        <button
+          onClick={() => router.push("/dashboard/campaigns")}
+          style={{ fontSize: 12, color: TEXT_DIM, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+        >
+          ← Back to campaigns
+        </button>
       </div>
     );
   }

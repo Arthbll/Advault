@@ -15,7 +15,7 @@ export interface DemoCampaign {
   id: string;
   externalId: string;
   name: string;
-  network: "EXOCLICK" | "TRAFFICSTARS" | "TRAFFICJUNKY";
+  network: "EXOCLICK" | "TRAFFICSTARS" | "TRAFFICJUNKY" | "PROPELLERADS" | "ADSTERRA";
   status: "ACTIVE" | "PAUSED" | "KILLED";
   spend: number;
   revenue: number;
@@ -44,7 +44,7 @@ interface CampaignDef {
   id: string;
   externalId: string;
   name: string;
-  network: "EXOCLICK" | "TRAFFICSTARS" | "TRAFFICJUNKY";
+  network: "EXOCLICK" | "TRAFFICSTARS" | "TRAFFICJUNKY" | "PROPELLERADS" | "ADSTERRA";
   status: "ACTIVE" | "PAUSED" | "KILLED";
   dailySpend: number;
   dailyRevenue: number;
@@ -174,6 +174,50 @@ const CAMPAIGN_DEFS: CampaignDef[] = [
     network: "TRAFFICJUNKY", status: "KILLED",
     dailySpend: 12.95, dailyRevenue: 4.74,
     dailyImpressions: 27_333, dailyClicks: 36, dailyConversions: 0.10,
+  },
+  // ── PropellerAds ──────────────────────────────────────────────────────────
+  {
+    id: "demo:PROPELLERADS:4001", externalId: "4001",
+    name: "Dating — Push Notification — US — Tier1",
+    network: "PROPELLERADS", status: "ACTIVE",
+    dailySpend: 72.40, dailyRevenue: 128.10,
+    dailyImpressions: 315_000, dailyClicks: 470, dailyConversions: 5.20,
+  },
+  {
+    id: "demo:PROPELLERADS:4002", externalId: "4002",
+    name: "iGaming — Popunder — DE — Mobile",
+    network: "PROPELLERADS", status: "ACTIVE",
+    dailySpend: 54.80, dailyRevenue: 95.40,
+    dailyImpressions: 228_000, dailyClicks: 310, dailyConversions: 3.85,
+  },
+  {
+    id: "demo:PROPELLERADS:4003", externalId: "4003",
+    name: "Crypto — OnClick — UK — Desktop",
+    network: "PROPELLERADS", status: "PAUSED",
+    dailySpend: 31.20, dailyRevenue: 52.60,
+    dailyImpressions: 142_000, dailyClicks: 195, dailyConversions: 2.10,
+  },
+  // ── Adsterra ──────────────────────────────────────────────────────────────
+  {
+    id: "demo:ADSTERRA:5001", externalId: "5001",
+    name: "Finance — Direct Click — BR — Mobile",
+    network: "ADSTERRA", status: "ACTIVE",
+    dailySpend: 44.60, dailyRevenue: 79.80,
+    dailyImpressions: 192_000, dailyClicks: 285, dailyConversions: 2.92,
+  },
+  {
+    id: "demo:ADSTERRA:5002", externalId: "5002",
+    name: "Crypto — Native — IN — Desktop",
+    network: "ADSTERRA", status: "ACTIVE",
+    dailySpend: 33.40, dailyRevenue: 60.20,
+    dailyImpressions: 145_000, dailyClicks: 218, dailyConversions: 2.24,
+  },
+  {
+    id: "demo:ADSTERRA:5003", externalId: "5003",
+    name: "Nutra — Popunder — MX — All Devices",
+    network: "ADSTERRA", status: "PAUSED",
+    dailySpend: 18.50, dailyRevenue: 31.40,
+    dailyImpressions: 84_000, dailyClicks: 128, dailyConversions: 1.35,
   },
 ];
 
@@ -613,6 +657,71 @@ export function getDemoCampaignDetail(id: string, dateFrom?: string, dateTo?: st
   };
 }
 
+// ─── /api/engine/actions — flux d'événements démo ─────────────────────────────
+
+function timeAgoDemo(minutesAgo: number): string {
+  if (minutesAgo < 60)   return `${minutesAgo}m ago`;
+  if (minutesAgo < 1440) return `${Math.round(minutesAgo / 60)}h ago`;
+  return                        `${Math.round(minutesAgo / 1440)}d ago`;
+}
+
+export function getDemoEngineActions() {
+  const now = new Date();
+
+  const rawEvents: Array<{
+    id: string; state: string; tone: "rose"|"amber"|"emerald";
+    isRecommend: boolean; campaign: string; network: string;
+    detail: string; minutesAgo: number;
+  }> = [
+    { id: "demo-ev-1", state: "KILL",  tone: "rose",    isRecommend: false, campaign: "iGaming — Pop Under — US — Mobile",       network: "EXOCLICK",     detail: "ROI -46.8% · spend threshold exceeded",     minutesAgo: 4   },
+    { id: "demo-ev-2", state: "SCALE", tone: "emerald", isRecommend: false, campaign: "Adult Dating — Push — US — Tier1",         network: "EXOCLICK",     detail: "+25% · €12,264 → €15,330 (+€3,066 injected)", minutesAgo: 18  },
+    { id: "demo-ev-3", state: "WATCH", tone: "amber",   isRecommend: false, campaign: "Nutra — Display — DE — Mobile",            network: "EXOCLICK",     detail: "ROI -27.9% · monitoring for 24h",           minutesAgo: 35  },
+    { id: "demo-ev-4", state: "SCALE", tone: "emerald", isRecommend: true,  campaign: "Crypto — Push — AU — Desktop",             network: "EXOCLICK",     detail: "ROI +77.8% · recommend +25% scale",         minutesAgo: 52  },
+    { id: "demo-ev-5", state: "KILL",  tone: "rose",    isRecommend: true,  campaign: "Finance — Native — BE — Desktop",          network: "TRAFFICJUNKY", detail: "ROI -38.6% · recommend pause",              minutesAgo: 78  },
+    { id: "demo-ev-6", state: "SCALE", tone: "emerald", isRecommend: false, campaign: "Casino — Native — UK — Desktop",           network: "EXOCLICK",     detail: "+25% · €9,527 → €11,909 (+€2,382 injected)", minutesAgo: 112 },
+    { id: "demo-ev-7", state: "WATCH", tone: "amber",   isRecommend: false, campaign: "VOD — Display — MX — All Devices",         network: "TRAFFICJUNKY", detail: "ROI +5.4% · below scale threshold",         minutesAgo: 187 },
+    { id: "demo-ev-8", state: "SCALE", tone: "emerald", isRecommend: false, campaign: "Dating — Push — FR — Mobile Broad",        network: "TRAFFICSTARS", detail: "+25% · €6,732 → €8,415 (+€1,683 injected)", minutesAgo: 240 },
+    { id: "demo-ev-9", state: "KILL",  tone: "rose",    isRecommend: false, campaign: "iGaming — Pop Under — US — Mobile",        network: "EXOCLICK",     detail: "ROI -52.1% · auto-killed by engine",        minutesAgo: 1320 },
+    { id: "demo-ev-10",state: "SCALE", tone: "emerald", isRecommend: false, campaign: "Crypto — Native — AU — Desktop",           network: "TRAFFICSTARS", detail: "+25% · €9,029 → €11,286 (+€2,257 injected)", minutesAgo: 1440 },
+  ];
+
+  const events = rawEvents.map(e => ({
+    id:          e.id,
+    state:       e.state,
+    tone:        e.tone,
+    isRecommend: e.isRecommend,
+    campaign:    e.campaign,
+    network:     e.network,
+    detail:      e.detail,
+    time:        timeAgoDemo(e.minutesAgo),
+    createdAt:   new Date(now.getTime() - e.minutesAgo * 60_000).toISOString(),
+  }));
+
+  const todayMidnight = new Date(now);
+  todayMidnight.setHours(0, 0, 0, 0);
+
+  const todayEvents   = events.filter(e => new Date(e.createdAt) >= todayMidnight);
+  const killedToday   = todayEvents.filter(e => e.state === "KILL"  && !e.isRecommend).length;
+  const watchToday    = todayEvents.filter(e => e.state === "WATCH" && !e.isRecommend).length;
+  const scaledToday   = todayEvents.filter(e => e.state === "SCALE" && !e.isRecommend).length;
+  const suggestPause  = todayEvents.filter(e => e.isRecommend && e.state === "KILL").length;
+  const suggestScale  = todayEvents.filter(e => e.isRecommend && e.state === "SCALE").length;
+
+  return {
+    events,
+    todayCount:     todayEvents.length,
+    killedToday,
+    watchToday,
+    scaledToday,
+    suggestTotal:   suggestPause + suggestScale,
+    suggestPause,
+    suggestScale,
+    rulesCount:     3,
+    protectedAmount: 4850,
+    lastEventAt:    events[0]?.createdAt ?? null,
+  };
+}
+
 /** /api/conversions GET — liste des conversions paginée */
 export function getDemoConversionsResponse(dateFrom: string, dateTo: string, page = 0, limit = 50) {
   const all   = generateDemoConversions(dateFrom, dateTo);
@@ -647,3 +756,90 @@ export const DEMO_ACCOUNTS: { network: string; isActive: boolean }[] = [
   { network: "TRAFFICSTARS", isActive: true },
   { network: "TRAFFICJUNKY", isActive: true },
 ];
+
+// ─── /api/security/logs — Sync logs + Audit trail démo ────────────────────────
+
+function timeAgoDemoSec(minAgo: number): string {
+  if (minAgo < 60)   return `${minAgo}m ago`;
+  if (minAgo < 1440) return `${Math.round(minAgo / 60)}h ago`;
+  return                    `${Math.round(minAgo / 1440)}d ago`;
+}
+function fmtDateDemo(minAgo: number): string {
+  const d = new Date(Date.now() - minAgo * 60_000);
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+export function getDemoSecurityLogs() {
+  // ── Sync logs ──────────────────────────────────────────────────────────────
+  const rawSync: Array<{
+    id: string; type: string; isError: boolean; network: string;
+    detail: string; minAgo: number;
+  }> = [
+    { id:"sl-1",  type:"SYNC",      isError:false, network:"EXOCLICK",     detail:"16 campaigns × 1 day · daily",        minAgo: 12   },
+    { id:"sl-2",  type:"SYNC",      isError:false, network:"TRAFFICSTARS", detail:"8 campaigns × 1 day · daily",          minAgo: 14   },
+    { id:"sl-3",  type:"SYNC",      isError:false, network:"TRAFFICJUNKY", detail:"4 campaigns × 1 day · daily",          minAgo: 16   },
+    { id:"sl-4",  type:"SYNC",      isError:false, network:"EXOCLICK",     detail:"16 campaigns × 1 day · daily",        minAgo: 1452 },
+    { id:"sl-5",  type:"SYNC",      isError:false, network:"TRAFFICSTARS", detail:"8 campaigns × 1 day · daily",          minAgo: 1454 },
+    { id:"sl-6",  type:"SYNC",      isError:false, network:"TRAFFICJUNKY", detail:"4 campaigns × 1 day · daily",          minAgo: 1456 },
+    { id:"sl-7",  type:"API_ERROR", isError:true,  network:"EXOCLICK",     detail:"Rate limit exceeded (429) — retried",  minAgo: 2910 },
+    { id:"sl-8",  type:"SYNC",      isError:false, network:"EXOCLICK",     detail:"16 campaigns × 1 day · daily",        minAgo: 2920 },
+    { id:"sl-9",  type:"SYNC",      isError:false, network:"TRAFFICSTARS", detail:"8 campaigns × 1 day · daily",          minAgo: 2922 },
+    { id:"sl-10", type:"SYNC",      isError:false, network:"TRAFFICJUNKY", detail:"4 campaigns × 1 day · daily",          minAgo: 2924 },
+    { id:"sl-11", type:"SYNC",      isError:false, network:"EXOCLICK",     detail:"16 campaigns × 90 days · backfill",   minAgo: 4380 },
+    { id:"sl-12", type:"SYNC",      isError:false, network:"TRAFFICSTARS", detail:"8 campaigns × 90 days · backfill",     minAgo: 4382 },
+    { id:"sl-13", type:"SYNC",      isError:false, network:"TRAFFICJUNKY", detail:"4 campaigns × 90 days · backfill",     minAgo: 4384 },
+  ];
+
+  // ── Audit trail ────────────────────────────────────────────────────────────
+  type Tone = "rose"|"amber"|"emerald"|"blue"|"white";
+  const rawAudit: Array<{
+    id: string; type: string; action: string; tone: Tone;
+    campaign: string; network: string; detail: string; minAgo: number;
+  }> = [
+    { id:"at-1",  type:"KILL_SWITCH_TRIGGERED", action:"Killed",       tone:"rose",    campaign:"iGaming — Pop Under — US — Mobile",       network:"EXOCLICK",     detail:"ROI -46.8%",           minAgo:4    },
+    { id:"at-2",  type:"CAMPAIGN_ACTION",        action:"Scaled +25%",  tone:"emerald", campaign:"Adult Dating — Push — US — Tier1",         network:"EXOCLICK",     detail:"ROI +68.4%",           minAgo:18   },
+    { id:"at-3",  type:"DECISION_WATCH",         action:"Watching",     tone:"amber",   campaign:"Nutra — Display — DE — Mobile",            network:"EXOCLICK",     detail:"ROI -27.9%",           minAgo:35   },
+    { id:"at-4",  type:"CAMPAIGN_ACTION",        action:"Scaled +25%",  tone:"emerald", campaign:"Crypto — Push — AU — Desktop",             network:"EXOCLICK",     detail:"ROI +77.8%",           minAgo:52   },
+    { id:"at-5",  type:"KILL_SWITCH_TRIGGERED",  action:"Paused",       tone:"rose",    campaign:"Finance — Native — BE — Desktop",          network:"TRAFFICJUNKY", detail:"ROI -38.6%",           minAgo:78   },
+    { id:"at-6",  type:"CAMPAIGN_ACTION",        action:"Scaled +25%",  tone:"emerald", campaign:"Casino — Native — UK — Desktop",           network:"EXOCLICK",     detail:"ROI +65.2%",           minAgo:112  },
+    { id:"at-7",  type:"DECISION_WATCH",         action:"Watching",     tone:"amber",   campaign:"VOD — Display — MX — All Devices",         network:"TRAFFICJUNKY", detail:"ROI +5.4%",            minAgo:187  },
+    { id:"at-8",  type:"CAMPAIGN_ACTION",        action:"Scaled +25%",  tone:"emerald", campaign:"Dating — Push — FR — Mobile Broad",        network:"TRAFFICSTARS", detail:"ROI +67.9%",           minAgo:240  },
+    { id:"at-9",  type:"KILL_SWITCH_TRIGGERED",  action:"Killed",       tone:"rose",    campaign:"iGaming — Pop Under — US — Mobile",        network:"EXOCLICK",     detail:"ROI -52.1%",           minAgo:1320 },
+    { id:"at-10", type:"CAMPAIGN_ACTION",        action:"Scaled +25%",  tone:"emerald", campaign:"Crypto — Native — AU — Desktop",           network:"TRAFFICSTARS", detail:"ROI +78.9%",           minAgo:1440 },
+    { id:"at-11", type:"KILL_SWITCH_TRIGGERED",  action:"Killed",       tone:"rose",    campaign:"Nutra — Display — DE — Mobile",            network:"EXOCLICK",     detail:"ROI -34.2%",           minAgo:2880 },
+    { id:"at-12", type:"CAMPAIGN_ACTION",        action:"Paused",       tone:"rose",    campaign:"Finance — Banner — UK — Desktop",          network:"TRAFFICSTARS", detail:"Manual · budget limit", minAgo:4320 },
+    { id:"at-13", type:"BUDGET_ALERT",           action:"Budget cap",   tone:"amber",   campaign:"Adult Dating — Banner — BR — Mobile",      network:"TRAFFICJUNKY", detail:"Daily cap reached",    minAgo:5760 },
+    { id:"at-14", type:"KILL_SWITCH_RESTORED",   action:"Resumed",      tone:"emerald", campaign:"iGaming — Pop Under — US — Mobile",        network:"EXOCLICK",     detail:"Manually re-enabled",  minAgo:7200 },
+  ];
+
+  const syncLogs = rawSync.map(e => ({
+    id:        e.id,
+    type:      e.type,
+    isError:   e.isError,
+    network:   e.network,
+    detail:    e.detail,
+    time:      timeAgoDemoSec(e.minAgo),
+    datetime:  fmtDateDemo(e.minAgo),
+    createdAt: new Date(Date.now() - e.minAgo * 60_000).toISOString(),
+  }));
+
+  const auditTrail = rawAudit.map(e => ({
+    id:        e.id,
+    type:      e.type,
+    action:    e.action,
+    tone:      e.tone,
+    campaign:  e.campaign,
+    network:   e.network,
+    detail:    e.detail,
+    time:      timeAgoDemoSec(e.minAgo),
+    datetime:  fmtDateDemo(e.minAgo),
+    createdAt: new Date(Date.now() - e.minAgo * 60_000).toISOString(),
+  }));
+
+  return {
+    syncLogs,
+    auditTrail,
+    syncTotal:  syncLogs.length,
+    auditTotal: auditTrail.length,
+  };
+}

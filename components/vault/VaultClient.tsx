@@ -677,7 +677,7 @@ export default function VaultClient({ campaigns, hasExoClick }: { campaigns: Cam
               : "Vault is the operating inventory for your campaigns. Upload creatives or add destination URLs to make your campaigns operational."
           }
           cta1={!hasExoClick ? "Connect ExoClick" : "Add asset"}
-          cta1Href={!hasExoClick ? "/dashboard/settings" : undefined}
+          cta1Href={!hasExoClick ? "/dashboard/settings?tab=connections" : undefined}
           cta2={!hasExoClick ? undefined : "Add destination URL"}
           preview={
             <div style={{

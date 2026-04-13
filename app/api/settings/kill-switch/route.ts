@@ -1,13 +1,23 @@
+/**
+ * GET  /api/settings/kill-switch  → kill-switch settings
+ * POST /api/settings/kill-switch  → update kill-switch settings
+ *
+ * Kept for backward compatibility with existing frontend code.
+ * Prefer the unified /api/settings endpoint for new features.
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceUserId } from "@/lib/workspace";
 
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const settings = await prisma.userSettings.findUnique({ where: { userId: user.id } });
+  const userId = await resolveWorkspaceUserId(user.id);
+  const settings = await prisma.userSettings.findUnique({ where: { userId: userId } });
+
   return NextResponse.json(settings ?? {
     killSwitchEnabled:    false,
     spendOnlyMode:        false,
@@ -30,34 +40,25 @@ export async function POST(req: NextRequest) {
     checkIntervalMinutes?: number;
   };
 
-  // spendOnlyMode : utilise $executeRaw pour compatibilité avant prisma generate
-  // (le champ est dans le schema mais pas encore dans les types générés)
+  const userId = await resolveWorkspaceUserId(user.id);
   const settings = await prisma.userSettings.upsert({
-    where:  { userId: user.id },
+    where:  { userId: userId },
     create: {
-      userId:               user.id,
+      userId:               userId,
       killSwitchEnabled:    body.killSwitchEnabled    ?? false,
+      spendOnlyMode:        body.spendOnlyMode        ?? false,
       roiThreshold:         body.roiThreshold         ?? -50,
       maxSpendPerCampaign:  body.maxSpendPerCampaign  ?? null,
       checkIntervalMinutes: body.checkIntervalMinutes ?? 30,
-      // spendOnlyMode est géré par un patch séparé ci-dessous
     },
     update: {
-      killSwitchEnabled:    body.killSwitchEnabled    ?? undefined,
-      roiThreshold:         body.roiThreshold         ?? undefined,
-      maxSpendPerCampaign:  body.maxSpendPerCampaign  ?? null,
-      checkIntervalMinutes: body.checkIntervalMinutes ?? undefined,
+      ...(body.killSwitchEnabled    !== undefined && { killSwitchEnabled:    body.killSwitchEnabled }),
+      ...(body.spendOnlyMode        !== undefined && { spendOnlyMode:        body.spendOnlyMode }),
+      ...(body.roiThreshold         !== undefined && { roiThreshold:         body.roiThreshold }),
+      ...(body.maxSpendPerCampaign  !== undefined && { maxSpendPerCampaign:  body.maxSpendPerCampaign }),
+      ...(body.checkIntervalMinutes !== undefined && { checkIntervalMinutes: body.checkIntervalMinutes }),
     },
   });
 
-  // Patch spendOnlyMode via SQL brut (avant que prisma generate soit relancé)
-  if (body.spendOnlyMode !== undefined) {
-    await prisma.$executeRaw`
-      UPDATE "UserSettings"
-      SET    "spendOnlyMode" = ${body.spendOnlyMode}
-      WHERE  "userId" = ${user.id}
-    `;
-  }
-
-  return NextResponse.json({ ok: true, settings: { ...settings, spendOnlyMode: body.spendOnlyMode ?? false } });
+  return NextResponse.json({ ok: true, settings });
 }

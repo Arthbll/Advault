@@ -25,13 +25,19 @@ export default async function ProfilePage() {
   const displayName: string =
     (user.user_metadata?.display_name as string | undefined) ?? "";
 
+  const bio = (user.user_metadata?.bio as string | undefined) ?? "";
+
+  const role = (user.user_metadata?.role as string | undefined) ?? "Admin";
+
   return (
     <ProfileClient
       email={user.email ?? ""}
       displayName={displayName}
+      bio={bio}
       createdAt={user.created_at}
       networksCount={accounts.length}
       campaignsCount={campaigns.length}
+      role={role}
     />
   );
 }

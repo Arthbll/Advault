@@ -5,33 +5,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
-import { randomUUID } from "crypto";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-export type RuleCondition =
-  | "ROI_BELOW"
-  | "ROI_ABOVE"
-  | "SPEND_ABOVE"
-  | "REVENUE_BELOW"
-  | "CPC_ABOVE";
-
-export type RuleAction =
-  | "PAUSE_CAMPAIGN"
-  | "SCALE_BUDGET"
-  | "NOTIFY";
-
-export interface AutomationRule {
-  id:          string;
-  name:        string;
-  enabled:     boolean;
-  condition:   RuleCondition;
-  threshold:   number;
-  action:      RuleAction;
-  actionValue: number | null;
-  network:     string | null;
-  createdAt:   string;
-  lastRunAt:   string | null;
-}
+import { resolveWorkspaceUserId } from "@/lib/workspace";
+import { RuleCondition, RuleAction, Network } from "@prisma/client";
 
 // ─── GET ──────────────────────────────────────────────────────────────────────
 export async function GET() {
@@ -39,21 +14,13 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  try {
-    const rows = await prisma.$queryRaw<AutomationRule[]>`
-      SELECT
-        id, name, enabled, condition, threshold, action,
-        "actionValue", network,
-        "createdAt", "lastRunAt"
-      FROM "AutomationRule"
-      WHERE "userId" = ${user.id}
-      ORDER BY "createdAt" DESC
-    `;
-    return NextResponse.json({ rules: rows });
-  } catch {
-    // Table may not exist yet
-    return NextResponse.json({ rules: [] });
-  }
+  const userId = await resolveWorkspaceUserId(user.id);
+  const rules = await prisma.automationRule.findMany({
+    where:   { userId: userId },
+    orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+  });
+
+  return NextResponse.json({ rules });
 }
 
 // ─── POST ─────────────────────────────────────────────────────────────────────
@@ -62,49 +29,68 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const userId = await resolveWorkspaceUserId(user.id);
+
   let body: {
-    name:        string;
-    condition:   RuleCondition;
-    threshold:   number;
-    action:      RuleAction;
-    actionValue?: number | null;
-    network?:    string | null;
+    name:             string;
+    condition:        string;
+    threshold:        number;
+    action:           string;
+    actionValue?:     number | null;
+    network?:         string | null;
+    priority?:        number;
+    timeWindowStart?: number | null;
+    timeWindowEnd?:   number | null;
   };
 
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "JSON invalide" }, { status: 400 }); }
 
-  const { name, condition, threshold, action, actionValue = null, network = null } = body;
+  const {
+    name, condition, threshold, action,
+    actionValue     = null,
+    network         = null,
+    priority        = 0,
+    timeWindowStart = null,
+    timeWindowEnd   = null,
+  } = body;
 
   if (!name || !condition || threshold == null || !action) {
     return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 });
   }
 
-  const VALID_CONDITIONS: RuleCondition[] = ["ROI_BELOW", "ROI_ABOVE", "SPEND_ABOVE", "REVENUE_BELOW", "CPC_ABOVE"];
-  const VALID_ACTIONS:    RuleAction[]    = ["PAUSE_CAMPAIGN", "SCALE_BUDGET", "NOTIFY"];
+  const VALID_CONDITIONS = ["ROI_BELOW", "ROI_ABOVE", "SPEND_ABOVE", "REVENUE_BELOW", "CPC_ABOVE"];
+  const VALID_ACTIONS    = ["PAUSE_CAMPAIGN", "SCALE_BUDGET", "NOTIFY"];
+  const VALID_NETWORKS   = ["EXOCLICK", "TRAFFICSTARS", "TRAFFICJUNKY", "PROPELLERADS", "ADSTERRA", "VOLUUM", "BEMOB", null];
 
-  if (!VALID_CONDITIONS.includes(condition) || !VALID_ACTIONS.includes(action)) {
-    return NextResponse.json({ error: "Condition ou action invalide" }, { status: 400 });
+  if (!VALID_CONDITIONS.includes(condition)) {
+    return NextResponse.json({ error: "Condition invalide" }, { status: 400 });
+  }
+  if (!VALID_ACTIONS.includes(action)) {
+    return NextResponse.json({ error: "Action invalide" }, { status: 400 });
+  }
+  if (!VALID_NETWORKS.includes(network)) {
+    return NextResponse.json({ error: "Réseau invalide" }, { status: 400 });
   }
 
   try {
-    const id  = randomUUID();
-    const now = new Date();
+    const rule = await prisma.automationRule.create({
+      data: {
+        userId:          userId,
+        name,
+        condition:       condition as RuleCondition,
+        threshold,
+        action:          action as RuleAction,
+        actionValue:     actionValue ?? null,
+        network:         (network as Network) ?? null,
+        priority,
+        timeWindowStart: timeWindowStart ?? null,
+        timeWindowEnd:   timeWindowEnd   ?? null,
+      },
+    });
 
-    await prisma.$executeRaw`
-      INSERT INTO "AutomationRule"
-        ("id", "userId", "name", "enabled", "condition", "threshold", "action", "actionValue", "network", "createdAt", "updatedAt")
-      VALUES
-        (${id}, ${user.id}, ${name}, true, ${condition}, ${threshold}, ${action}, ${actionValue}, ${network}, ${now}, ${now})
-    `;
-
-    const [created] = await prisma.$queryRaw<AutomationRule[]>`
-      SELECT id, name, enabled, condition, threshold, action, "actionValue", network, "createdAt", "lastRunAt"
-      FROM "AutomationRule" WHERE id = ${id}
-    `;
-
-    return NextResponse.json({ rule: created }, { status: 201 });
+    return NextResponse.json({ rule }, { status: 201 });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    console.error(e); return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

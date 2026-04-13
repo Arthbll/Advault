@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   if (enabled) {
     res.cookies.set(COOKIE, "1", {
-      httpOnly: false, // doit être lisible côté client pour l'UI
+      httpOnly: true, // sécurisé — non accessible depuis JS côté client
       sameSite: "strict",
       path:     "/",
       maxAge:   MAX_AGE,

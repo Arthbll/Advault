@@ -15,15 +15,24 @@ export async function GET(req: NextRequest) {
 
   const userId = await resolveWorkspaceUserId(user.id);
 
-  const sp    = new URL(req.url).searchParams;
-  const type  = sp.get("type");   // optional filter, e.g. KILL_SWITCH_TRIGGERED
-  const limit = Math.min(parseInt(sp.get("limit") ?? "50"), 200);
+  const sp      = new URL(req.url).searchParams;
+  const typeRaw = sp.get("type");
+  const limit   = Math.min(parseInt(sp.get("limit") ?? "50"), 200);
+
+  // Validate type against known LogType enum values — reject unknown values
+  const VALID_LOG_TYPES = Object.values(LogType) as string[];
+  const type = typeRaw
+    ? (VALID_LOG_TYPES.includes(typeRaw) ? (typeRaw as LogType) : null)
+    : null;
+  if (typeRaw && !type) {
+    return NextResponse.json({ error: `Invalid log type: ${typeRaw}` }, { status: 400 });
+  }
 
   try {
     const logs = await prisma.log.findMany({
       where: {
         userId: userId,
-        ...(type ? { type: type as LogType } : {}),
+        ...(type ? { type } : {}),
       },
       orderBy: { createdAt: "desc" },
       take:    limit,

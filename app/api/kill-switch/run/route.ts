@@ -18,13 +18,15 @@ export const maxDuration = 300;
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
 
-  // Vérifie le secret cron (obligatoire en production)
-  if (cronSecret) {
-    const auth = req.headers.get("authorization") ?? "";
-    const token = auth.replace("Bearer ", "").trim();
-    if (token !== cronSecret) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // CRON_SECRET obligatoire — si absent, la route est désactivée
+  if (!cronSecret) {
+    return NextResponse.json({ error: "Cron not configured" }, { status: 503 });
+  }
+
+  const auth = req.headers.get("authorization") ?? "";
+  const token = auth.replace("Bearer ", "").trim();
+  if (token !== cronSecret) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {

@@ -11,6 +11,7 @@ import { NextResponse }           from "next/server";
 import { createClient }           from "@/lib/supabase/server";
 import { prisma }                 from "@/lib/prisma";
 import { decrypt }                from "@/lib/crypto";
+import { resolveWorkspaceUserId } from "@/lib/workspace";
 import { ExoClickAdapter, ExoClickPublisherSite } from "@/lib/adapters/exoclick";
 import { Network }                from "@prisma/client";
 
@@ -68,8 +69,10 @@ export async function GET() {
       return NextResponse.json({ sites: cached.data, fromCache: true });
     }
 
+    const userId = await resolveWorkspaceUserId(user.id);
+
     const account = await prisma.account.findFirst({
-      where: { userId: user.id, network: Network.EXOCLICK, isActive: true },
+      where: { userId: userId, network: Network.EXOCLICK, isActive: true },
     });
     if (!account) {
       return NextResponse.json({ error: "Aucun compte ExoClick actif" }, { status: 404 });
@@ -84,8 +87,9 @@ export async function GET() {
       rawSites = await adapter.getSites();
     } catch (err) {
       console.error("[/api/exoclick/sites] getSites error:", err);
+      console.error("[/api/exoclick/sites] getSites error:", err);
       return NextResponse.json(
-        { error: "Failed to fetch ExoClick sites", detail: String(err) },
+        { error: "Failed to fetch ExoClick sites" },
         { status: 502 }
       );
     }
@@ -126,7 +130,7 @@ export async function GET() {
   } catch (err) {
     console.error("[/api/exoclick/sites] unhandled error:", err);
     return NextResponse.json(
-      { error: "Erreur serveur", detail: String(err) },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

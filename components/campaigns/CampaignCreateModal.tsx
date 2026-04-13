@@ -41,6 +41,8 @@ const NETWORKS = [
   { id: "EXOCLICK",     label: "ExoClick",     color: "#c08835", disabled: false },
   { id: "TRAFFICSTARS", label: "TrafficStars", color: "#7264a8", disabled: false },
   { id: "TRAFFICJUNKY", label: "TrafficJunky", color: "#4a8fb4", disabled: true  },
+  { id: "PROPELLERADS", label: "PropellerAds", color: "#f97316", disabled: true  },
+  { id: "ADSTERRA",     label: "Adsterra",     color: "#06b6d4", disabled: true  },
 ];
 
 const COUNTRIES: { code: string; name: string }[] = [

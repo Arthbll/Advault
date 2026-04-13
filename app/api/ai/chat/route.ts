@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceUserId } from "@/lib/workspace";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -12,10 +13,11 @@ export async function POST(req: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  const userId = await resolveWorkspaceUserId(user.id);
   const { messages } = await req.json();
 
   const campaigns = await prisma.campaign.findMany({
-    where: { userId: user.id },
+    where: { userId: userId },
     select: { name: true, network: true, status: true, spend: true, revenue: true, impressions: true, clicks: true },
     orderBy: { spend: "desc" },
     take: 20,

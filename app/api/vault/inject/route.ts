@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
 import { ExoClickAdapter } from "@/lib/adapters/exoclick";
 import { Network } from "@prisma/client";
+import { resolveWorkspaceUserId } from "@/lib/workspace";
 
 // POST /api/vault/inject
 // Body: { campaignId: string, urls: string[] }
@@ -14,6 +15,8 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
     if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const userId = await resolveWorkspaceUserId(user.id);
+
     const body = await req.json() as { campaignId?: string; urls?: string[] };
     const { campaignId, urls } = body;
 
@@ -23,13 +26,13 @@ export async function POST(req: NextRequest) {
 
     // Vérifie que la campagne appartient à l'utilisateur
     const camp = await prisma.campaign.findFirst({
-      where: { userId: user.id, network: Network.EXOCLICK, externalId: campaignId },
+      where: { userId: userId, network: Network.EXOCLICK, externalId: campaignId },
     });
     if (!camp) return NextResponse.json({ error: "Campagne introuvable" }, { status: 404 });
 
     // Compte ExoClick
     const account = await prisma.account.findFirst({
-      where: { userId: user.id, network: Network.EXOCLICK, isActive: true },
+      where: { userId: userId, network: Network.EXOCLICK, isActive: true },
     });
     if (!account) return NextResponse.json({ error: "No ExoClick account connected" }, { status: 404 });
 
@@ -39,7 +42,7 @@ export async function POST(req: NextRequest) {
     // Log
     await prisma.log.create({
       data: {
-        userId:  user.id,
+        userId:  userId,
         type:    "CAMPAIGN_ACTION",
         message: `${result.success} variation(s) injectée(s) dans la campagne "${camp.name}" (ExoClick ID ${campaignId})`,
         metadata: { network: "EXOCLICK", campaignId, injected: result.success, errors: result.errors },

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Save, CheckCircle2, Zap, BookOpen, ShieldOff, Shield } from "lucide-react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { Save, CheckCircle2, Zap, BookOpen, ShieldOff, Shield, Play, AlertCircle, RefreshCw } from "lucide-react";
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const C    = (op: number) => `rgba(255,255,255,${op})`;
@@ -84,12 +85,8 @@ function mapAction(row: {
   };
 }
 
-// Fallback rows shown while DB is empty / not yet migrated
-const FALLBACK_ACTIONS: ActionRow[] = [
-  { type: "Kill",  camp: "Xvideo 1",     ctx: "ROI -100% · threshold -30% · Spend €57.16",   date: "31 Mar · 19:53", r: "rose"    },
-  { type: "Watch", camp: "Nutra_US_03",  ctx: "ROI -7% · surfaced for review",                date: "31 Mar · 18:12", r: "amber"   },
-  { type: "Scale", camp: "Dating_DE_04", ctx: "ROI +41% · threshold +30% · bid +10%",          date: "31 Mar · 17:40", r: "emerald" },
-];
+// Empty initial state — real events load on mount
+const FALLBACK_ACTIONS: ActionRow[] = [];
 
 // ─── Small components ─────────────────────────────────────────────────────────
 function DecisionBadge({ label, color }: { label: string; color: string }) {
@@ -106,18 +103,27 @@ function DecisionBadge({ label, color }: { label: string; color: string }) {
   );
 }
 
-function ModePill({ auto }: { auto: boolean }) {
+function ModePill({ role, mode }: { role: "kill" | "watch" | "scale"; mode: "automatic" | "recommendation" }) {
+  if (role === "watch") {
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 500, letterSpacing: "0.04em", color: "rgba(253,230,138,0.80)" }}>
+        <span style={{ width: 5, height: 5, borderRadius: "50%", flexShrink: 0, background: "#fcd34d" }} />
+        Signal only
+      </span>
+    );
+  }
+  if (mode === "automatic") {
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 500, letterSpacing: "0.04em", color: "rgba(167,243,208,0.80)" }}>
+        <span style={{ width: 5, height: 5, borderRadius: "50%", flexShrink: 0, background: "#6ee7b7" }} />
+        Automatic
+      </span>
+    );
+  }
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 5,
-      fontSize: 11, fontWeight: 500, letterSpacing: "0.04em",
-      color: auto ? "rgba(167,243,208,0.80)" : "rgba(253,230,138,0.80)",
-    }}>
-      <span style={{
-        width: 5, height: 5, borderRadius: "50%", flexShrink: 0,
-        background: auto ? "#6ee7b7" : "#fcd34d",
-      }} />
-      {auto ? "Automatic" : "Signal only"}
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 500, letterSpacing: "0.04em", color: "rgba(196,181,253,0.80)" }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", flexShrink: 0, background: "#a78bfa" }} />
+      Recommendation
     </span>
   );
 }
@@ -140,6 +146,13 @@ export default function DecisionRulesPage() {
   const [engPaused,     setEngPaused]     = useState(false);
   const [pausedUntil,   setPausedUntil]   = useState<string | null>(null);
   const [pauseLoading,  setPauseLoading]  = useState(false);
+  const [overlayVisible, setOverlayVisible] = useState(false);
+  const [overlayMode,    setOverlayMode]    = useState<"automatic" | "recommendation">("automatic");
+  const [mounted,        setMounted]        = useState(false);
+  const [scanning,       setScanning]       = useState(false);
+  const [scanResult,     setScanResult]     = useState<{ checked: number; killed: number; scaled: number; skipped: number; errors: string[] } | null>(null);
+  const [scanError,      setScanError]      = useState(false);
+  useEffect(() => setMounted(true), []);
   const p = PRESETS[key];
 
   // ── Load saved preset + engine mode on mount ─────────────────────────────
@@ -170,15 +183,23 @@ export default function DecisionRulesPage() {
   useEffect(() => {
     fetch("/api/engine/actions?limit=5")
       .then(r => r.json())
-      .then((data: { actions?: unknown[] }) => {
-        if (Array.isArray(data.actions) && data.actions.length > 0) {
-          setActions(
-            (data.actions as Parameters<typeof mapAction>[0][]).map(mapAction)
-          );
+      .then((data: { events?: Array<{
+        id: string; state: string; tone: "rose" | "amber" | "emerald";
+        campaign: string; network: string; detail: string;
+        time: string; createdAt: string;
+      }> }) => {
+        if (Array.isArray(data.events) && data.events.length > 0) {
+          setActions(data.events.map(ev => ({
+            type: ev.state === "KILL" ? "Kill" : ev.state === "WATCH" ? "Watch" : "Scale",
+            camp: ev.campaign || "Campaign",
+            ctx:  ev.detail,
+            date: ev.time,
+            r:    ev.tone,
+          })));
         }
-        // if empty, keep FALLBACK_ACTIONS
+        // if empty, keep empty array (no fake fallback data)
       })
-      .catch(() => { /* keep fallback */ });
+      .catch(() => { /* keep empty */ });
   }, []);
 
   // ── Save handler ──────────────────────────────────────────────────────────
@@ -239,6 +260,53 @@ export default function DecisionRulesPage() {
            " on " + d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   }
 
+  function handleModeSwitch(m: "automatic" | "recommendation") {
+    if (m === engineMode) return;
+    setEngineMode(m);
+    setOverlayMode(m);
+    setOverlayVisible(true);
+    setTimeout(() => setOverlayVisible(false), 900);
+  }
+
+  async function handleRunScan() {
+    setScanning(true);
+    setScanResult(null);
+    setScanError(false);
+    try {
+      const res = await fetch("/api/kill-switch/run", { method: "POST" });
+      const data = await res.json() as { ok: boolean; checked?: number; killed?: number; scaled?: number; skipped?: number; errors?: string[] };
+      if (!data.ok) throw new Error("Scan failed");
+      setScanResult({
+        checked: data.checked ?? 0,
+        killed:  data.killed  ?? 0,
+        scaled:  data.scaled  ?? 0,
+        skipped: data.skipped ?? 0,
+        errors:  data.errors  ?? [],
+      });
+      // Rafraîchir le feed d'actions après le scan
+      fetch("/api/engine/actions?limit=5")
+        .then(r => r.json())
+        .then((d: { events?: Array<{ id: string; state: string; tone: "rose"|"amber"|"emerald"; campaign: string; network: string; detail: string; time: string }> }) => {
+          if (Array.isArray(d.events) && d.events.length > 0) {
+            setActions(d.events.map(ev => ({
+              type: ev.state === "KILL" ? "Kill" : ev.state === "WATCH" ? "Watch" : "Scale",
+              camp: ev.campaign || "Campaign",
+              ctx:  ev.detail,
+              date: ev.time,
+              r:    ev.tone,
+            })));
+          }
+        })
+        .catch(() => {});
+      setTimeout(() => setScanResult(null), 8000);
+    } catch {
+      setScanError(true);
+      setTimeout(() => setScanError(false), 4000);
+    } finally {
+      setScanning(false);
+    }
+  }
+
   const safetyRows: [string, string][] = [
     ["Min spend before any decision",  `€${p.minSpend}`],
     ["Min conversions before scale",   String(p.minConv)],
@@ -253,6 +321,87 @@ export default function DecisionRulesPage() {
 
   return (
     <div style={{ padding: "28px 28px 64px", maxWidth: 1500, margin: "0 auto" }}>
+
+      {/* ── Mode transition toast (portal → body, ancré en haut sous le navbar) */}
+      {mounted && createPortal(
+      <AnimatePresence>
+        {overlayVisible && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            style={{
+              position:       "fixed",
+              inset:          0,
+              zIndex:         9999,
+              display:        "flex",
+              alignItems:     "center",
+              justifyContent: "center",
+              pointerEvents:  "none",
+            }}
+          >
+            {/* Backdrop */}
+            <div style={{
+              position:       "absolute",
+              inset:          0,
+              backdropFilter: "blur(4px)",
+              background:     "rgba(4,5,10,0.52)",
+            }} />
+            {/* Panel */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1,    y: 0  }}
+              exit={{    opacity: 0, scale: 0.98,  y: -8 }}
+              transition={{ duration: 0.22, ease: EASE }}
+              style={{
+                position:       "relative",
+                borderRadius:   32,
+                border:         overlayMode === "automatic"
+                  ? "1px solid rgba(52,211,153,0.22)"
+                  : "1px solid rgba(139,92,246,0.24)",
+                background:     "linear-gradient(180deg,rgba(13,15,24,0.96),rgba(8,10,17,0.96))",
+                padding:        "44px 64px",
+                textAlign:      "center",
+                backdropFilter: "blur(32px)",
+                boxShadow:      "0 40px 100px rgba(0,0,0,0.65)",
+                overflow:       "hidden",
+                minWidth:       460,
+              }}
+            >
+              {/* Glow */}
+              <div style={{
+                position:      "absolute", inset: 0, borderRadius: 32, pointerEvents: "none",
+                background:    overlayMode === "automatic"
+                  ? "radial-gradient(circle at 50% 0%,rgba(52,211,153,0.12),transparent 55%)"
+                  : "radial-gradient(circle at 50% 0%,rgba(139,92,246,0.16),transparent 55%)",
+              }} />
+              <div style={{
+                fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const,
+                letterSpacing: "0.28em", marginBottom: 18,
+                color: overlayMode === "automatic" ? "rgba(110,231,183,0.60)" : "rgba(167,139,250,0.60)",
+              }}>
+                Engine mode
+              </div>
+              <div style={{
+                fontSize: 56, fontWeight: 200, letterSpacing: "-0.07em", lineHeight: 1,
+                color: overlayMode === "automatic" ? "rgba(167,243,208,0.96)" : "rgba(196,181,253,0.96)",
+              }}>
+                {overlayMode === "automatic" ? "Automatic" : "Recommendation"}
+              </div>
+              <div style={{
+                marginTop: 16, fontSize: 14, color: C(0.40), letterSpacing: "-0.01em",
+              }}>
+                {overlayMode === "automatic"
+                  ? "Real execution · Kill and Scale act automatically"
+                  : "Dry-run only · The engine suggests instead of executing"}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>,
+      document.body
+      )}
 
       {/* ── Outer card ─────────────────────────────────────────────────────── */}
       <motion.div {...s(0)} style={{
@@ -302,7 +451,7 @@ export default function DecisionRulesPage() {
                 return (
                   <button
                     key={m}
-                    onClick={() => setEngineMode(m)}
+                    onClick={() => handleModeSwitch(m)}
                     style={{
                       height:        34,
                       padding:       "0 13px",
@@ -366,6 +515,70 @@ export default function DecisionRulesPage() {
                 </button>
               ))}
             </div>
+
+            {/* Run scan */}
+            <button
+              onClick={handleRunScan}
+              disabled={scanning}
+              style={{
+                height:       40,
+                padding:      "0 16px",
+                borderRadius: 12,
+                border:       scanError
+                  ? "1px solid rgba(251,113,133,0.30)"
+                  : scanResult
+                    ? "1px solid rgba(52,211,153,0.30)"
+                    : engineMode === "automatic"
+                      ? "1px solid rgba(52,211,153,0.22)"
+                      : "1px solid rgba(139,92,246,0.22)",
+                background:   scanError
+                  ? "rgba(244,63,94,0.08)"
+                  : scanResult
+                    ? "rgba(16,185,129,0.10)"
+                    : engineMode === "automatic"
+                      ? "rgba(16,185,129,0.07)"
+                      : "rgba(139,92,246,0.07)",
+                color:        scanError
+                  ? "#fca5a5"
+                  : scanResult
+                    ? "rgba(167,243,208,0.95)"
+                    : engineMode === "automatic"
+                      ? "rgba(167,243,208,0.85)"
+                      : "rgba(196,181,253,0.85)",
+                fontSize:     12,
+                fontWeight:   600,
+                cursor:       scanning ? "default" : "pointer",
+                display:      "flex",
+                alignItems:   "center",
+                gap:          7,
+                opacity:      scanning ? 0.6 : 1,
+                transition:   "all 0.22s ease",
+                whiteSpace:   "nowrap" as const,
+              }}
+            >
+              {scanError ? (
+                <><AlertCircle size={13} />Error</>
+              ) : scanning ? (
+                <>
+                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }} style={{ display: "flex" }}>
+                    <RefreshCw size={13} />
+                  </motion.div>
+                  Scanning…
+                </>
+              ) : scanResult ? (
+                <>
+                  <CheckCircle2 size={13} />
+                  {engineMode === "automatic"
+                    ? `${scanResult.checked} checked · ${scanResult.killed} killed · ${scanResult.scaled} scaled`
+                    : `${scanResult.checked} checked · ${scanResult.killed} suggestions · ${scanResult.scaled} to scale`}
+                </>
+              ) : (
+                <>
+                  <Play size={11} />
+                  {engineMode === "automatic" ? "Run scan" : "Preview scan"}
+                </>
+              )}
+            </button>
 
             {/* Save */}
             <button
@@ -473,9 +686,9 @@ export default function DecisionRulesPage() {
                   ROI &lt; <span style={{ color: TONE.rose.text }}>{p.kill}%</span>
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.04em", color: C(0.90) }}>
-                  Pause campaign
+                  {engineMode === "automatic" ? "Pause campaign" : "Suggest pause"}
                 </div>
-                <ModePill auto={true} />
+                <ModePill role="kill" mode={engineMode} />
               </motion.div>
 
               {/* Watch row */}
@@ -495,7 +708,7 @@ export default function DecisionRulesPage() {
                 <div style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.04em", color: C(0.90) }}>
                   Flag for review
                 </div>
-                <ModePill auto={false} />
+                <ModePill role="watch" mode={engineMode} />
               </motion.div>
 
               {/* Scale row */}
@@ -512,9 +725,9 @@ export default function DecisionRulesPage() {
                   ROI &gt; <span style={{ color: TONE.emerald.text }}>+{p.scaleRoi}%</span>
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.04em", color: C(0.90) }}>
-                  Bid +{p.scaleInc}%
+                  {engineMode === "automatic" ? `Bid +${p.scaleInc}%` : `Suggest bid +${p.scaleInc}%`}
                 </div>
-                <ModePill auto={true} />
+                <ModePill role="scale" mode={engineMode} />
               </motion.div>
             </div>
 
@@ -548,37 +761,46 @@ export default function DecisionRulesPage() {
           </div>
 
           {/* ── E. Engine preview ─────────────────────────────────────── */}
-          <div style={{
+          <motion.div key={`preview-mode-${engineMode}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28, ease: EASE }} style={{
             borderRadius: 18,
-            border:       "1px solid rgba(52,211,153,0.12)",
-            background:   "rgba(16,185,129,0.025)",
+            border:       engineMode === "automatic" ? "1px solid rgba(52,211,153,0.12)" : "1px solid rgba(139,92,246,0.12)",
+            background:   engineMode === "automatic" ? "rgba(16,185,129,0.025)" : "rgba(139,92,246,0.025)",
             overflow:     "hidden",
           }}>
-            <div style={{ padding: "12px 20px", borderBottom: `1px solid ${C(0.05)}` }}>
-              <ColLabel style={{ color: "rgba(167,243,208,0.55)" }}>Engine preview</ColLabel>
+            <div style={{ padding: "12px 20px", borderBottom: `1px solid ${C(0.05)}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <ColLabel style={{ color: engineMode === "automatic" ? "rgba(167,243,208,0.55)" : "rgba(196,181,253,0.55)" }}>
+                {engineMode === "automatic" ? "What the engine will execute" : "What the engine would suggest"}
+              </ColLabel>
+              <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: engineMode === "automatic" ? "rgba(167,243,208,0.40)" : "rgba(196,181,253,0.40)" }}>
+                {engineMode === "automatic" ? "Real execution" : "Dry-run · No action taken"}
+              </span>
             </div>
             <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
               {[
                 {
                   tone: TONE.rose,
-                  text: <>
-                    If ROI stays below <strong style={{ color: TONE.rose.text }}>{p.kill}%</strong> for <strong style={{ color: C(0.88) }}>{p.killHold} min</strong> and spend is above <strong style={{ color: C(0.88) }}>€{p.minSpend}</strong>, ProfitDash will <strong style={{ color: C(0.92) }}>pause the campaign automatically</strong>.
-                  </>,
+                  text: engineMode === "automatic" ? (
+                    <>If ROI stays below <strong style={{ color: TONE.rose.text }}>{p.kill}%</strong> for <strong style={{ color: C(0.88) }}>{p.killHold} min</strong> and spend is above <strong style={{ color: C(0.88) }}>€{p.minSpend}</strong>, the engine will <strong style={{ color: C(0.92) }}>pause the campaign</strong>.</>
+                  ) : (
+                    <>If ROI stays below <strong style={{ color: TONE.rose.text }}>{p.kill}%</strong> for <strong style={{ color: C(0.88) }}>{p.killHold} min</strong> and spend is above <strong style={{ color: C(0.88) }}>€{p.minSpend}</strong>, the engine would <strong style={{ color: C(0.92) }}>suggest pausing this campaign</strong>. <span style={{ color: C(0.36) }}>No pause will happen automatically.</span></>
+                  ),
                 },
                 {
                   tone: TONE.amber,
                   text: <>
-                    If ROI stays between <strong style={{ color: TONE.amber.text }}>{p.watchLow}%</strong> and <strong style={{ color: TONE.amber.text }}>0%</strong>, ProfitDash will <strong style={{ color: C(0.92) }}>flag the campaign for manual review</strong>. <span style={{ color: C(0.36) }}>No automatic action is taken.</span>
+                    If ROI stays between <strong style={{ color: TONE.amber.text }}>{p.watchLow}%</strong> and <strong style={{ color: TONE.amber.text }}>0%</strong>, the engine will <strong style={{ color: C(0.92) }}>flag the campaign for manual review</strong>. <span style={{ color: C(0.36) }}>Signal only — no automatic action in either mode.</span>
                   </>,
                 },
                 {
                   tone: TONE.emerald,
-                  text: <>
-                    If ROI stays above <strong style={{ color: TONE.emerald.text }}>+{p.scaleRoi}%</strong>, spend is above <strong style={{ color: C(0.88) }}>€{p.minSpend * 2.5}</strong>, and conversions are at least <strong style={{ color: C(0.88) }}>{p.minConv}</strong>, ProfitDash will <strong style={{ color: C(0.92) }}>increase the bid by +{p.scaleInc}%</strong>.
-                  </>,
+                  text: engineMode === "automatic" ? (
+                    <>If ROI stays above <strong style={{ color: TONE.emerald.text }}>+{p.scaleRoi}%</strong>, spend is above <strong style={{ color: C(0.88) }}>€{p.minSpend * 2.5}</strong>, and conversions are at least <strong style={{ color: C(0.88) }}>{p.minConv}</strong>, the engine will <strong style={{ color: C(0.92) }}>increase the bid by +{p.scaleInc}%</strong>.</>
+                  ) : (
+                    <>If ROI stays above <strong style={{ color: TONE.emerald.text }}>+{p.scaleRoi}%</strong>, spend is above <strong style={{ color: C(0.88) }}>€{p.minSpend * 2.5}</strong>, and conversions are at least <strong style={{ color: C(0.88) }}>{p.minConv}</strong>, the engine would <strong style={{ color: C(0.92) }}>suggest increasing the bid by +{p.scaleInc}%</strong>. <span style={{ color: C(0.36) }}>No bid change will happen automatically.</span></>
+                  ),
                 },
               ].map((row, i) => (
-                <motion.div key={`preview-${i}-${key}`} {...s(i)} style={{
+                <motion.div key={`preview-${i}-${key}-${engineMode}`} {...s(i)} style={{
                   borderRadius: 11,
                   border:       row.tone.border,
                   background:   row.tone.bg,
@@ -591,7 +813,7 @@ export default function DecisionRulesPage() {
                 </motion.div>
               ))}
             </div>
-          </div>
+          </motion.div>
 
           {/* ── F + G. Recent actions + Network overrides ─────────────── */}
           <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 14 }}>
@@ -607,6 +829,11 @@ export default function DecisionRulesPage() {
                 <ColLabel>Recent engine actions</ColLabel>
               </div>
               <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 7 }}>
+                {actions.length === 0 && (
+                  <div style={{ padding: "14px 6px", fontSize: 12, color: C(0.28), textAlign: "center" }}>
+                    No engine actions yet
+                  </div>
+                )}
                 {actions.map((r, i) => {
                   const t = TONE[r.r];
                   return (

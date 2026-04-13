@@ -1,12 +1,21 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Copy, Check } from "lucide-react";
+import React, { useState, useEffect, useTransition, useRef } from "react";
+import { useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { Copy, Check, ShieldCheck, ShieldOff, AlertCircle, X } from "lucide-react";
+import { enrollMFA, verifyMFA, listMFAFactors } from "@/app/actions/mfa";
+import {
+  createRecoveryCodes,
+  getRecoveryCodeStats,
+  regenerateRecoveryCodes,
+  unenrollMFAWithConfirmation,
+} from "@/app/actions/recovery-codes";
 import AutoSyncSettings    from "./AutoSyncSettings";
 import NotificationSettings from "./NotificationSettings";
 import NetworkCard          from "./NetworkCard";
-import { NetworkErrorCard, PostbackHealthCard, MiniStatusCard } from "@/components/ui/SyncErrorCard";
+import KillSwitchSettings   from "./KillSwitchSettings";
+import { NetworkErrorCard, PostbackHealthCard } from "@/components/ui/SyncErrorCard";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface KSConfig {
@@ -46,15 +55,18 @@ interface Props {
   ksSettings: KSConfig;
   isDemo?: boolean;
   plan?: string;
+  isOwner?: boolean;
   teamMembers?: TeamMemberData[];
   pendingInvites?: PendingInviteData[];
 }
 
 // ─── Network configs ────────────────────────────────────────────────────────────
 const NETWORK_CONFIGS = [
-  { network: "EXOCLICK",     label: "ExoClick",     description: "Adult & mainstream ad network", color: "#c08835", glow: "rgba(192,136,53,0.14)",  hasSecret: false, keyLabel: "API Key" },
-  { network: "TRAFFICSTARS", label: "TrafficStars", description: "Premium display ad network",    color: "#7264a8", glow: "rgba(114,100,168,0.14)", hasSecret: false, keyLabel: "API Key (Refresh Token)" },
-  { network: "TRAFFICJUNKY", label: "TrafficJunky", description: "Video & display advertising",  color: "#4a8fb4", glow: "rgba(74,143,180,0.14)",  hasSecret: false, keyLabel: "API Key" },
+  { network: "EXOCLICK",      label: "ExoClick",      description: "Adult & mainstream ad network",  color: "#c08835", glow: "rgba(192,136,53,0.14)",   hasSecret: false, keyLabel: "API Key" },
+  { network: "TRAFFICSTARS",  label: "TrafficStars",  description: "Premium display ad network",     color: "#7264a8", glow: "rgba(114,100,168,0.14)",  hasSecret: false, keyLabel: "API Key (Refresh Token)" },
+  { network: "TRAFFICJUNKY",  label: "TrafficJunky",  description: "Video & display advertising",   color: "#4a8fb4", glow: "rgba(74,143,180,0.14)",   hasSecret: false, keyLabel: "API Key" },
+  { network: "PROPELLERADS",  label: "PropellerAds",  description: "Push & popunder ad network",    color: "#f97316", glow: "rgba(249,115,22,0.14)",   hasSecret: false, keyLabel: "API Token" },
+  { network: "ADSTERRA",      label: "Adsterra",      description: "Multi-format ad network",       color: "#06b6d4", glow: "rgba(6,182,212,0.14)",    hasSecret: false, keyLabel: "API Key" },
 ] as const;
 
 // ─── Tone tokens ────────────────────────────────────────────────────────────────
@@ -70,6 +82,24 @@ type ToneKey = keyof typeof TONES;
 
 // ─── Navigation ─────────────────────────────────────────────────────────────────
 type Tab = "overview" | "connections" | "postbacks" | "engine" | "plan" | "team" | "security" | "demo";
+
+// ─── Security log types ──────────────────────────────────────────────────────────
+type SyncLogEntry = {
+  id: string; type: string; isError: boolean; network: string;
+  detail: string; time: string; datetime: string; createdAt: string;
+};
+type AuditEntry = {
+  id: string; type: string; action: string;
+  tone: "rose" | "amber" | "emerald" | "blue" | "white";
+  campaign: string; network: string; detail: string;
+  time: string; datetime: string; createdAt: string;
+};
+type SecurityLogsData = {
+  syncLogs:   SyncLogEntry[];
+  auditTrail: AuditEntry[];
+  syncTotal:  number;
+  auditTotal: number;
+};
 
 const NAV_ITEMS: { id: Tab; label: string }[] = [
   { id: "overview",    label: "Overview" },
@@ -179,84 +209,22 @@ function NavEntryCard({
   );
 }
 
-// ─── SeedDataCard ─────────────────────────────────────────────────────────────
-function SeedDataCard() {
-  const [state, setState] = useState<"idle" | "loading" | "done" | "clearing">("idle");
-  const [result, setResult] = useState<string | null>(null);
-
-  async function seed() {
-    setState("loading"); setResult(null);
-    try {
-      const res  = await fetch("/api/debug/seed", { method: "POST" });
-      const data = await res.json() as { ok?: boolean; inserted?: number; campaigns?: number; error?: string };
-      if (data.ok) {
-        setResult(`✓ ${data.inserted} rows inserted — ${data.campaigns} campaigns over 30 days`);
-        setState("done");
-      } else { setResult(`Error: ${data.error}`); setState("idle"); }
-    } catch (e) { setResult(`Network error: ${String(e)}`); setState("idle"); }
-  }
-
-  async function clear() {
-    setState("clearing");
-    try {
-      const res  = await fetch("/api/debug/seed", { method: "DELETE" });
-      const data = await res.json() as { ok?: boolean; deleted?: number };
-      setResult(`✓ ${data.deleted ?? 0} test rows removed`);
-    } catch { /* silent */ }
-    setState("idle");
-  }
-
-  return (
-    <CardSm>
-      <div style={{ fontSize: 22, fontWeight: 200, letterSpacing: "-0.04em" }}>Test data</div>
-      <div style={{ fontSize: 13, color: "rgba(255,255,255,0.38)", marginTop: 8, lineHeight: 1.75 }}>
-        Injects fake campaigns (ExoClick · TrafficStars · TrafficJunky) over 30 days directly into the DB.
-      </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-        <button
-          onClick={seed}
-          disabled={state === "loading" || state === "clearing"}
-          style={{
-            padding: "8px 18px", borderRadius: 9, fontSize: 12, fontWeight: 600, cursor: "pointer",
-            background: state === "done" ? "rgba(107,158,130,0.15)" : "rgba(255,255,255,0.07)",
-            border: state === "done" ? "1px solid rgba(107,158,130,0.3)" : "1px solid rgba(255,255,255,0.1)",
-            color: state === "done" ? "#6b9e82" : "rgba(255,255,255,0.7)",
-            opacity: state === "loading" ? 0.6 : 1, transition: "all 0.2s",
-          }}
-        >
-          {state === "loading" ? "Injecting..." : state === "done" ? "✓ Injected" : "Inject test data"}
-        </button>
-        <button
-          onClick={clear}
-          disabled={state === "loading" || state === "clearing"}
-          style={{
-            padding: "8px 18px", borderRadius: 9, fontSize: 12, cursor: "pointer",
-            background: "transparent", border: "1px solid rgba(255,255,255,0.06)",
-            color: "rgba(255,255,255,0.28)", opacity: state === "clearing" ? 0.5 : 1,
-          }}
-        >
-          {state === "clearing" ? "Clearing..." : "Clear"}
-        </button>
-      </div>
-      {result && <p style={{ marginTop: 10, fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{result}</p>}
-    </CardSm>
-  );
-}
+// SeedDataCard supprimé — route debug retirée de la production
 
 // ─── Shell header config ─────────────────────────────────────────────────────────
 const SHELL_CONFIG: Record<Tab, { eyebrow: string; sub: string }> = {
-  overview:    { eyebrow: "Settings hub",    sub: "The overview is the entry point. It summarizes workspace health and routes you to the right sub-pages: connections, postbacks, engine defaults, team and security." },
-  connections: { eyebrow: "Sub-page 1",      sub: "Manage ad network integrations. Make API health obvious, let users test credentials, and show sync state without burying everything in technical forms." },
-  postbacks:   { eyebrow: "Sub-page 2",      sub: "Postbacks are the revenue signal. Manage affiliate sources, global URL, and signal health so problems never silently break profit calculation." },
-  engine:      { eyebrow: "Sub-page 3",      sub: "Global defaults live here, not buried in one giant settings page. Define how the engine behaves before campaign-level overrides are applied." },
-  plan:        { eyebrow: "Subscription",    sub: "Your current plan and what comes with it. Upgrade or downgrade at any time — changes take effect immediately." },
-  team:        { eyebrow: "Sub-page 4",      sub: "Permissions should be simple and premium. Users should immediately understand who can edit campaigns, who can manage settings, and who only has read access." },
-  security:    { eyebrow: "Sub-page 5",      sub: "Quiet but important controls in one place: secrets, logs, maintenance and audit history. Trustworthy, not scary or cluttered." },
-  demo:        { eyebrow: "Admin · Personal", sub: "Activates fake data across the whole dashboard so you can preview the interface without real campaigns. Also lets you inject or wipe test data directly in DB." },
+  overview:    { eyebrow: "Settings hub",    sub: "Integration health, team access, and configuration." },
+  connections: { eyebrow: "Ad Networks",     sub: "Connect your ad network accounts. Review API sync health and manage credentials." },
+  postbacks:   { eyebrow: "Revenue Signal",  sub: "Affiliate sources, global postback URL, and revenue signal health." },
+  engine:      { eyebrow: "Automation",      sub: "Kill, watch, and scale rules — applied to all campaigns." },
+  plan:        { eyebrow: "Subscription",    sub: "Your current plan and what comes with it. Upgrade or downgrade at any time." },
+  team:        { eyebrow: "Access Control",  sub: "Invite teammates, assign roles, and manage workspace access." },
+  security:    { eyebrow: "Security",        sub: "Credentials, event logs, and workspace tools." },
+  demo:        { eyebrow: "Admin · Personal", sub: "Preview the interface with demo data, or inject and clear test data." },
 };
 
 const SHELL_TITLES: Record<Tab, string> = {
-  overview:    "Settings should be\na section, not one\ngiant wall of options.",
+  overview:    "Settings",
   connections: "Connections",
   postbacks:   "Postbacks",
   engine:      "Engine Defaults",
@@ -273,10 +241,16 @@ export default function SettingsPageClient({
   ksSettings,
   isDemo = false,
   plan = "Observer",
+  isOwner = false,
   teamMembers: initialTeamMembers = [],
   pendingInvites: initialPendingInvites = [],
 }: Props) {
-  const [tab, setTab]                     = useState<Tab>("overview");
+  const searchParams = useSearchParams();
+  const [tab, setTab]                     = useState<Tab>(() => {
+    const t = searchParams?.get("tab");
+    const VALID_TABS: Tab[] = ["overview","connections","postbacks","engine","plan","team","security","demo"];
+    return (VALID_TABS.includes(t as Tab) ? t as Tab : "overview");
+  });
   const [demoEnabled, setDemoEnabled]     = useState(false);
   const [demoLoading, setDemoLoading]     = useState(false);
   const [postbackUrl, setPostbackUrl]     = useState<string | null>(null);
@@ -284,6 +258,11 @@ export default function SettingsPageClient({
   const [postbackUid, setPostbackUid]     = useState<string | null>(null);
   const [pbCopied, setPbCopied]           = useState(false);
   const [tokenCopied, setTokenCopied]     = useState(false);
+  // Postback sources — loaded from real conversion data
+  type PbSource = { source: string; revenue: number; count: number; approvedCount: number };
+  const [pbSources, setPbSources]         = useState<PbSource[] | null>(null);
+  const [pbHealth,  setPbHealth]          = useState<number | null>(null);
+  const [pbSourcesLoaded, setPbSourcesLoaded] = useState(false);
   const [inviteEmail, setInviteEmail]     = useState("");
 
   // Team state
@@ -298,9 +277,31 @@ export default function SettingsPageClient({
   const [planLoading, setPlanLoading]   = useState<string | null>(null); // which plan is loading
   const [planError, setPlanError]       = useState<string | null>(null);
 
+  // Security logs state
+  const [secLogs,    setSecLogs]    = useState<SecurityLogsData | null>(null);
+  const [secLoading, setSecLoading] = useState(false);
+  type SecView = null | "credentials" | "sync-logs" | "audit-trail" | "admin-tools";
+  const [secView, setSecView] = useState<SecView>(null);
+
   useEffect(() => {
     setDemoEnabled(document.cookie.split(";").some(c => c.trim().startsWith("profitdash_demo=1")));
   }, []);
+
+  useEffect(() => {
+    if (tab !== "postbacks" || pbSourcesLoaded) return;
+    setPbSourcesLoaded(true);
+    const today = new Date().toISOString().slice(0, 10);
+    const from  = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+    fetch(`/api/conversions?dateFrom=${from}&dateTo=${today}&page=0&limit=0`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { bySource?: { source: string; revenue: number; count: number; approvedCount?: number }[]; healthPct?: number } | null) => {
+        if (d) {
+          setPbSources(d.bySource?.map(s => ({ ...s, approvedCount: s.approvedCount ?? 0 })) ?? []);
+          setPbHealth(d.healthPct ?? null);
+        }
+      })
+      .catch(() => { setPbSources([]); });
+  }, [tab, pbSourcesLoaded]);
 
   useEffect(() => {
     if (tab !== "postbacks" || postbackUrl) return;
@@ -313,6 +314,16 @@ export default function SettingsPageClient({
       })
       .catch(() => {});
   }, [tab, postbackUrl]);
+
+  useEffect(() => {
+    if (tab !== "security" || secLogs !== null) return;
+    setSecLoading(true);
+    fetch("/api/security/logs?limit=50")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: SecurityLogsData | null) => { if (d) setSecLogs(d); })
+      .catch(() => {})
+      .finally(() => setSecLoading(false));
+  }, [tab, secLogs]);
 
   function copyText(text: string, setter: (v: boolean) => void) {
     navigator.clipboard.writeText(text).then(() => {
@@ -401,15 +412,16 @@ export default function SettingsPageClient({
 
   // ── Overview ──────────────────────────────────────────────────────────────────
   function renderOverview() {
+    const memberCount = initialTeamMembers.length + 1; // +1 for the account owner
     const statCards = [
-      { label: "Networks",  value: NETWORK_CONFIGS.length, sub: `${connectedCount} healthy · ${NETWORK_CONFIGS.length - connectedCount} pending` },
-      { label: "Postbacks", value: 4,                      sub: "3 active · 1 draft" },
-      { label: "Team",      value: 3,                      sub: "1 admin · 2 users" },
+      { label: "Networks",  value: NETWORK_CONFIGS.length, sub: `${connectedCount} connected · ${NETWORK_CONFIGS.length - connectedCount} not set up` },
+      { label: "Postbacks", value: "—",                    sub: "Configure in Postbacks" },
+      { label: "Team",      value: memberCount,             sub: memberCount === 1 ? "Just you" : `${memberCount} member${memberCount !== 1 ? "s" : ""}` },
     ];
     const navCards: { tone: ToneKey; id: Tab; desc: string }[] = [
       { tone: "amber",   id: "connections", desc: "Ad network APIs, credentials, sync health" },
       { tone: "emerald", id: "postbacks",   desc: "Affiliate sources, revenue signal, health" },
-      { tone: "violet",  id: "engine",      desc: "Global rule profile, scan interval, launch defaults" },
+      { tone: "violet",  id: "engine",      desc: "Kill, watch, and scale thresholds for all campaigns" },
       { tone: "rose",    id: "plan",        desc: "Current subscription, upgrade or downgrade" },
       { tone: "sky",     id: "team",        desc: "Invites, permissions, access levels" },
       { tone: "white",   id: "security",    desc: "Secrets, audit trail, maintenance" },
@@ -420,13 +432,10 @@ export default function SettingsPageClient({
         <div style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 22 }}>
           <div style={{ borderRadius: 28, border: "1px solid rgba(167,139,250,0.16)", background: "rgba(139,92,246,0.08)", padding: "22px 24px" }}>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(196,181,253,0.8)" }}>
-              Overview role
+              Workspace health
             </div>
             <div style={{ fontSize: 28, fontWeight: 200, letterSpacing: "-0.04em", marginTop: 6, maxWidth: "22ch", color: "rgba(255,255,255,0.92)" }}>
-              Clean hub page with health, status and manage entry points.
-            </div>
-            <div style={{ fontSize: 13, lineHeight: 1.75, color: "rgba(221,214,254,0.74)", marginTop: 10 }}>
-              The overview should not try to do everything. It should feel like a premium control room summary with clear paths into deeper settings pages.
+              Your workspace at a glance.
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
@@ -534,9 +543,14 @@ export default function SettingsPageClient({
         </div>
 
         {/* ── Disconnected networks error cards ─────────────────────────── */}
+        {/* Only show for networks that WERE connected but became inactive — not for never-connected ones */}
         {NETWORK_CONFIGS.map((cfg, i) => {
           const acct = accounts.find(a => a.network === cfg.network);
-          if (acct?.isActive) return null; // Only show for disconnected/missing accounts
+          // Skip: never connected (no account row at all) — nothing to warn about
+          if (!acct) return null;
+          // Skip: actively connected
+          if (acct.isActive) return null;
+          // Show: was connected but is now inactive/broken
           return (
             <NetworkErrorCard
               key={cfg.network}
@@ -551,66 +565,6 @@ export default function SettingsPageClient({
           );
         })}
 
-        {/* ── Sync status mini-cards (only when at least one network is connected) ── */}
-        {connectedCount > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-            <MiniStatusCard
-              tone="sky"
-              badge="No data after sync"
-              title="No data after sync"
-              text="The sync completed, but returned zero campaigns for the selected date scope."
-              footer={
-                <button style={{
-                  borderRadius: 10,
-                  border: "1px solid rgba(56,189,248,0.18)",
-                  background: "rgba(14,165,233,0.07)",
-                  padding: "7px 14px", fontSize: 11,
-                  color: "rgba(186,230,253,0.85)", cursor: "pointer", fontFamily: "inherit",
-                }}>
-                  Expand date range
-                </button>
-              }
-              delay={0.05}
-            />
-            <MiniStatusCard
-              tone="violet"
-              badge="Partial source outage"
-              title="Partial source outage"
-              text="One connected network is stale while the rest of the workspace is healthy."
-              footer={
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {NETWORK_CONFIGS.map(cfg => {
-                    const a = accounts.find(ac => ac.network === cfg.network);
-                    const healthy = a?.isActive ?? false;
-                    return (
-                      <div key={cfg.network} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12 }}>
-                        <span style={{ color: "rgba(255,255,255,0.50)" }}>{cfg.label}</span>
-                        <span style={{ fontSize: 11, letterSpacing: "0.04em", color: healthy ? "#4ade80" : "#f87171" }}>
-                          {healthy ? "Healthy" : "Pending"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              }
-              delay={0.1}
-            />
-            <MiniStatusCard
-              tone="amber"
-              badge="Rate limit reached"
-              title="Rate limit reached"
-              text="API requests are temporarily delayed. Data freshness is reduced."
-              footer={
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: 99, background: "#fbbf24", opacity: 0.8, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "rgba(253,230,138,0.6)" }}>Retry in ~4 min</span>
-                </div>
-              }
-              delay={0.15}
-            />
-          </div>
-        )}
-
         <div style={{ marginTop: 4 }}>
           <AutoSyncSettings />
         </div>
@@ -620,20 +574,25 @@ export default function SettingsPageClient({
 
   // ── Postbacks ─────────────────────────────────────────────────────────────────
   function renderPostbacks() {
-    const sources: { name: string; sub: string; status: string; tone: ToneKey }[] = [
-      { name: "CrakRevenue", sub: "Global postback linked · healthy signal", status: "Active", tone: "emerald" },
-      { name: "MaxBounty",   sub: "Revenue events received",                  status: "Active", tone: "emerald" },
-      { name: "ClickDealer", sub: "Healthy signal",                           status: "Active", tone: "emerald" },
-      { name: "AdCombo",     sub: "Waiting validation",                       status: "Draft",  tone: "amber" },
-    ];
-    const draftSources = sources.filter(s => s.status === "Draft");
+    // Real sources derived from conversion data
+    const realSources: { name: string; sub: string; status: string; tone: ToneKey }[] =
+      (pbSources ?? []).map(s => ({
+        name: s.source.charAt(0).toUpperCase() + s.source.slice(1),
+        sub:  `${s.count} conversion event${s.count !== 1 ? "s" : ""} received`,
+        status: s.count > 0 ? "Active" : "No data",
+        tone:   s.count > 0 ? "emerald" : ("white" as ToneKey),
+      }));
+    const sources = realSources;
+    const isLoadingSources = pbSources === null;
+    const unhealthy = pbHealth !== null && pbHealth < 85;
+
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
 
-        {/* ── Postback unhealthy card (for sources with Draft status) ──── */}
-        {draftSources.length > 0 && (
+        {/* ── Postback unhealthy card ──── */}
+        {!isLoadingSources && unhealthy && pbHealth !== null && (
           <PostbackHealthCard
-            healthPct={73}
+            healthPct={pbHealth}
             likelyCause="Missing or malformed click IDs in postback URL parameters."
             delay={0}
           />
@@ -642,6 +601,19 @@ export default function SettingsPageClient({
         <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 22 }}>
         {/* Left: sources list */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {isLoadingSources && (
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", padding: "20px 0" }}>Loading sources…</div>
+          )}
+          {!isLoadingSources && sources.length === 0 && (
+            <CardDark>
+              <div style={{ fontSize: 14, color: "rgba(255,255,255,0.25)", textAlign: "center", padding: "28px 0" }}>
+                No affiliate sources yet.
+                <div style={{ marginTop: 6, fontSize: 12, color: "rgba(255,255,255,0.15)" }}>
+                  Sources appear here once your postback URL receives conversion events.
+                </div>
+              </div>
+            </CardDark>
+          )}
           {sources.map((s, i) => (
             <motion.div
               key={s.name}
@@ -740,10 +712,27 @@ export default function SettingsPageClient({
 
           <CardSm>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.24)" }}>Health</div>
-            <div style={{ fontSize: 34, fontWeight: 200, letterSpacing: "-0.05em", lineHeight: 1, marginTop: 14, color: "rgba(110,231,183,0.95)", fontVariantNumeric: "tabular-nums" }}>
-              98.2%
-            </div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.36)", marginTop: 8 }}>Valid revenue signal ingestion</div>
+            {isLoadingSources ? (
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.2)", marginTop: 14 }}>Loading…</div>
+            ) : pbHealth !== null ? (
+              <>
+                <div style={{
+                  fontSize: 34, fontWeight: 200, letterSpacing: "-0.05em", lineHeight: 1, marginTop: 14,
+                  color: pbHealth >= 85 ? "rgba(110,231,183,0.95)" : pbHealth >= 60 ? "rgba(251,191,36,0.95)" : "rgba(251,113,133,0.95)",
+                  fontVariantNumeric: "tabular-nums",
+                }}>
+                  {pbHealth.toFixed(1)}%
+                </div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.36)", marginTop: 8 }}>
+                  {pbHealth >= 85 ? "Valid revenue signal ingestion" : pbHealth >= 60 ? "Signal degraded" : "Signal unhealthy"}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 34, fontWeight: 200, letterSpacing: "-0.05em", lineHeight: 1, marginTop: 14, color: "rgba(255,255,255,0.2)" }}>—</div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.25)", marginTop: 8 }}>No data yet</div>
+              </>
+            )}
           </CardSm>
         </div>
       </div>
@@ -753,62 +742,7 @@ export default function SettingsPageClient({
 
   // ── Engine Defaults ───────────────────────────────────────────────────────────
   function renderEngine() {
-    const killThr  = ksSettings.roiThreshold;
-    const interval = ksSettings.checkIntervalMinutes;
-    const maxSpend = ksSettings.maxSpendPerCampaign;
-
-    const rules: { label: string; value: string; t: typeof TONES[ToneKey] }[] = [
-      { label: "Kill",  value: `< ${killThr}%`,           t: TONES.rose },
-      { label: "Watch", value: `${killThr}% → +5%`,       t: TONES.amber },
-      { label: "Scale", value: "> +25%",                  t: TONES.emerald },
-    ];
-
-    const behaviors: { label: string; value?: string; badge?: ToneKey }[] = [
-      { label: "Scan interval",                value: `Every ${interval} min` },
-      { label: "Default launch status",        value: "Paused" },
-      { label: "Min. spend before decision",   value: maxSpend ? `€${maxSpend}` : "€200" },
-      { label: "Cooldown after action",        value: "20 min" },
-      { label: "Kill switch",                  badge: ksSettings.killSwitchEnabled ? "emerald" : "white", value: ksSettings.killSwitchEnabled ? "Enabled" : "Disabled" },
-    ];
-
-    return (
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22 }}>
-        {/* Rule thresholds */}
-        <div style={{ borderRadius: 28, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", padding: "22px 24px" }}>
-          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.24)" }}>Default automation profile</div>
-          <div style={{ fontSize: 28, fontWeight: 200, letterSpacing: "-0.04em", marginTop: 6 }}>Global engine rules</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginTop: 22 }}>
-            {rules.map(r => (
-              <div key={r.label} style={{ borderRadius: 20, border: `1px solid ${r.t.border}`, background: r.t.bg, padding: 20 }}>
-                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.22em", color: r.t.text }}>{r.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 200, letterSpacing: "-0.04em", marginTop: 10, color: r.t.text }}>{r.value}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Behavior defaults */}
-        <div style={{ borderRadius: 28, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", padding: "22px 24px" }}>
-          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.24)" }}>Behavior defaults</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20 }}>
-            {behaviors.map(b => (
-              <div key={b.label} style={{
-                borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.02)", padding: "13px 16px",
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-              }}>
-                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.76)" }}>{b.label}</span>
-                {b.badge ? (
-                  <Badge tone={b.badge}>{b.value}</Badge>
-                ) : (
-                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.88)" }}>{b.value}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <KillSwitchSettings />;
   }
 
   // ── Team & Roles ──────────────────────────────────────────────────────────────
@@ -1135,79 +1069,263 @@ export default function SettingsPageClient({
 
   // ── Security ──────────────────────────────────────────────────────────────────
   function renderSecurity() {
-    const secCards = [
-      { title: "API secrets",  desc: "Encrypted credentials for networks and postback sources" },
-      { title: "Sync logs",    desc: "Recent API connection events and failures" },
-      { title: "Audit trail",  desc: "Who changed major system settings and when" },
-      { title: "Maintenance",  desc: "Reset demo data, clear cached previews, workspace cleanup" },
-    ];
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-        {/* 2×2 security card grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22 }}>
-          {secCards.map(c => (
-            <CardSm key={c.title} style={{ minHeight: 170, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 200, letterSpacing: "-0.04em" }}>{c.title}</div>
-                <div style={{ fontSize: 13, lineHeight: 1.75, color: "rgba(255,255,255,0.38)", marginTop: 10 }}>{c.desc}</div>
-              </div>
-              <div style={{
-                borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.03)", height: 44, padding: "0 16px",
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                fontSize: 13, color: "rgba(255,255,255,0.70)", marginTop: 16,
-              }}>
-                <span>Open</span><span>→</span>
-              </div>
-            </CardSm>
-          ))}
+    const TONE: Record<string, { bg: string; text: string; border: string }> = {
+      rose:    { bg: "rgba(244,63,94,0.10)",   text: "#fca5a5", border: "rgba(251,113,133,0.22)" },
+      amber:   { bg: "rgba(245,158,11,0.10)",  text: "#fcd34d", border: "rgba(251,191,36,0.22)"  },
+      emerald: { bg: "rgba(16,185,129,0.10)",  text: "#6ee7b7", border: "rgba(52,211,153,0.22)"  },
+      white:   { bg: "rgba(255,255,255,0.05)", text: "rgba(255,255,255,0.55)", border: "rgba(255,255,255,0.10)" },
+    };
+    const NET_COLOR: Record<string, string> = {
+      EXOCLICK: "#f97316", TRAFFICSTARS: "#a78bfa", TRAFFICJUNKY: "#38bdf8",
+    };
+    const syncEntries  = secLogs?.syncLogs   ?? [];
+    const auditEntries = secLogs?.auditTrail ?? [];
+    const syncErrors   = syncEntries.filter(e => e.isError).length;
+
+    function refreshLogs() {
+      setSecLogs(null); setSecLoading(true);
+      fetch("/api/security/logs?limit=50")
+        .then(r => r.ok ? r.json() : null)
+        .then((d: SecurityLogsData | null) => { if (d) setSecLogs(d); })
+        .catch(() => {})
+        .finally(() => setSecLoading(false));
+    }
+
+    // ── Back button ─────────────────────────────────────────────────────────
+    function BackBtn() {
+      return (
+        <button
+          onClick={() => setSecView(null)}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            background: "none", border: "none", cursor: "pointer",
+            fontSize: 12, color: "rgba(255,255,255,0.35)", padding: 0,
+            marginBottom: 22, transition: "color 0.15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
+          onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.35)"; }}
+        >
+          ← Security
+        </button>
+      );
+    }
+
+    // ── Sub-view: Credentials & 2FA ─────────────────────────────────────────
+    if (secView === "credentials") return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <BackBtn />
+        <div>
+          <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.14em", color: "rgba(255,255,255,0.28)", marginBottom: 6 }}>Credentials & 2FA</div>
+          <div style={{ fontSize: 24, fontWeight: 200, letterSpacing: "-0.04em" }}>API key protection</div>
         </div>
 
-        {/* Demo mode toggle + Seed data */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22 }}>
+        {/* 2FA card */}
+        <TwoFactorCard />
+
+        {/* Encryption guarantees — 3-column compact */}
+        <div style={{ borderRadius: 20, border: "1px solid rgba(52,211,153,0.10)", background: "rgba(16,185,129,0.03)", padding: "18px 22px" }}>
+          <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(110,231,183,0.6)", marginBottom: 14 }}>How keys are stored</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            {[
+              { icon: "🔒", title: "AES-256-GCM", desc: "Authenticated encryption, unique IV per key" },
+              { icon: "🔑", title: "Never plaintext", desc: "Only encrypted blobs in the database" },
+              { icon: "🛡", title: "Key isolated", desc: "Decryption key in server env only — not in DB" },
+              { icon: "👁", title: "Server-side only", desc: "Keys decrypted only for outbound API calls" },
+              { icon: "✅", title: "Tamper-proof", desc: "GCM auth tag rejects any modified data" },
+              { icon: "🚫", title: "No transit leak", desc: "Never logged, never in URLs or responses" },
+            ].map(({ icon, title, desc }) => (
+              <div key={title} style={{ padding: "10px 12px", borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div style={{ fontSize: 13, marginBottom: 4 }}>{icon} <span style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.65)" }}>{title}</span></div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", lineHeight: 1.5 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Link to connections */}
+        <button
+          onClick={() => setTab("connections")}
+          style={{
+            alignSelf: "flex-start", height: 38, padding: "0 18px", borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.09)", background: "rgba(255,255,255,0.03)",
+            color: "rgba(255,255,255,0.5)", fontSize: 12, cursor: "pointer", transition: "all 0.15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; e.currentTarget.style.color = "rgba(255,255,255,0.8)"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.color = "rgba(255,255,255,0.5)"; }}
+        >
+          Manage API keys in Connections →
+        </button>
+      </div>
+    );
+
+    // ── Sub-view: Sync Logs ──────────────────────────────────────────────────
+    if (secView === "sync-logs") return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <BackBtn />
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.14em", color: "rgba(255,255,255,0.28)", marginBottom: 6 }}>Network activity</div>
+            <div style={{ fontSize: 24, fontWeight: 200, letterSpacing: "-0.04em" }}>Sync logs</div>
+          </div>
+          <button onClick={refreshLogs} style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}>↻ Refresh</button>
+        </div>
+
+        {syncErrors > 0 && (
+          <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(244,63,94,0.07)", border: "1px solid rgba(251,113,133,0.16)", display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "rgba(252,165,165,0.9)" }}>
+            <span>⚠</span> {syncErrors} network error{syncErrors !== 1 ? "s" : ""} detected — check your API keys in Connections.
+          </div>
+        )}
+
+        <div style={{ borderRadius: 20, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.015)", overflow: "hidden" }}>
+          {secLoading ? (
+            <div style={{ padding: "32px 0", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.28)" }}>Loading…</div>
+          ) : syncEntries.length === 0 ? (
+            <div style={{ padding: "32px 0", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.28)" }}>No sync events yet. Connect a network in Connections to start syncing.</div>
+          ) : syncEntries.map((entry, i) => {
+            const netColor = NET_COLOR[entry.network] ?? "rgba(255,255,255,0.4)";
+            return (
+              <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 18px", borderBottom: i < syncEntries.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none", background: entry.isError ? "rgba(244,63,94,0.03)" : "transparent" }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: entry.isError ? "#fca5a5" : netColor, flexShrink: 0 }} />
+                <div style={{ fontSize: 10, letterSpacing: "0.08em", color: entry.isError ? "#fca5a5" : netColor, width: 88, flexShrink: 0, textTransform: "uppercase" as const }}>{entry.isError ? "Error" : entry.network}</div>
+                <div style={{ flex: 1, fontSize: 12, color: entry.isError ? "rgba(252,165,165,0.8)" : "rgba(255,255,255,0.5)" }}>{entry.detail}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", flexShrink: 0 }} title={entry.datetime}>{entry.time}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+
+    // ── Sub-view: Audit Trail ────────────────────────────────────────────────
+    if (secView === "audit-trail") return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <BackBtn />
+        <div>
+          <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.14em", color: "rgba(255,255,255,0.28)", marginBottom: 6 }}>Engine & manual decisions</div>
+          <div style={{ fontSize: 24, fontWeight: 200, letterSpacing: "-0.04em" }}>Audit trail</div>
+        </div>
+
+        <div style={{ borderRadius: 20, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.015)", overflow: "hidden" }}>
+          {secLoading ? (
+            <div style={{ padding: "32px 0", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.28)" }}>Loading…</div>
+          ) : auditEntries.length === 0 ? (
+            <div style={{ padding: "32px 0", textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.28)" }}>No decisions logged yet. Engine and manual actions will appear here.</div>
+          ) : auditEntries.map((entry, i) => {
+            const tc = TONE[entry.tone] ?? TONE.white;
+            const netColor = NET_COLOR[entry.network] ?? "rgba(255,255,255,0.3)";
+            return (
+              <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: i < auditEntries.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                <div style={{ fontSize: 10, letterSpacing: "0.06em", fontWeight: 600, padding: "2px 9px", borderRadius: 6, background: tc.bg, color: tc.text, border: `1px solid ${tc.border}`, flexShrink: 0, whiteSpace: "nowrap" as const, minWidth: 72, textAlign: "center" as const }}>{entry.action}</div>
+                <div style={{ flex: 1, fontSize: 12, color: "rgba(255,255,255,0.62)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{entry.campaign || "—"}</div>
+                {entry.detail && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", flexShrink: 0 }}>{entry.detail}</div>}
+                {entry.network && <div style={{ fontSize: 10, color: netColor, flexShrink: 0, letterSpacing: "0.06em" }}>{entry.network}</div>}
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", flexShrink: 0 }} title={entry.datetime}>{entry.time}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+
+    // ── Sub-view: Admin Tools ────────────────────────────────────────────────
+    if (secView === "admin-tools") return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <BackBtn />
+        <div>
+          <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.14em", color: "rgba(255,255,255,0.28)", marginBottom: 6 }}>Owner only</div>
+          <div style={{ fontSize: 24, fontWeight: 200, letterSpacing: "-0.04em" }}>Admin tools</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
           <CardSm>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
               <div>
-                <div style={{ fontSize: 22, fontWeight: 200, letterSpacing: "-0.04em" }}>Demo Mode</div>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.38)", marginTop: 6, lineHeight: 1.6 }}>
-                  Show demo data across the dashboard to preview the interface.
-                </div>
+                <div style={{ fontSize: 16, fontWeight: 200, letterSpacing: "-0.03em" }}>Demo Mode</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 5, lineHeight: 1.6 }}>Show demo data across the dashboard to preview the interface.</div>
               </div>
               <button
                 onClick={() => !demoLoading && toggleDemo(!demoEnabled)}
                 disabled={demoLoading}
-                style={{
-                  width: 48, height: 26, borderRadius: 13, border: "none",
-                  cursor: demoLoading ? "wait" : "pointer",
-                  background: demoEnabled ? "rgba(192,136,53,0.9)" : "rgba(255,255,255,0.1)",
-                  position: "relative", transition: "background 0.2s", flexShrink: 0,
-                }}
+                style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: demoLoading ? "wait" : "pointer", background: demoEnabled ? "rgba(192,136,53,0.9)" : "rgba(255,255,255,0.1)", position: "relative", transition: "background 0.2s", flexShrink: 0 }}
               >
-                <span style={{
-                  position: "absolute", top: 3, width: 20, height: 20, borderRadius: "50%",
-                  background: "#fff", transition: "left 0.2s",
-                  left: demoEnabled ? 25 : 3, boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
-                }} />
+                <span style={{ position: "absolute", top: 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", left: demoEnabled ? 22 : 2, boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }} />
               </button>
             </div>
-            {demoEnabled && (
-              <div style={{
-                padding: "10px 14px", borderRadius: 10,
-                background: "rgba(192,136,53,0.08)", border: "1px solid rgba(192,136,53,0.2)",
-                fontSize: 12, color: "#c08835",
-              }}>
-                ✦ Demo mode active — the dashboard is showing demo data.
-              </div>
-            )}
+            {demoEnabled && <div style={{ padding: "9px 12px", borderRadius: 9, background: "rgba(192,136,53,0.08)", border: "1px solid rgba(192,136,53,0.2)", fontSize: 11, color: "#c08835" }}>✦ Demo mode active</div>}
           </CardSm>
-
-          <SeedDataCard />
+          {/* Test data tools removed for production */}
         </div>
+        <NotificationSettings />
+      </div>
+    );
 
-        {/* Notifications */}
-        <div>
-          <NotificationSettings />
-        </div>
+    // ── Hub (default) ────────────────────────────────────────────────────────
+    const HUB_CARDS: Array<{
+      view: SecView; eyebrow: string; title: string; icon: string;
+      stat: React.ReactNode; badge?: React.ReactNode;
+    }> = [
+      {
+        view: "credentials",
+        eyebrow: "Keys & 2FA",
+        title: "Credentials",
+        icon: "🔒",
+        stat: <span style={{ fontSize: 11, color: "rgba(110,231,183,0.65)" }}>AES-256-GCM · server-side only</span>,
+      },
+      {
+        view: "sync-logs",
+        eyebrow: "Network activity",
+        title: "Sync logs",
+        icon: "🔄",
+        stat: secLoading
+          ? <span style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>Loading…</span>
+          : <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{secLogs?.syncTotal ?? 0} events recorded</span>,
+        badge: syncErrors > 0
+          ? <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: "rgba(244,63,94,0.10)", border: "1px solid rgba(251,113,133,0.22)", color: "#fca5a5" }}>{syncErrors} error{syncErrors !== 1 ? "s" : ""}</span>
+          : undefined,
+      },
+      {
+        view: "audit-trail",
+        eyebrow: "Decisions",
+        title: "Audit trail",
+        icon: "📋",
+        stat: secLoading
+          ? <span style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>Loading…</span>
+          : <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{secLogs?.auditTotal ?? 0} actions · last {auditEntries[0]?.time ?? "—"}</span>,
+      },
+      ...(isOwner ? [{
+        view: "admin-tools" as SecView,
+        eyebrow: "Owner",
+        title: "Admin tools",
+        icon: "⚙️",
+        stat: <span style={{ fontSize: 11, color: demoEnabled ? "rgba(192,136,53,0.8)" : "rgba(255,255,255,0.35)" }}>{demoEnabled ? "Demo mode active" : "Demo mode off"}</span>,
+      }] : []),
+    ];
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {HUB_CARDS.map(({ view, eyebrow, title, icon, stat, badge }) => (
+          <div
+            key={title}
+            onClick={() => setSecView(view)}
+            style={{
+              borderRadius: 18, border: "1px solid rgba(255,255,255,0.07)",
+              background: "rgba(255,255,255,0.02)",
+              padding: "16px 20px",
+              display: "flex", alignItems: "center", gap: 16,
+              cursor: "pointer", transition: "border-color 0.18s, background 0.18s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)"; e.currentTarget.style.background = "rgba(255,255,255,0.035)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)"; e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}
+          >
+            <div style={{ fontSize: 20, flexShrink: 0, width: 36, textAlign: "center" as const }}>{icon}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase" as const, letterSpacing: "0.12em", color: "rgba(255,255,255,0.25)", marginBottom: 3 }}>{eyebrow}</div>
+              <div style={{ fontSize: 15, fontWeight: 300, letterSpacing: "-0.02em", color: "rgba(255,255,255,0.85)" }}>{title}</div>
+              <div style={{ marginTop: 3 }}>{stat}</div>
+            </div>
+            {badge && <div>{badge}</div>}
+            <div style={{ fontSize: 14, color: "rgba(255,255,255,0.2)", flexShrink: 0 }}>›</div>
+          </div>
+        ))}
       </div>
     );
   }
@@ -1276,28 +1394,8 @@ export default function SettingsPageClient({
           )}
         </div>
 
-        {/* Seed data card */}
-        <SeedDataCard />
+        {/* Test data tools removed for production */}
 
-        {/* Info card */}
-        <div style={{
-          borderRadius: 24, border: "1px solid rgba(255,255,255,0.06)",
-          background: "rgba(255,255,255,0.01)", padding: "20px 24px",
-        }}>
-          <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.22em", color: "rgba(255,255,255,0.20)" }}>
-            How it works
-          </div>
-          <ol style={{ marginTop: 14, paddingLeft: 18, display: "flex", flexDirection: "column" as const, gap: 10 }}>
-            {[
-              "Demo mode injects a profitdash_demo=1 cookie via the /api/demo-mode API",
-              "All dashboard pages read this cookie server-side and switch to the DEMO_* constants",
-              "Test data (Inject button) writes directly to the DB and is read via the real endpoints",
-              "Both modes are independent — you can have both active simultaneously",
-            ].map((s, i) => (
-              <li key={i} style={{ fontSize: 13, color: "rgba(255,255,255,0.32)", lineHeight: 1.6 }}>{s}</li>
-            ))}
-          </ol>
-        </div>
       </div>
     );
   }
@@ -1327,7 +1425,7 @@ export default function SettingsPageClient({
           </div>
           <div style={{ padding: "18px 16px" }}>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.24)", padding: "0 12px", marginBottom: 10 }}>
-              Sub menus
+              Sections
             </div>
             {NAV_ITEMS.map(item => {
               const active = tab === item.id;
@@ -1350,7 +1448,8 @@ export default function SettingsPageClient({
               );
             })}
 
-            {/* Admin separator */}
+            {/* Admin separator — owner only */}
+            {isOwner && <>
             <div style={{
               height: 1, background: "rgba(255,255,255,0.06)",
               margin: "10px 0 14px",
@@ -1378,6 +1477,7 @@ export default function SettingsPageClient({
                 </button>
               );
             })}
+            </>}
           </div>
         </aside>
 
@@ -1426,6 +1526,614 @@ export default function SettingsPageClient({
         </main>
 
       </div>
+    </div>
+  );
+}
+
+// ─── TwoFactorCard ─────────────────────────────────────────────────────────────
+type MFAStep =
+  | "idle"           // not enrolled
+  | "enrolling"      // calling enrollMFA()
+  | "verifying"      // QR shown, waiting for code
+  | "show-recovery"  // just enrolled — show codes once
+  | "enabled"        // enrolled, normal state
+  | "remove-confirm" // TOTP confirm before unenroll
+  | "regen-confirm"  // TOTP confirm before regen
+  | "show-new-codes"; // new codes after regen
+
+interface TOTPFactor { id: string; friendlyName: string; createdAt: string; }
+
+function TwoFactorCard() {
+  const [step, setStep]               = useState<MFAStep>("idle");
+  const [factors, setFactors]         = useState<TOTPFactor[]>([]);
+  const [factorId, setFactorId]       = useState<string | null>(null);
+  const [qrCode, setQrCode]           = useState<string | null>(null);
+  const [secret, setSecret]           = useState<string | null>(null);
+  const [code, setCode]               = useState("");
+  const [confirmCode, setConfirmCode] = useState("");
+  const [error, setError]             = useState<string | null>(null);
+  const [isPending, startTransition]  = useTransition();
+  const [loaded, setLoaded]           = useState(false);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [remaining, setRemaining]     = useState<number>(0);
+  const [savedChecked, setSavedChecked] = useState(false);
+  const [copied, setCopied]           = useState(false);
+  const inputRef    = useRef<HTMLInputElement>(null);
+  const confirmRef  = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    listMFAFactors().then(async res => {
+      const f = res.factors ?? [];
+      setFactors(f);
+      if (f.length > 0) {
+        try {
+          const stats = await getRecoveryCodeStats();
+          setRemaining(stats.remaining ?? 0);
+        } catch {
+          // RecoveryCode table not yet migrated — show 0, non-blocking
+        }
+        setStep("enabled"); // already enrolled — go straight to enabled state
+      }
+      setLoaded(true);
+    }).catch(() => {
+      // listMFAFactors failed — still show the card in idle state
+      setLoaded(true);
+    });
+  }, []);
+
+  const isEnabled = factors.length > 0;
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  function resetEnroll() {
+    setStep("idle"); setQrCode(null); setSecret(null);
+    setFactorId(null); setCode(""); setError(null);
+  }
+
+  function handleCopyAll() {
+    navigator.clipboard.writeText(recoveryCodes.join("\n"));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleDownload() {
+    const blob = new Blob(
+      [`ProfitDash — Recovery Codes\nGenerated: ${new Date().toLocaleDateString()}\n\n${recoveryCodes.join("\n")}\n\nEach code can only be used once. Store them safely.`],
+      { type: "text/plain" }
+    );
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement("a");
+    a.href = url; a.download = "profitdash-recovery-codes.txt";
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  // ── Actions ──────────────────────────────────────────────────────────────────
+
+  function startEnroll() {
+    setError(null); setStep("enrolling");
+    startTransition(async () => {
+      const res = await enrollMFA();
+      if (res.error) { setError(res.error); setStep("idle"); return; }
+      setFactorId(res.factorId ?? null);
+      setQrCode(res.qrCode ?? null);
+      setSecret(res.secret ?? null);
+      setStep("verifying");
+      setTimeout(() => inputRef.current?.focus(), 100);
+    });
+  }
+
+  function handleVerify(e: React.FormEvent) {
+    e.preventDefault();
+    if (code.replace(/\s/g, "").length !== 6) {
+      setError("Enter the 6-digit code from your authenticator app.");
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await verifyMFA(factorId!, code);
+      if (res.error) { setError("Invalid code — try again."); setCode(""); inputRef.current?.focus(); return; }
+      // Generate recovery codes right after enrollment
+      const codeRes = await createRecoveryCodes();
+      if (codeRes.error || !codeRes.codes) {
+        setError("2FA activated but failed to generate recovery codes. Please regenerate them from the security settings.");
+        const updated = await listMFAFactors();
+        setFactors(updated.factors ?? []);
+        setRemaining(0);
+        setStep("enabled");
+        return;
+      }
+      const updated = await listMFAFactors();
+      setFactors(updated.factors ?? []);
+      setRecoveryCodes(codeRes.codes);
+      setRemaining(codeRes.codes.length);
+      setSavedChecked(false);
+      setCode("");
+      setStep("show-recovery");
+    });
+  }
+
+  function handleRemoveStart() {
+    setConfirmCode(""); setError(null);
+    setStep("remove-confirm");
+    setTimeout(() => confirmRef.current?.focus(), 100);
+  }
+
+  function handleRemoveConfirm(e: React.FormEvent) {
+    e.preventDefault();
+    if (confirmCode.replace(/\s/g, "").length !== 6) {
+      setError("Enter the 6-digit code from your authenticator app.");
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await unenrollMFAWithConfirmation(factors[0].id, confirmCode);
+      if (res.error) { setError(res.error); setConfirmCode(""); confirmRef.current?.focus(); return; }
+      setFactors([]); setRemaining(0);
+      setConfirmCode("");
+      setStep("idle");
+    });
+  }
+
+  function handleRegenStart() {
+    setConfirmCode(""); setError(null);
+    setStep("regen-confirm");
+    setTimeout(() => confirmRef.current?.focus(), 100);
+  }
+
+  function handleRegenConfirm(e: React.FormEvent) {
+    e.preventDefault();
+    if (confirmCode.replace(/\s/g, "").length !== 6) {
+      setError("Enter the 6-digit code from your authenticator app.");
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await regenerateRecoveryCodes(factors[0].id, confirmCode);
+      if (res.error) { setError(res.error); setConfirmCode(""); confirmRef.current?.focus(); return; }
+      setRecoveryCodes(res.codes ?? []);
+      setRemaining((res.codes ?? []).length);
+      setSavedChecked(false);
+      setConfirmCode("");
+      setStep("show-new-codes");
+    });
+  }
+
+  if (!loaded) return (
+    <div style={{
+      borderRadius: 22, border: "1px solid rgba(255,255,255,0.07)",
+      background: "rgba(255,255,255,0.02)", padding: "22px 26px",
+    }}>
+      {/* Header skeleton */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{
+          width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
+        }} />
+        <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
+          <div style={{ width: 90,  height: 9,  borderRadius: 6, background: "rgba(255,255,255,0.05)" }} />
+          <div style={{ width: 200, height: 14, borderRadius: 6, background: "rgba(255,255,255,0.05)" }} />
+        </div>
+      </div>
+      <div style={{ marginTop: 14, width: "70%", height: 10, borderRadius: 6, background: "rgba(255,255,255,0.04)" }} />
+      <div style={{ marginTop: 6,  width: "50%", height: 10, borderRadius: 6, background: "rgba(255,255,255,0.03)" }} />
+    </div>
+  );
+
+  // ── Shared styles ─────────────────────────────────────────────────────────────
+  const totpInputStyle: React.CSSProperties = {
+    flex: 1, height: 48, padding: "0 18px", borderRadius: 14, boxSizing: "border-box",
+    border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.9)", fontSize: 22, fontWeight: 200,
+    letterSpacing: "0.3em", outline: "none", textAlign: "center",
+    colorScheme: "dark" as never, transition: "border-color 0.15s",
+  };
+
+  const confirmBtnStyle = (disabled: boolean): React.CSSProperties => ({
+    height: 48, padding: "0 20px", borderRadius: 14, border: "none", flexShrink: 0,
+    background: disabled ? "rgba(52,211,153,0.15)" : "rgba(16,185,129,0.85)",
+    color: disabled ? "rgba(110,231,183,0.4)" : "#fff",
+    fontSize: 13, fontWeight: 600, cursor: disabled ? "not-allowed" : "pointer", transition: "all 0.15s",
+  });
+
+  const cancelBtnStyle: React.CSSProperties = {
+    height: 48, width: 48, borderRadius: 14, border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.35)",
+    cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+  };
+
+  // ── Render recovery codes grid (reused for show-recovery + show-new-codes) ───
+  function RecoveryCodesDisplay({ isNew }: { isNew: boolean }) {
+    return (
+      <motion.div
+        key={isNew ? "show-new-codes" : "show-recovery"}
+        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.3 }}
+        style={{ marginTop: 20 }}
+      >
+        <div style={{
+          padding: "16px 18px", borderRadius: 14,
+          background: "rgba(245,158,11,0.06)", border: "1px solid rgba(251,191,36,0.14)",
+          marginBottom: 16,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(253,230,138,0.9)", marginBottom: 4 }}>
+            {isNew ? "🔄 New recovery codes generated" : "🔐 Save your recovery codes"}
+          </div>
+          <div style={{ fontSize: 11, color: "rgba(253,230,138,0.55)", lineHeight: 1.6 }}>
+            These codes are shown <strong style={{ color: "rgba(253,230,138,0.8)" }}>only once</strong>. If you lose access to your authenticator app, each code can be used once to sign in. Store them somewhere safe.
+          </div>
+        </div>
+
+        {/* Codes grid */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6,
+          marginBottom: 14,
+        }}>
+          {recoveryCodes.map((c, i) => (
+            <div key={i} style={{
+              padding: "9px 14px", borderRadius: 9,
+              background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
+              fontFamily: "monospace", fontSize: 14, letterSpacing: "0.18em",
+              color: "rgba(255,255,255,0.75)", textAlign: "center",
+              userSelect: "all",
+            }}>
+              {c}
+            </div>
+          ))}
+        </div>
+
+        {/* Copy + download */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+          <button
+            type="button" onClick={handleCopyAll}
+            style={{
+              flex: 1, height: 36, borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)",
+              color: copied ? "rgba(110,231,183,0.85)" : "rgba(255,255,255,0.55)",
+              fontSize: 12, cursor: "pointer", transition: "all 0.15s",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            }}
+          >
+            {copied ? <><Check size={13} strokeWidth={2} /> Copied!</> : <><Copy size={13} strokeWidth={1.5} /> Copy all</>}
+          </button>
+          <button
+            type="button" onClick={handleDownload}
+            style={{
+              flex: 1, height: 36, borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)",
+              color: "rgba(255,255,255,0.55)", fontSize: 12, cursor: "pointer", transition: "all 0.15s",
+            }}
+          >
+            ↓ Download .txt
+          </button>
+        </div>
+
+        {/* Confirm checkbox */}
+        <label style={{
+          display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer",
+          padding: "12px 14px", borderRadius: 11,
+          background: savedChecked ? "rgba(52,211,153,0.06)" : "rgba(255,255,255,0.02)",
+          border: savedChecked ? "1px solid rgba(52,211,153,0.18)" : "1px solid rgba(255,255,255,0.07)",
+          transition: "all 0.2s", marginBottom: 14,
+        }}>
+          <input
+            type="checkbox" checked={savedChecked}
+            onChange={e => setSavedChecked(e.target.checked)}
+            style={{ marginTop: 1, accentColor: "#10b981", width: 15, height: 15, flexShrink: 0, cursor: "pointer" }}
+          />
+          <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", lineHeight: 1.55 }}>
+            I have saved my recovery codes in a safe place. I understand they cannot be shown again.
+          </span>
+        </label>
+
+        <button
+          type="button"
+          disabled={!savedChecked}
+          onClick={async () => {
+            const stats = await getRecoveryCodeStats();
+            setRemaining(stats.remaining ?? 0);
+            setStep("enabled");
+          }}
+          style={{
+            width: "100%", height: 42, borderRadius: 12, border: "none",
+            background: savedChecked ? "rgba(16,185,129,0.85)" : "rgba(52,211,153,0.10)",
+            color: savedChecked ? "#fff" : "rgba(110,231,183,0.35)",
+            fontSize: 13, fontWeight: 600, cursor: savedChecked ? "pointer" : "not-allowed",
+            transition: "all 0.15s",
+          }}
+        >
+          {isNew ? "Done — back to security settings" : "Continue to dashboard"}
+        </button>
+      </motion.div>
+    );
+  }
+
+  return (
+    <div style={{
+      borderRadius: 22,
+      border: isEnabled
+        ? "1px solid rgba(52,211,153,0.18)"
+        : "1px solid rgba(255,255,255,0.07)",
+      background: isEnabled
+        ? "linear-gradient(135deg,rgba(16,185,129,0.05) 0%,rgba(12,13,19,0.0) 60%)"
+        : "rgba(255,255,255,0.02)",
+      padding: "22px 26px",
+      transition: "border-color 0.3s, background 0.3s",
+    }}>
+      {/* Header row */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{
+            width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+            background: isEnabled ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.04)",
+            border: isEnabled ? "1px solid rgba(52,211,153,0.18)" : "1px solid rgba(255,255,255,0.07)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {isEnabled
+              ? <ShieldCheck size={20} strokeWidth={1.5} color="rgba(110,231,183,0.85)" />
+              : <ShieldOff   size={20} strokeWidth={1.5} color="rgba(255,255,255,0.3)"  />
+            }
+          </div>
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.14em", color: "rgba(255,255,255,0.28)", marginBottom: 2 }}>Account security</div>
+            <div style={{ fontSize: 18, fontWeight: 200, letterSpacing: "-0.03em" }}>Two-Factor Authentication</div>
+          </div>
+        </div>
+        <div style={{
+          fontSize: 11, padding: "4px 12px", borderRadius: 999, flexShrink: 0,
+          background: isEnabled ? "rgba(16,185,129,0.10)" : "rgba(255,255,255,0.04)",
+          border: isEnabled ? "1px solid rgba(52,211,153,0.20)" : "1px solid rgba(255,255,255,0.08)",
+          color: isEnabled ? "rgba(110,231,183,0.85)" : "rgba(255,255,255,0.35)",
+          letterSpacing: "0.06em", textTransform: "uppercase" as const, marginTop: 4,
+        }}>
+          {isEnabled ? "Active" : "Disabled"}
+        </div>
+      </div>
+
+      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", lineHeight: 1.65, margin: "14px 0 0" }}>
+        {isEnabled
+          ? "Protected with TOTP. Each sign-in requires a code from your authenticator app — even if your password is compromised."
+          : "Add an extra layer of protection. After enabling, every sign-in will require a time-based code from Google Authenticator, Authy, or any TOTP app."}
+      </p>
+
+      {/* Error banner */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+            style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "10px 14px",
+              borderRadius: 10, marginTop: 14,
+              background: "rgba(244,63,94,0.07)", border: "1px solid rgba(248,113,133,0.16)",
+              fontSize: 12, color: "rgba(254,205,211,0.9)",
+            }}
+          >
+            <AlertCircle size={13} strokeWidth={1.5} />{error}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── State machine ─────────────────────────────────────────────────────── */}
+      <AnimatePresence mode="wait">
+
+        {/* ── QR + verify step ─────────────────────────────────────────────── */}
+        {step === "verifying" && qrCode && (
+          <motion.div
+            key="verify"
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
+            style={{ marginTop: 20, display: "flex", flexDirection: "column" as const, gap: 16 }}
+          >
+            <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+              <div style={{ borderRadius: 14, border: "1px solid rgba(255,255,255,0.10)", background: "#fff", padding: 10, flexShrink: 0 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrCode} alt="2FA QR code" style={{ width: 180, height: 180, display: "block", imageRendering: "pixelated" }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.7)", marginBottom: 6 }}>
+                  1. Scan with your authenticator app
+                </div>
+                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", lineHeight: 1.65, margin: "0 0 12px" }}>
+                  Open Google Authenticator, Authy, or any TOTP app and scan the QR code.
+                </p>
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginBottom: 5 }}>Can't scan? Type this key manually:</div>
+                  <div style={{
+                    padding: "9px 12px", borderRadius: 8,
+                    background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+                    fontFamily: "monospace", fontSize: 13, letterSpacing: "0.14em",
+                    color: "rgba(255,255,255,0.65)", wordBreak: "break-all" as const, userSelect: "all" as const,
+                  }}>{secret}</div>
+                </div>
+              </div>
+            </div>
+            <form onSubmit={handleVerify} style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "rgba(255,255,255,0.7)" }}>2. Enter the 6-digit code to confirm</div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  ref={inputRef} type="text" inputMode="numeric" autoComplete="one-time-code"
+                  placeholder="000000" value={code}
+                  onChange={e => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  disabled={isPending}
+                  style={totpInputStyle}
+                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(52,211,153,0.40)"; }}
+                  onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }}
+                />
+                <button type="submit" disabled={isPending || code.length < 6} style={confirmBtnStyle(isPending || code.length < 6)}>
+                  {isPending ? "Activating…" : "Activate"}
+                </button>
+                <button type="button" onClick={resetEnroll} style={cancelBtnStyle}>
+                  <X size={16} strokeWidth={1.5} />
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+
+        {/* ── Show recovery codes (post-enrollment) ────────────────────────── */}
+        {step === "show-recovery" && <RecoveryCodesDisplay isNew={false} />}
+
+        {/* ── Show new codes (post-regen) ───────────────────────────────────── */}
+        {step === "show-new-codes" && <RecoveryCodesDisplay isNew={true} />}
+
+        {/* ── Enabled: stats + actions ──────────────────────────────────────── */}
+        {step === "enabled" && isEnabled && (
+          <motion.div
+            key="enabled"
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{ marginTop: 18 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" as const }}>
+              <div style={{ fontSize: 12, color: "rgba(110,231,183,0.6)" }}>
+                ✓ Active since{" "}
+                {new Date(factors[0].createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </div>
+              {/* Recovery code count pill */}
+              <div style={{
+                fontSize: 11, padding: "4px 11px", borderRadius: 999,
+                background: remaining <= 2 ? "rgba(245,158,11,0.10)" : "rgba(255,255,255,0.04)",
+                border: remaining <= 2 ? "1px solid rgba(251,191,36,0.20)" : "1px solid rgba(255,255,255,0.08)",
+                color: remaining <= 2 ? "rgba(253,230,138,0.85)" : "rgba(255,255,255,0.35)",
+              }}>
+                {remaining} recovery code{remaining !== 1 ? "s" : ""} remaining
+                {remaining <= 2 && remaining > 0 && " ⚠"}
+                {remaining === 0 && " — regenerate now"}
+              </div>
+            </div>
+            {/* Action buttons */}
+            <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" as const }}>
+              <button
+                onClick={handleRegenStart}
+                style={{
+                  height: 36, padding: "0 16px", borderRadius: 10, flexShrink: 0,
+                  border: "1px solid rgba(167,139,250,0.18)", background: "rgba(139,92,246,0.07)",
+                  color: "rgba(221,214,254,0.7)", fontSize: 12, cursor: "pointer", transition: "all 0.15s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(139,92,246,0.14)"; e.currentTarget.style.color = "rgba(221,214,254,1)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(139,92,246,0.07)"; e.currentTarget.style.color = "rgba(221,214,254,0.7)"; }}
+              >
+                Regenerate codes
+              </button>
+              <button
+                onClick={handleRemoveStart}
+                style={{
+                  height: 36, padding: "0 16px", borderRadius: 10, flexShrink: 0,
+                  border: "1px solid rgba(251,113,133,0.18)", background: "rgba(244,63,94,0.05)",
+                  color: "rgba(252,165,165,0.65)", fontSize: 12, cursor: "pointer", transition: "all 0.15s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(244,63,94,0.12)"; e.currentTarget.style.color = "rgba(252,165,165,1)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(244,63,94,0.05)"; e.currentTarget.style.color = "rgba(252,165,165,0.65)"; }}
+              >
+                Remove 2FA
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Remove confirm ────────────────────────────────────────────────── */}
+        {step === "remove-confirm" && (
+          <motion.div
+            key="remove-confirm"
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
+            style={{ marginTop: 18 }}
+          >
+            <div style={{
+              padding: "12px 14px", borderRadius: 11, marginBottom: 14,
+              background: "rgba(244,63,94,0.06)", border: "1px solid rgba(251,113,133,0.14)",
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(252,165,165,0.9)", marginBottom: 3 }}>Confirm 2FA removal</div>
+              <div style={{ fontSize: 11, color: "rgba(252,165,165,0.5)", lineHeight: 1.55 }}>
+                Enter a code from your authenticator app to confirm. This will disable 2FA and delete all recovery codes.
+              </div>
+            </div>
+            <form onSubmit={handleRemoveConfirm} style={{ display: "flex", gap: 10 }}>
+              <input
+                ref={confirmRef} type="text" inputMode="numeric" autoComplete="one-time-code"
+                placeholder="000000" value={confirmCode}
+                onChange={e => setConfirmCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                disabled={isPending}
+                style={{ ...totpInputStyle, borderColor: "rgba(251,113,133,0.20)" }}
+                onFocus={e => { e.currentTarget.style.borderColor = "rgba(252,165,165,0.45)"; }}
+                onBlur={e  => { e.currentTarget.style.borderColor = "rgba(251,113,133,0.20)"; }}
+              />
+              <button type="submit" disabled={isPending || confirmCode.length < 6} style={{
+                ...confirmBtnStyle(isPending || confirmCode.length < 6),
+                background: isPending || confirmCode.length < 6 ? "rgba(244,63,94,0.12)" : "rgba(220,38,38,0.75)",
+                color: isPending || confirmCode.length < 6 ? "rgba(252,165,165,0.35)" : "#fff",
+              }}>
+                {isPending ? "Removing…" : "Confirm"}
+              </button>
+              <button type="button" onClick={() => { setStep("enabled"); setConfirmCode(""); setError(null); }} style={cancelBtnStyle}>
+                <X size={16} strokeWidth={1.5} />
+              </button>
+            </form>
+          </motion.div>
+        )}
+
+        {/* ── Regen confirm ─────────────────────────────────────────────────── */}
+        {step === "regen-confirm" && (
+          <motion.div
+            key="regen-confirm"
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
+            style={{ marginTop: 18 }}
+          >
+            <div style={{
+              padding: "12px 14px", borderRadius: 11, marginBottom: 14,
+              background: "rgba(139,92,246,0.07)", border: "1px solid rgba(167,139,250,0.14)",
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(221,214,254,0.9)", marginBottom: 3 }}>Confirm code regeneration</div>
+              <div style={{ fontSize: 11, color: "rgba(221,214,254,0.5)", lineHeight: 1.55 }}>
+                Enter a code from your authenticator app. All existing recovery codes will be invalidated and replaced with 10 new ones.
+              </div>
+            </div>
+            <form onSubmit={handleRegenConfirm} style={{ display: "flex", gap: 10 }}>
+              <input
+                ref={confirmRef} type="text" inputMode="numeric" autoComplete="one-time-code"
+                placeholder="000000" value={confirmCode}
+                onChange={e => setConfirmCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                disabled={isPending}
+                style={{ ...totpInputStyle, borderColor: "rgba(167,139,250,0.20)" }}
+                onFocus={e => { e.currentTarget.style.borderColor = "rgba(167,139,250,0.50)"; }}
+                onBlur={e  => { e.currentTarget.style.borderColor = "rgba(167,139,250,0.20)"; }}
+              />
+              <button type="submit" disabled={isPending || confirmCode.length < 6} style={confirmBtnStyle(isPending || confirmCode.length < 6)}>
+                {isPending ? "Regenerating…" : "Confirm"}
+              </button>
+              <button type="button" onClick={() => { setStep("enabled"); setConfirmCode(""); setError(null); }} style={cancelBtnStyle}>
+                <X size={16} strokeWidth={1.5} />
+              </button>
+            </form>
+          </motion.div>
+        )}
+
+        {/* ── Idle: not enrolled + not mid-flow ────────────────────────────── */}
+        {(step === "idle" || step === "enrolling") && !isEnabled && (
+          <motion.div
+            key="disabled"
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{ marginTop: 18 }}
+          >
+            <button
+              onClick={startEnroll}
+              disabled={isPending || step === "enrolling"}
+              style={{
+                height: 40, padding: "0 20px", borderRadius: 12,
+                border: "1px solid rgba(52,211,153,0.22)", background: "rgba(16,185,129,0.08)",
+                color: "rgba(110,231,183,0.85)", fontSize: 13, fontWeight: 500,
+                cursor: isPending ? "wait" : "pointer", transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(16,185,129,0.14)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(16,185,129,0.08)"; }}
+            >
+              {step === "enrolling" ? "Loading…" : "Enable Two-Factor Authentication"}
+            </button>
+          </motion.div>
+        )}
+
+      </AnimatePresence>
     </div>
   );
 }

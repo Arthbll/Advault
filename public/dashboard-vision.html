@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Performance Dashboard — ProfitDash Vision</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&display=swap');
+    *, *::before, *::after { box-sizing: border-box; font-family: 'Inter', system-ui, sans-serif; }
+    body { margin: 0; background: #05060a; }
+
+    .gradient-text {
+      background: linear-gradient(90deg, #fff 0%, #f5d0fe 50%, #c4b5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .cta-main {
+      background: linear-gradient(90deg, #ec4899, #8b5cf6, #6366f1);
+      box-shadow: 0 14px 35px rgba(139,92,246,0.35);
+      transition: transform 0.18s, box-shadow 0.18s;
+    }
+    .cta-main:hover { transform: scale(1.013); box-shadow: 0 18px 44px rgba(139,92,246,0.48); }
+
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 34px 34px;
+    }
+
+    @keyframes pulse-live {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.25; }
+    }
+    .pulse { animation: pulse-live 2s ease-in-out infinite; }
+
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .slide-in { animation: slide-in 0.5s ease forwards; }
+    .delay-1  { animation-delay: 0.07s; opacity: 0; }
+    .delay-2  { animation-delay: 0.14s; opacity: 0; }
+    .delay-3  { animation-delay: 0.21s; opacity: 0; }
+    .delay-4  { animation-delay: 0.28s; opacity: 0; }
+  </style>
+</head>
+<body class="text-white min-h-screen p-6 md:p-8">
+
+<div class="mx-auto max-w-[1600px]" style="display: grid; grid-template-columns: 220px 1fr; gap: 32px;">
+
+  <!-- ─── SIDEBAR ────────────────────────────────────────────────────────── -->
+  <aside class="rounded-[28px] border border-white/[0.06] overflow-hidden sticky top-6 self-start"
+    style="background: linear-gradient(180deg, rgba(12,13,18,0.98), rgba(9,10,15,0.96)); height: calc(100vh - 48px); display: flex; flex-direction: column;">
+
+    <div class="px-6 pt-8 pb-6 border-b border-white/[0.06]">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-xl border flex items-center justify-center text-lg"
+          style="border-color: rgba(167,139,250,0.25); background: rgba(139,92,246,0.1); color: rgba(167,139,250,0.9);">✦</div>
+        <div>
+          <div style="font-size: 26px; line-height: 1; letter-spacing: -0.04em; font-weight: 300;">ProfitDash</div>
+          <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.22em; color: rgba(255,255,255,0.28); margin-top: 4px;">Decision engine</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="px-4 py-5 flex-1">
+      <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.24em; color: rgba(255,255,255,0.24); padding: 0 12px; margin-bottom: 12px;">Workspace</div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div class="rounded-2xl px-4 py-3 text-sm" style="border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);">Performance</div>
+        <div class="rounded-2xl px-4 py-3 text-sm" style="border: 1px solid transparent; color: rgba(255,255,255,0.42);">Campaign Operations</div>
+        <div class="rounded-2xl px-4 py-3 text-sm" style="border: 1px solid transparent; color: rgba(255,255,255,0.42);">Analytics</div>
+        <div class="rounded-2xl px-4 py-3 text-sm" style="border: 1px solid transparent; color: rgba(255,255,255,0.42);">Transactions</div>
+        <div class="rounded-2xl px-4 py-3 text-sm" style="border: 1px solid transparent; color: rgba(255,255,255,0.42);">Vault</div>
+        <div class="rounded-2xl px-4 py-3 text-sm" style="border: 1px solid transparent; color: rgba(255,255,255,0.42);">Settings</div>
+      </div>
+    </div>
+
+    <div class="px-4 pb-5">
+      <div class="rounded-2xl px-4 py-4" style="border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);">
+        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 10px; text-transform: uppercase; letter-spacing: 0.22em; color: rgba(255,255,255,0.32);">
+          <span>Engine</span><span style="color: #6ee7b7;">Live</span>
+        </div>
+        <div style="margin-top: 14px; display: flex; gap: 6px;">
+          <div style="height: 7px; flex: 1; border-radius: 99px; background: rgba(74,222,128,0.8);"></div>
+          <div style="height: 7px; flex: 1; border-radius: 99px; background: rgba(251,191,36,0.65);"></div>
+          <div style="height: 7px; flex: 1; border-radius: 99px; background: rgba(248,113,113,0.7);"></div>
+        </div>
+        <div style="margin-top: 10px; font-size: 11px; color: rgba(255,255,255,0.32);">Scan loop active · rules applied automatically</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ─── MAIN ──────────────────────────────────────────────────────────── -->
+  <main class="pb-10">
+    <div class="rounded-[28px] overflow-hidden slide-in"
+      style="border: 1px solid rgba(255,255,255,0.06); background: linear-gradient(180deg, rgba(10,11,17,0.95), rgba(8,9,14,0.98)); box-shadow: 0 0 0 1px rgba(255,255,255,0.02), 0 40px 120px rgba(0,0,0,0.45);">
+
+      <!-- Top bar -->
+      <div style="height: 72px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; background: radial-gradient(circle at 30% 0%, rgba(99,102,241,0.08), transparent 35%);">
+        <div style="display: flex; align-items: center; gap: 20px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.22em;">
+          <div style="display: flex; align-items: center; gap: 7px; color: #6ee7b7;">
+            <span class="pulse" style="width: 6px; height: 6px; border-radius: 50%; background: #4ade80; display: inline-block; box-shadow: 0 0 8px rgba(74,222,128,0.7);"></span>
+            Live
+          </div>
+          <div style="color: rgba(255,255,255,0.28);">Last scan 14s ago</div>
+          <div style="color: #fca5a5;">1 auto-killed</div>
+          <div style="color: #fcd34d;">1 watching</div>
+          <div style="color: #6ee7b7;">4 scaling</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button class="rounded-2xl text-sm" style="border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); padding: 10px 18px; color: rgba(255,255,255,0.7); cursor: pointer;">Force scan</button>
+          <button class="cta-main rounded-2xl text-sm font-semibold" style="padding: 10px 20px; color: #fff; border: none; cursor: pointer;">Open Campaign Operations</button>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div style="padding: 32px 32px 44px;">
+
+        <!-- Row 1: Hero + Feed -->
+        <div class="slide-in delay-1" style="display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 20px; align-items: stretch;">
+
+          <!-- Hero card -->
+          <div class="rounded-[28px] relative overflow-hidden" style="min-height: 340px; border: 1px solid rgba(255,255,255,0.08); background: linear-gradient(180deg, rgba(18,19,28,0.98), rgba(13,14,21,0.98));">
+            <!-- Blobs -->
+            <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(circle at 15% 40%, rgba(236,72,153,0.16), transparent 26%), radial-gradient(circle at 75% 45%, rgba(99,102,241,0.13), transparent 26%);"></div>
+            <!-- Grid -->
+            <div class="absolute inset-0 opacity-[0.18] grid-bg pointer-events-none"></div>
+            <!-- Top hairline -->
+            <div class="absolute inset-x-0 top-0 h-px pointer-events-none" style="background: linear-gradient(90deg, transparent, rgba(244,114,182,0.5), rgba(167,139,250,0.35), transparent);"></div>
+
+            <div class="relative p-7" style="height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <!-- Eyebrow -->
+                <div style="display: inline-flex; align-items: center; gap: 7px; border-radius: 99px; border: 1px solid rgba(244,114,182,0.18); background: rgba(245,114,182,0.08); padding: 5px 12px 5px 10px; margin-bottom: 24px;">
+                  <span class="pulse" style="width: 6px; height: 6px; border-radius: 50%; background: #f472b6; box-shadow: 0 0 10px rgba(244,114,182,0.85); display: inline-block; flex-shrink: 0;"></span>
+                  <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.22em; color: rgba(240,171,252,0.9);">Decision Engine · live actions</span>
+                </div>
+
+                <!-- Headline -->
+                <h1 style="font-size: clamp(36px, 4vw, 52px); font-weight: 300; letter-spacing: -0.06em; line-height: 0.93; margin: 0 0 20px; max-width: 520px;">
+                  Profit first.<br>
+                  <span class="gradient-text">See what the engine already did.</span>
+                </h1>
+
+                <!-- Body -->
+                <p style="font-size: 15px; line-height: 1.7; color: rgba(255,255,255,0.46); max-width: 500px; margin: 0;">
+                  This dashboard is not for making manual decisions first. It is for seeing what the engine killed, what it is reviewing, and where it is already pushing budget automatically.
+                </p>
+              </div>
+
+              <!-- 3 stat cards -->
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 28px;">
+                <div class="rounded-2xl" style="border: 1px solid rgba(74,222,128,0.16); background: rgba(74,222,128,0.08); padding: 14px 16px;">
+                  <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; color: rgba(110,231,183,0.78); margin-bottom: 10px;">Saved today</div>
+                  <div style="font-size: 36px; font-weight: 300; letter-spacing: -0.04em; line-height: 1; color: #6ee7b7;">€626</div>
+                </div>
+                <div class="rounded-2xl" style="border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); padding: 14px 16px;">
+                  <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; color: rgba(255,255,255,0.3); margin-bottom: 10px;">Rules active</div>
+                  <div style="font-size: 36px; font-weight: 300; letter-spacing: -0.04em; line-height: 1; color: rgba(255,255,255,0.88);">3</div>
+                </div>
+                <div class="rounded-2xl" style="border: 1px solid rgba(167,139,250,0.16); background: rgba(139,92,246,0.08); padding: 14px 16px;">
+                  <div style="font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; color: rgba(196,181,253,0.75); margin-bottom: 10px;">3 networks synced</div>
+                  <div style="font-size: 36px; font-weight: 300; letter-spacing: -0.04em; line-height: 1; color: #c4b5fd;">Live</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Engine feed -->
+          <div class="rounded-[28px]" style="border: 1px solid rgba(255,255,255,0.08); background: linear-gradient(180deg, rgba(17,18,25,0.98), rgba(12,13,19,0.98)); padding: 22px 24px; display: flex; flex-direction: column;">
+            <div style="display: flex; align-items: center; justify-content: space-between; font-size: 10px; text-transform: uppercase; letter-spacing: 0.22em; color: rgba(255,255,255,0.28); margin-bottom: 18px;">
+              <span>Recent engine feed</span>
+              <span>real-time</span>
+            </div>
+            <div id="feed-container" style="display: flex; flex-direction: column; gap: 10px; flex: 1;"></div>
+          </div>
+        </div>
+
+        <!-- Row 2: 3 state cards -->
+        <div class="slide-in delay-2" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 20px;" id="state-cards"></div>
+
+        <!-- Row 3: Campaign table -->
+        <div class="slide-in delay-3 rounded-[24px] overflow-hidden" style="margin-top: 20px; border: 1px solid rgba(255,255,255,0.08); background: linear-gradient(180deg, rgba(16,17,24,0.98), rgba(11,12,18,0.98));">
+
+          <!-- Table header -->
+          <div style="padding: 20px 24px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+            <div>
+              <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.22em; color: rgba(255,255,255,0.25); margin-bottom: 6px;">Override or inspect</div>
+              <div style="font-size: 26px; font-weight: 300; letter-spacing: -0.04em; color: #fff;">Campaign table</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em;">
+              <button style="border-radius: 99px; padding: 7px 16px; border: 1px solid rgba(255,255,255,0.12); background: #fff; color: #0b0d12; font-size: 11px; font-weight: 600; cursor: pointer; letter-spacing: 0.14em;">All</button>
+              <button style="border-radius: 99px; padding: 7px 16px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.52); font-size: 11px; cursor: pointer; letter-spacing: 0.14em;">Needs action</button>
+              <button style="border-radius: 99px; padding: 7px 16px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.52); font-size: 11px; cursor: pointer; letter-spacing: 0.14em;">Watching</button>
+              <button style="border-radius: 99px; padding: 7px 16px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.52); font-size: 11px; cursor: pointer; letter-spacing: 0.14em;">Scaling</button>
+            </div>
+          </div>
+
+          <!-- Column headers -->
+          <div style="display: grid; grid-template-columns: 1.8fr 0.7fr 0.8fr 0.75fr 0.75fr 0.55fr; gap: 14px; padding: 10px 24px; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.22em; color: rgba(255,255,255,0.26);">
+            <div>Campaign</div><div>Network</div><div>State</div><div>Spend</div><div>Revenue</div><div>ROI</div>
+          </div>
+
+          <!-- Rows -->
+          <div id="table-rows"></div>
+        </div>
+
+      </div><!-- /content -->
+    </div>
+  </main>
+</div>
+
+<script>
+  // ── Data ──────────────────────────────────────────────────────────────────
+
+  const feed = [
+    { tag: "AUTO-KILLED",  campaign: "iGaming — Pop Under — US — Mobile",   meta: "ExoClick",     roi: "−47%", time: "42s ago", tone: "rose"    },
+    { tag: "WATCHING",     campaign: "Sweepstakes — Push — PT — Mobile",    meta: "TrafficStars", roi: "−12%", time: "35s ago", tone: "amber"   },
+    { tag: "AUTO-SCALING", campaign: "VOD — Display — MX — All Devices",    meta: "TrafficJunky", roi: "+66%", time: "19s ago", tone: "emerald" },
+  ];
+
+  const rows = [
+    { name: "iGaming — Pop Under — US — Mobile",    net: "ExoClick",     state: "Auto-killed",  spend: "$3,894",  rev: "$2,073",  roi: "−46.8%", tone: "rose"    },
+    { name: "Sweepstakes — Push — PT — Mobile",     net: "TrafficStars", state: "Watching",     spend: "$3,874",  rev: "$3,409",  roi: "−12.0%", tone: "amber"   },
+    { name: "Adult Dating — Banner — BR — Mobile",  net: "TrafficJunky", state: "Auto-scaling", spend: "$6,786",  rev: "$11,392", roi: "+67.9%", tone: "emerald" },
+    { name: "VOD — Display — MX — All Devices",     net: "TrafficJunky", state: "Auto-scaling", spend: "$5,602",  rev: "$8,876",  roi: "+58.4%", tone: "emerald" },
+    { name: "Crypto — Push — AU — Desktop",         net: "ExoClick",     state: "Auto-scaling", spend: "$6,402",  rev: "$11,386", roi: "+77.8%", tone: "emerald" },
+  ];
+
+  const stateCards = [
+    { label: "Auto-killed",  count: "1", sub: "Paused by engine before losses kept compounding.",  tone: "rose"    },
+    { label: "Watching",     count: "1", sub: "Borderline campaign under automated review.",        tone: "amber"   },
+    { label: "Auto-scaling", count: "4", sub: "Budget increasing on current winners.",              tone: "emerald" },
+  ];
+
+  // ── Tone config ───────────────────────────────────────────────────────────
+
+  const TONE = {
+    rose:    { color: "#fca5a5", rgb: "248,113,113", border: "rgba(248,113,113,0.2)",  bg: "rgba(248,113,113,0.08)" },
+    amber:   { color: "#fcd34d", rgb: "251,191,36",  border: "rgba(251,191,36,0.2)",   bg: "rgba(251,191,36,0.08)"  },
+    emerald: { color: "#6ee7b7", rgb: "74,222,128",  border: "rgba(74,222,128,0.2)",   bg: "rgba(74,222,128,0.08)"  },
+  };
+
+  // ── Render feed ───────────────────────────────────────────────────────────
+
+  const feedContainer = document.getElementById('feed-container');
+  feed.forEach(item => {
+    const t = TONE[item.tone];
+    const div = document.createElement('div');
+    div.style.cssText = `border-radius: 16px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); padding: 14px 16px;`;
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
+        <span style="border-radius:99px;border:1px solid ${t.border};background:${t.bg};padding:4px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.2em;color:${t.color};">${item.tag}</span>
+        <span style="font-size:10px;text-transform:uppercase;letter-spacing:0.2em;color:rgba(255,255,255,0.24);">${item.time}</span>
+      </div>
+      <div style="font-size:15px;line-height:1.5;color:rgba(255,255,255,0.84);margin-bottom:8px;">${item.campaign}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:12px;color:rgba(255,255,255,0.34);">${item.meta}</span>
+        <span style="font-size:14px;font-weight:500;color:${t.color};">${item.roi}</span>
+      </div>
+    `;
+    feedContainer.appendChild(div);
+  });
+
+  // ── Render state cards ────────────────────────────────────────────────────
+
+  const stateContainer = document.getElementById('state-cards');
+  stateCards.forEach(card => {
+    const t = TONE[card.tone];
+    const div = document.createElement('div');
+    div.style.cssText = `border-radius: 24px; border: 1px solid rgba(255,255,255,0.08); background: linear-gradient(180deg, rgba(16,17,24,0.98), rgba(11,12,18,0.98)); padding: 24px 24px;`;
+    div.innerHTML = `
+      <div style="display:inline-flex;border-radius:99px;border:1px solid ${t.border};background:${t.bg};padding:5px 13px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.22em;color:${t.color};margin-bottom:18px;">${card.label}</div>
+      <div style="font-size: clamp(48px, 5vw, 64px); font-weight:300;letter-spacing:-0.06em;line-height:1;color:${t.color};margin-bottom:14px;">${card.count}</div>
+      <p style="font-size:14px;line-height:1.7;color:rgba(255,255,255,0.4);margin:0;max-width:260px;">${card.sub}</p>
+    `;
+    stateContainer.appendChild(div);
+  });
+
+  // ── Render table rows ─────────────────────────────────────────────────────
+
+  const tableContainer = document.getElementById('table-rows');
+  rows.forEach((row, idx) => {
+    const t = TONE[row.tone];
+    const isLast = idx === rows.length - 1;
+    const div = document.createElement('div');
+    div.style.cssText = `
+      display: grid;
+      grid-template-columns: 1.8fr 0.7fr 0.8fr 0.75fr 0.75fr 0.55fr;
+      gap: 14px;
+      align-items: center;
+      padding: 18px 24px;
+      border-bottom: ${isLast ? 'none' : '1px solid rgba(255,255,255,0.05)'};
+      background: ${idx === 0 ? 'rgba(248,113,113,0.025)' : 'transparent'};
+      transition: background 0.15s;
+      cursor: pointer;
+    `;
+    div.onmouseenter = () => { div.style.background = idx === 0 ? 'rgba(248,113,113,0.045)' : 'rgba(255,255,255,0.02)'; };
+    div.onmouseleave = () => { div.style.background = idx === 0 ? 'rgba(248,113,113,0.025)' : 'transparent'; };
+
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+        <span style="width:8px;height:8px;border-radius:50%;background:${t.color};flex-shrink:0;${idx===0?`box-shadow:0 0 8px rgba(${t.rgb},0.8);`:''}"></span>
+        <span style="font-size:19px;font-weight:300;letter-spacing:-0.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(255,255,255,0.88);">${row.name}</span>
+      </div>
+      <div>
+        <span style="border-radius:99px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);padding:4px 12px;font-size:12px;color:rgba(255,255,255,0.68);">${row.net}</span>
+      </div>
+      <div>
+        <span style="border-radius:99px;border:1px solid ${t.border};background:${t.bg};padding:4px 12px;font-size:11px;font-weight:500;color:${t.color};">${row.state}</span>
+      </div>
+      <div style="font-size:17px;font-weight:300;letter-spacing:-0.02em;color:rgba(255,255,255,0.58);">${row.spend}</div>
+      <div style="font-size:17px;font-weight:300;letter-spacing:-0.02em;color:rgba(255,255,255,0.86);">${row.rev}</div>
+      <div style="font-size:26px;font-weight:300;letter-spacing:-0.04em;color:${t.color};">${row.roi}</div>
+    `;
+    tableContainer.appendChild(div);
+  });
+</script>
+
+</body>
+</html>

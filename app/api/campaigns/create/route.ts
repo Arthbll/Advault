@@ -8,12 +8,15 @@ import { TrafficStarsAdapter, TrafficStarsCreateParams, TrafficStarsCreateBanner
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { TrafficJunkyAdapter } from "@/lib/adapters/trafficjunky";
 import { Network, CampaignStatus } from "@prisma/client";
+import { resolveWorkspaceUserId } from "@/lib/workspace";
 
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createSupabase();
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
     if (authErr || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const userId = await resolveWorkspaceUserId(user.id);
 
     let body: Record<string, unknown> & { network?: string };
     try { body = await req.json(); }
@@ -26,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     // Load account
     const account = await prisma.account.findFirst({
-      where: { userId: user.id, network: network as Network, isActive: true },
+      where: { userId: userId, network: network as Network, isActive: true },
     });
     if (!account) return NextResponse.json({ error: `No ${network} account connected` }, { status: 404 });
 
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
       const today = new Date().toISOString().slice(0, 10);
       const camp = await prisma.campaign.create({
         data: {
-          userId:      user.id,
+          userId:      userId,
           accountId:   account.id,
           externalId:  created.id,
           name:        created.name,
@@ -61,7 +64,7 @@ export async function POST(req: NextRequest) {
 
       await prisma.log.create({
         data: {
-          userId:  user.id,
+          userId:  userId,
           type:    "CAMPAIGN_ACTION",
           message: `Campaign created on ExoClick: "${created.name}" (ID ${created.id})`,
           metadata: { network: "EXOCLICK", externalId: created.id },
@@ -103,7 +106,7 @@ export async function POST(req: NextRequest) {
       const today = new Date().toISOString().slice(0, 10);
       const camp  = await prisma.campaign.create({
         data: {
-          userId:      user.id,
+          userId:      userId,
           accountId:   account.id,
           externalId:  created.id,
           name:        created.name,
@@ -122,7 +125,7 @@ export async function POST(req: NextRequest) {
 
       await prisma.log.create({
         data: {
-          userId:   user.id,
+          userId:   userId,
           type:     "CAMPAIGN_ACTION",
           message:  `Campaign created on TrafficStars: "${created.name}" (ID ${created.id})`,
           metadata: { network: "TRAFFICSTARS", externalId: created.id },

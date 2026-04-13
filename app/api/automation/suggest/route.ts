@@ -6,11 +6,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { resolveWorkspaceUserId } from "@/lib/workspace";
 
 interface CampaignRow {
-  roi:    number;
-  spend:  number;
-  profit: number;
+  roi:     number;
+  spend:   number;
+  revenue: number;
 }
 
 interface Suggestion {
@@ -33,16 +34,18 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const userId = await resolveWorkspaceUserId(user.id);
   const since = new Date(Date.now() - 30 * 86400_000);
 
   try {
+    // profit = revenue - spend (calculé, pas stocké en base)
     const rows = await prisma.$queryRaw<CampaignRow[]>`
       SELECT
-        CASE WHEN spend > 0 THEN (profit / spend) * 100 ELSE 0 END AS roi,
         spend,
-        profit
+        revenue,
+        CASE WHEN spend > 0 THEN ((revenue - spend) / spend) * 100 ELSE 0 END AS roi
       FROM "Campaign"
-      WHERE "userId" = ${user.id}
+      WHERE "userId" = ${userId}
         AND "updatedAt" > ${since}
         AND spend > 0
     `;
@@ -107,6 +110,6 @@ export async function GET() {
       stats: { roiP25, roiMed, roiP75, avgSpend, spendP90, sampleSize: rows.length },
     });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    console.error(e); return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

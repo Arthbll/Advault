@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProfitDash · Dashboard Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            rose:    { 300: '#fca5a5', 400: '#f87171' },
+            amber:   { 300: '#fcd34d', 400: '#fbbf24' },
+            emerald: { 300: '#6ee7b7', 400: '#34d399', 500: '#10b981' },
+            violet:  { 400: '#a78bfa', 500: '#8b5cf6' },
+            sky:     { 400: '#38bdf8', 500: '#0ea5e9' },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&display=swap');
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+    body { margin: 0; background: #0d0d10; }
+
+    .card {
+      background: #17171e;
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 18px;
+      overflow: hidden;
+    }
+
+    .label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #3f3f46;
+    }
+
+    /* Fake mini chart */
+    .sparkline {
+      width: 100%;
+      height: 60px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ROI arc animation */
+    @keyframes arcFill {
+      from { stroke-dashoffset: 163; }
+      to   { stroke-dashoffset: 48; }
+    }
+    .roi-arc { animation: arcFill 1.2s ease-out forwards; }
+
+    /* Engine pill pulse */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+    .live-dot { animation: pulse 2s infinite; }
+
+    /* Action badge hover */
+    .action-row:hover { background: rgba(255,255,255,0.025); }
+  </style>
+</head>
+<body class="text-white">
+
+<!-- NAV -->
+<nav style="background:#0d0d10; border-bottom:1px solid rgba(255,255,255,0.06); padding:0 24px; height:52px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:50;">
+  <span style="font-size:15px; font-weight:300; letter-spacing:-0.02em; color:rgba(255,255,255,0.9)">ProfitDash</span>
+  <div style="display:flex; gap:6px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:99px; padding:4px 6px;">
+    <button style="padding:6px 14px; border-radius:99px; background:#17171e; border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.9); font-size:12px; cursor:pointer;">Performance</button>
+    <button style="padding:6px 14px; border-radius:99px; background:transparent; border:none; color:rgba(255,255,255,0.35); font-size:12px; cursor:pointer;">Execution</button>
+    <button style="padding:6px 14px; border-radius:99px; background:transparent; border:none; color:rgba(255,255,255,0.35); font-size:12px; cursor:pointer;">Analytics</button>
+    <button style="padding:6px 14px; border-radius:99px; background:transparent; border:none; color:rgba(255,255,255,0.35); font-size:12px; cursor:pointer;">Rules</button>
+    <button style="padding:6px 14px; border-radius:99px; background:transparent; border:none; color:rgba(255,255,255,0.35); font-size:12px; cursor:pointer;">Settings</button>
+  </div>
+  <div style="width:34px; height:34px; border-radius:50%; background:rgba(139,92,246,0.2); border:1px solid rgba(139,92,246,0.3); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:500;">AB</div>
+</nav>
+
+<!-- CONTENT -->
+<div style="padding: 22px 26px 64px; display:flex; flex-direction:column; gap:10px;">
+
+  <!-- HEADER -->
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+    <div>
+      <p class="label">8 campagnes actives</p>
+      <h1 style="font-size:23px; font-weight:200; color:rgba(255,255,255,0.82); margin:3px 0 0; letter-spacing:-0.03em;">Overview</h1>
+    </div>
+    <!-- Date selector -->
+    <div style="display:flex; gap:6px; align-items:center;">
+      <button style="padding:6px 12px; border-radius:99px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:rgba(255,255,255,0.4); font-size:11px; cursor:pointer;">Auj.</button>
+      <button style="padding:6px 12px; border-radius:99px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:rgba(255,255,255,0.4); font-size:11px; cursor:pointer;">7J</button>
+      <button style="padding:6px 14px; border-radius:99px; background:#17171e; border:1px solid rgba(255,255,255,0.14); color:rgba(255,255,255,0.9); font-size:11px; font-weight:500; cursor:pointer;">30J</button>
+      <button style="padding:6px 12px; border-radius:99px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:rgba(255,255,255,0.4); font-size:11px; cursor:pointer;">Mois</button>
+    </div>
+  </div>
+
+  <!-- ROW 1: 5fr 3fr 4fr -->
+  <div style="display:grid; grid-template-columns:5fr 3fr 4fr; gap:10px;">
+
+    <!-- PROFIT NET card -->
+    <div class="card" style="padding:24px 26px 0; display:flex; flex-direction:column;">
+      <p class="label" style="margin-bottom:12px;">Profit Net</p>
+      <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:4px;">
+        <span style="font-size:42px; font-weight:200; letter-spacing:-0.04em; color:#4ade80; line-height:1;">5 245,25 €</span>
+        <span style="padding:3px 10px; border-radius:99px; background:rgba(74,222,128,0.09); border:1px solid rgba(74,222,128,0.14); color:#4ade80; font-size:11px; font-weight:600;">+21.9%</span>
+      </div>
+      <div style="display:flex; gap:24px; margin-top:10px; margin-bottom:16px;">
+        <div>
+          <p class="label" style="margin-bottom:3px;">Revenue</p>
+          <span style="font-size:15px; font-weight:300; color:rgba(167,139,250,0.85); letter-spacing:-0.02em;">29 200,15 €</span>
+        </div>
+        <div>
+          <p class="label" style="margin-bottom:3px;">Spend</p>
+          <span style="font-size:15px; font-weight:300; color:rgba(251,191,36,0.75); letter-spacing:-0.02em;">23 954,90 €</span>
+        </div>
+      </div>
+      <!-- Fake recharts area chart -->
+      <div style="height:100px; position:relative; margin:0 -26px; flex:1;">
+        <svg width="100%" height="100%" preserveAspectRatio="none" style="display:block;">
+          <defs>
+            <linearGradient id="gRev" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.22"/>
+              <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="gPro" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#4ade80" stop-opacity="0.18"/>
+              <stop offset="100%" stop-color="#4ade80" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <!-- Revenue line -->
+          <path d="M0,70 C60,65 100,55 160,50 C220,45 260,58 320,52 C380,46 420,40 480,38 C540,36 580,42 640,38 C700,34 740,30 800,28" stroke="#8b5cf6" stroke-width="1.5" fill="url(#gRev)" fill-opacity="0.6"/>
+          <!-- Profit line -->
+          <path d="M0,88 C60,84 100,78 160,72 C220,66 260,74 320,68 C380,62 420,55 480,52 C540,49 580,55 640,50 C700,45 740,40 800,35" stroke="#4ade80" stroke-width="2" fill="url(#gPro)" fill-opacity="0.6"/>
+          <!-- X labels -->
+          <text x="20" y="98" font-size="8" fill="rgba(255,255,255,0.2)" font-family="Inter">11/03</text>
+          <text x="200" y="98" font-size="8" fill="rgba(255,255,255,0.2)" font-family="Inter">17/03</text>
+          <text x="380" y="98" font-size="8" fill="rgba(255,255,255,0.2)" font-family="Inter">23/03</text>
+          <text x="560" y="98" font-size="8" fill="rgba(255,255,255,0.2)" font-family="Inter">29/03</text>
+        </svg>
+        <!-- Legend -->
+        <div style="position:absolute; top:8px; right:14px; display:flex; gap:12px; align-items:center;">
+          <div style="display:flex; align-items:center; gap:4px;"><div style="width:6px;height:6px;border-radius:50%;background:#8b5cf6;box-shadow:0 0 5px #8b5cf6;"></div><span style="font-size:8px;color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:0.08em;">Revenue</span></div>
+          <div style="display:flex; align-items:center; gap:4px;"><div style="width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 5px #4ade80;"></div><span style="font-size:8px;color:rgba(255,255,255,0.2);text-transform:uppercase;letter-spacing:0.08em;">Profit</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAMPAGNES card -->
+    <div class="card" style="padding:22px 24px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+        <p class="label">Campagnes</p>
+        <span style="font-size:10px; color:rgba(255,255,255,0.3); background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-radius:6px; padding:2px 7px;">30J</span>
+      </div>
+      <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:6px;">
+        <span style="font-size:54px; font-weight:200; letter-spacing:-0.04em; color:rgba(255,255,255,0.92); line-height:1;">8</span>
+        <span style="display:flex; align-items:center; gap:5px; padding:3px 10px; border-radius:99px; background:rgba(74,222,128,0.07); border:1px solid rgba(74,222,128,0.14); color:#4ade80; font-size:10px; font-weight:600; letter-spacing:0.05em;">
+          <span class="live-dot" style="width:5px;height:5px;border-radius:50%;background:#4ade80;display:inline-block;"></span>
+          LIVE
+        </span>
+      </div>
+      <p class="label" style="margin-bottom:20px;">campagnes en cours</p>
+      <div style="border-top:1px solid rgba(255,255,255,0.05); padding-top:16px;">
+        <p class="label" style="margin-bottom:8px;">Dépenses</p>
+        <div style="background:rgba(251,191,36,0.05); border:1px solid rgba(251,191,36,0.12); border-radius:12px; padding:12px 14px; display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-size:22px; font-weight:200; color:rgba(251,191,36,0.85); letter-spacing:-0.03em;">23 954,90 €</span>
+          <div style="width:7px;height:7px;border-radius:50%;background:#fbbf24;opacity:0.6;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPRESSIONS card -->
+    <div class="card" style="padding:22px 24px;">
+      <p class="label" style="margin-bottom:10px;">Impressions</p>
+      <p style="font-size:36px; font-weight:200; letter-spacing:-0.04em; color:rgba(255,255,255,0.92); margin:0 0 20px; line-height:1;">34.2M</p>
+      <p class="label" style="margin-bottom:10px; color:#52525b;">Total Période</p>
+
+      <!-- Clics + Conv grid -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:10px 12px;">
+          <p class="label" style="margin-bottom:5px;">Clics</p>
+          <span style="font-size:18px; font-weight:200; color:rgba(255,255,255,0.88); letter-spacing:-0.03em;">468.5k</span>
+        </div>
+        <div style="background:rgba(16,185,129,0.04); border:1px solid rgba(16,185,129,0.1); border-radius:10px; padding:10px 12px;">
+          <p class="label" style="margin-bottom:5px;">Conv.</p>
+          <span style="font-size:18px; font-weight:200; color:rgba(255,255,255,0.88); letter-spacing:-0.03em;">18.5k</span>
+        </div>
+      </div>
+
+      <!-- CTR bar + networks -->
+      <div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+          <p class="label">CTR</p>
+          <span style="font-size:10px; font-weight:600; color:#fbbf24;">1.37%</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <span style="font-size:10px; font-weight:500; color:#f59e0b; text-transform:uppercase; letter-spacing:0.08em; width:80px;">ExoClick</span>
+            <div style="flex:1; height:2px; background:rgba(255,255,255,0.06); border-radius:99px;">
+              <div style="width:75%; height:100%; background:#f59e0b; border-radius:99px;"></div>
+            </div>
+            <span style="font-size:10px; color:rgba(255,255,255,0.3); width:36px; text-align:right;">15.5M</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <span style="font-size:10px; font-weight:500; color:#8b5cf6; text-transform:uppercase; letter-spacing:0.08em; width:80px;">TrafficStars</span>
+            <div style="flex:1; height:2px; background:rgba(255,255,255,0.06); border-radius:99px;">
+              <div style="width:55%; height:100%; background:#8b5cf6; border-radius:99px;"></div>
+            </div>
+            <span style="font-size:10px; color:rgba(255,255,255,0.3); width:36px; text-align:right;">11.0M</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <span style="font-size:10px; font-weight:500; color:#0ea5e9; text-transform:uppercase; letter-spacing:0.08em; width:80px;">TrafficJunky</span>
+            <div style="flex:1; height:2px; background:rgba(255,255,255,0.06); border-radius:99px;">
+              <div style="width:38%; height:100%; background:#0ea5e9; border-radius:99px;"></div>
+            </div>
+            <span style="font-size:10px; color:rgba(255,255,255,0.3); width:36px; text-align:right;">7.8M</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end row 1 -->
+
+  <!-- ROW 2: 1fr 1fr 2fr 1.2fr -->
+  <div style="display:grid; grid-template-columns:1fr 1fr 2fr 1.2fr; gap:10px;">
+
+    <!-- RÉSEAUX -->
+    <div class="card" style="padding:22px 24px;">
+      <p style="font-size:13px; font-weight:300; color:rgba(255,255,255,0.65); margin-bottom:22px; letter-spacing:-0.01em;">Réseaux</p>
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:32px;height:32px;border-radius:9px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><div style="width:6px;height:6px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.6);"></div></div>
+            <div><p style="font-size:12px;font-weight:300;color:rgba(255,255,255,0.65);margin:0;">ExoClick</p><p class="label" style="margin-top:2px;">168 camp.</p></div>
+          </div>
+          <span style="font-size:14px;font-weight:200;letter-spacing:-0.03em;color:#4ade80;">+2515€</span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:32px;height:32px;border-radius:9px;background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><div style="width:6px;height:6px;border-radius:50%;background:#8b5cf6;box-shadow:0 0 8px rgba(139,92,246,0.6);"></div></div>
+            <div><p style="font-size:12px;font-weight:300;color:rgba(255,255,255,0.65);margin:0;">TrafficStars</p><p class="label" style="margin-top:2px;">203 camp.</p></div>
+          </div>
+          <span style="font-size:14px;font-weight:200;letter-spacing:-0.03em;color:#4ade80;">+1425€</span>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="width:32px;height:32px;border-radius:9px;background:rgba(14,165,233,0.06);border:1px solid rgba(14,165,233,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><div style="width:6px;height:6px;border-radius:50%;background:#0ea5e9;box-shadow:0 0 8px rgba(14,165,233,0.6);"></div></div>
+            <div><p style="font-size:12px;font-weight:300;color:rgba(255,255,255,0.65);margin:0;">TrafficJunky</p><p class="label" style="margin-top:2px;">121 camp.</p></div>
+          </div>
+          <span style="font-size:14px;font-weight:200;letter-spacing:-0.03em;color:#4ade80;">+1305€</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROI GLOBAL -->
+    <div class="card" style="padding:22px 24px; display:flex; flex-direction:column; align-items:flex-start;">
+      <p style="font-size:13px; font-weight:300; color:rgba(255,255,255,0.65); margin-bottom:18px; letter-spacing:-0.01em;">ROI Global</p>
+      <!-- SVG arc like ROIChart.tsx -->
+      <div style="display:flex; justify-content:center; width:100%; margin-bottom:18px;">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <defs>
+            <linearGradient id="roiGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#a07070"/>
+              <stop offset="42%" stop-color="#c08835"/>
+              <stop offset="100%" stop-color="#6b9e82"/>
+            </linearGradient>
+          </defs>
+          <!-- Track -->
+          <path d="M 24.142 95.858 A 52 52 0 1 1 95.858 95.858" stroke="rgba(255,255,255,0.06)" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <!-- Fill arc — 21.9% of 260° = 56.94° -->
+          <path d="M 24.142 95.858 A 52 52 0 0 1 78.2 18.4" stroke="url(#roiGrad)" stroke-width="7" fill="none" stroke-linecap="round" class="roi-arc" style="stroke-dasharray:163;stroke-dashoffset:163;"/>
+          <text x="60" y="56" text-anchor="middle" font-size="20" font-weight="200" fill="#6b9e82" letter-spacing="-2" font-family="Inter">+21.9%</text>
+          <text x="60" y="72" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.25)" font-family="Inter" text-transform="uppercase" letter-spacing="1">ROI</text>
+        </svg>
+      </div>
+      <!-- Revenue / Spend bars -->
+      <div style="width:100%; display:flex; flex-direction:column; gap:8px;">
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span class="label">Revenue</span><span style="font-size:11px; color:rgba(167,139,250,0.8); font-weight:300;">29 200,15 €</span></div>
+          <div style="height:2px; background:rgba(255,255,255,0.06); border-radius:99px;"><div style="width:82%; height:100%; background:#8b5cf6; border-radius:99px;"></div></div>
+        </div>
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:4px;"><span class="label">Spend</span><span style="font-size:11px; color:rgba(251,191,36,0.7); font-weight:300;">23 954,90 €</span></div>
+          <div style="height:2px; background:rgba(255,255,255,0.06); border-radius:99px;"><div style="width:67%; height:100%; background:#fbbf24; border-radius:99px;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WORLD MAP (placeholder) -->
+    <div class="card" style="display:flex; align-items:center; justify-content:center; min-height:280px; position:relative; overflow:hidden;">
+      <div style="position:absolute; inset:0; background:radial-gradient(ellipse at 50% 40%, rgba(139,92,246,0.04) 0%, transparent 70%);"></div>
+      <div style="text-align:center; color:rgba(255,255,255,0.15);">
+        <div style="font-size:11px; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;">Global Traffic</div>
+        <div style="font-size:10px;">All Sources · LIVE</div>
+        <!-- Fake world map dots -->
+        <div style="margin-top:16px; position:relative; width:240px; height:120px; margin-left:auto; margin-right:auto;">
+          <div style="position:absolute; left:30%; top:30%; width:8px; height:8px; border-radius:50%; background:#8b5cf6; box-shadow:0 0 12px rgba(139,92,246,0.6); opacity:0.8;"></div>
+          <div style="position:absolute; left:48%; top:22%; width:6px; height:6px; border-radius:50%; background:#8b5cf6; box-shadow:0 0 10px rgba(139,92,246,0.5); opacity:0.6;"></div>
+          <div style="position:absolute; left:72%; top:28%; width:5px; height:5px; border-radius:50%; background:#0ea5e9; box-shadow:0 0 8px rgba(14,165,233,0.5); opacity:0.7;"></div>
+          <div style="position:absolute; left:58%; top:55%; width:7px; height:7px; border-radius:50%; background:#4ade80; box-shadow:0 0 10px rgba(74,222,128,0.5); opacity:0.6;"></div>
+          <div style="position:absolute; left:35%; top:65%; width:5px; height:5px; border-radius:50%; background:#f59e0b; box-shadow:0 0 8px rgba(245,158,11,0.5); opacity:0.5;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WORLDWIDE IMPRESSIONS -->
+    <div class="card" style="padding:22px 24px;">
+      <p class="label" style="margin-bottom:4px;">Worldwide</p>
+      <p style="font-size:32px; font-weight:200; letter-spacing:-0.04em; color:rgba(255,255,255,0.92); margin:0 0 4px; line-height:1;">34.2M</p>
+      <p class="label" style="color:#52525b;">Impressions Worldwide</p>
+    </div>
+
+  </div><!-- end row 2 -->
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+      ROW 3 — DECISION ENGINE (INTÉGRÉ)
+  ══════════════════════════════════════════════════════════════════════ -->
+  <div id="engine" class="card" style="padding:0; overflow:hidden;">
+
+    <!-- Header -->
+    <div style="padding:16px 22px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="label" style="color:rgba(255,255,255,0.3);">Decision Engine</span>
+        <!-- Status badge -->
+        <span style="display:flex; align-items:center; gap:5px; padding:3px 9px; border-radius:99px; background:rgba(74,222,128,0.07); border:1px solid rgba(74,222,128,0.14); font-size:9px; font-weight:600; letter-spacing:0.08em; color:#4ade80; text-transform:uppercase;">
+          <span class="live-dot" style="width:4px; height:4px; border-radius:50%; background:#4ade80; display:inline-block;"></span>
+          Actif · Balanced
+        </span>
+      </div>
+      <!-- Thresholds compact summary -->
+      <div style="display:flex; gap:6px; align-items:center;">
+        <span style="padding:3px 9px; border-radius:6px; background:rgba(239,68,68,0.05); border:1px solid rgba(248,113,133,0.14); font-size:10px; color:rgba(252,165,165,0.7);">Kill &lt; −30%</span>
+        <span style="padding:3px 9px; border-radius:6px; background:rgba(245,158,11,0.05); border:1px solid rgba(251,191,36,0.14); font-size:10px; color:rgba(252,211,77,0.7);">Watch −15%→0%</span>
+        <span style="padding:3px 9px; border-radius:6px; background:rgba(16,185,129,0.05); border:1px solid rgba(52,211,153,0.14); font-size:10px; color:rgba(110,231,183,0.7);">Scale &gt;+30%</span>
+        <a href="#" style="margin-left:6px; font-size:10px; color:rgba(139,92,246,0.6); text-decoration:none; border-bottom:1px solid rgba(139,92,246,0.2);">Configurer →</a>
+      </div>
+    </div>
+
+    <!-- Recent actions list -->
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; border-bottom:1px solid rgba(255,255,255,0.04);">
+
+      <!-- Kill action -->
+      <div class="action-row" style="padding:14px 22px; border-right:1px solid rgba(255,255,255,0.04); display:flex; align-items:flex-start; gap:12px; cursor:default; transition:background 0.15s;">
+        <span style="flex-shrink:0; margin-top:2px; padding:3px 9px; border-radius:99px; background:rgba(239,68,68,0.06); border:1px solid rgba(248,113,133,0.14); font-size:9px; font-weight:600; letter-spacing:0.12em; color:#fca5a5; text-transform:uppercase;">Kill</span>
+        <div style="flex:1; min-width:0;">
+          <p style="font-size:12px; font-weight:300; color:rgba(255,255,255,0.75); margin:0 0 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Xvideo_1_EX · ROI −100%</p>
+          <p class="label">Spend 57,16 € · Paused auto</p>
+        </div>
+        <span style="flex-shrink:0; font-size:10px; color:rgba(255,255,255,0.2); white-space:nowrap;">31 Mar · 19:53</span>
+      </div>
+
+      <!-- Watch action -->
+      <div class="action-row" style="padding:14px 22px; border-right:1px solid rgba(255,255,255,0.04); display:flex; align-items:flex-start; gap:12px; cursor:default; transition:background 0.15s;">
+        <span style="flex-shrink:0; margin-top:2px; padding:3px 9px; border-radius:99px; background:rgba(245,158,11,0.06); border:1px solid rgba(251,191,36,0.14); font-size:9px; font-weight:600; letter-spacing:0.12em; color:#fcd34d; text-transform:uppercase;">Watch</span>
+        <div style="flex:1; min-width:0;">
+          <p style="font-size:12px; font-weight:300; color:rgba(255,255,255,0.75); margin:0 0 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Nutra_US_03 · surfacé</p>
+          <p class="label">Flagged for manual review</p>
+        </div>
+        <span style="flex-shrink:0; font-size:10px; color:rgba(255,255,255,0.2); white-space:nowrap;">31 Mar · 18:12</span>
+      </div>
+
+      <!-- Scale action -->
+      <div class="action-row" style="padding:14px 22px; display:flex; align-items:flex-start; gap:12px; cursor:default; transition:background 0.15s;">
+        <span style="flex-shrink:0; margin-top:2px; padding:3px 9px; border-radius:99px; background:rgba(16,185,129,0.06); border:1px solid rgba(52,211,153,0.14); font-size:9px; font-weight:600; letter-spacing:0.12em; color:#6ee7b7; text-transform:uppercase;">Scale</span>
+        <div style="flex:1; min-width:0;">
+          <p style="font-size:12px; font-weight:300; color:rgba(255,255,255,0.75); margin:0 0 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Dating_DE_04 · ROI +41%</p>
+          <p class="label">Bid +10% · Applied auto</p>
+        </div>
+        <span style="flex-shrink:0; font-size:10px; color:rgba(255,255,255,0.2); white-space:nowrap;">31 Mar · 17:40</span>
+      </div>
+
+    </div>
+
+    <!-- Empty state when no actions (shown subtly) -->
+    <div style="padding:10px 22px; display:flex; align-items:center; justify-content:space-between;">
+      <span style="font-size:10px; color:rgba(255,255,255,0.18);">3 actions sur les 30 derniers jours · Prochain scan dans 28 min</span>
+      <a href="/dashboard/rules" style="font-size:10px; color:rgba(139,92,246,0.5); text-decoration:none;">Voir tout l'historique →</a>
+    </div>
+
+  </div><!-- end engine card -->
+
+</div><!-- end content -->
+
+</body>
+</html>

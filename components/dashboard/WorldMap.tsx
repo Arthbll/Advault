@@ -13,10 +13,21 @@ export interface GlowDot {
 }
 
 const NET_SOURCES = [
-  { id: "ALL",          label: "All"    },
-  { id: "EXOCLICK",     label: "Exo"    },
-  { id: "TRAFFICSTARS", label: "TS"     },
+  { id: "ALL",          label: "All"  },
+  { id: "EXOCLICK",     label: "Exo"  },
+  { id: "TRAFFICSTARS", label: "TS"   },
+  { id: "TRAFFICJUNKY", label: "TJ"   },
+  { id: "PROPELLERADS", label: "PA"   },
+  { id: "ADSTERRA",     label: "ADT"  },
 ];
+
+const NET_LABELS: Record<string, string> = {
+  EXOCLICK:     "ExoClick",
+  TRAFFICSTARS: "TrafficStars",
+  TRAFFICJUNKY: "TrafficJunky",
+  PROPELLERADS: "PropellerAds",
+  ADSTERRA:     "Adsterra",
+};
 
 interface Props {
   dots?: GlowDot[];
@@ -268,7 +279,7 @@ export default function WorldMap({ dots, activeNetwork = "ALL", onNetworkChange 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 3 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <span style={{ color: "#fff", fontWeight: 300, fontSize: 15, letterSpacing: "-0.02em" }}>
-              {activeNetwork === "ALL" ? "All Sources" : activeNetwork === "EXOCLICK" ? "ExoClick" : "TrafficStars"}
+              {activeNetwork === "ALL" ? "All Sources" : (NET_LABELS[activeNetwork] ?? activeNetwork)}
             </span>
             {/* Blinking LED */}
             <span style={{ display: "flex", alignItems: "center", gap: 5 }}>

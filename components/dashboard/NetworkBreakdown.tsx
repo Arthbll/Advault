@@ -4,6 +4,8 @@ const NET_META: Record<string, { label: string; color: string }> = {
   EXOCLICK:     { label: "ExoClick",     color: "#c08835" },
   TRAFFICSTARS: { label: "TrafficStars", color: "#7264a8" },
   TRAFFICJUNKY: { label: "TrafficJunky", color: "#4a8fb4" },
+  PROPELLERADS: { label: "PropellerAds", color: "#f97316" },
+  ADSTERRA:     { label: "Adsterra",     color: "#06b6d4" },
   VOLUUM:       { label: "Voluum",       color: "#3a8a6a" },
   BEMOB:        { label: "Bemob",        color: "#a05060" },
 };

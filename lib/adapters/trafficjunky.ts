@@ -143,24 +143,46 @@ export class TrafficJunkyAdapter {
    * Reads current cpm/cpc from GET /api/campaigns/{id}.json, then PUTs the new value.
    */
   async scaleBid(campaignId: string, multiplier: number): Promise<{ oldBid: number; newBid: number }> {
-    const raw = await this.apiFetch<Record<string, unknown>>(`/campaigns/${campaignId}.json`);
+    const raw  = await this.apiFetch<Record<string, unknown>>(`/campaigns/${campaignId}.json`);
     const camp = ((raw as Record<string, unknown>).campaign ?? raw) as Record<string, unknown>;
-    // TJ V1 confirmed fields: campaign_cpm, campaign_cpc, cpm, cpc, bid, max_bid
-    const currentBid = parseFloat(
-      String(camp.campaign_cpm ?? camp.campaign_cpc ?? camp.cpm ?? camp.cpc ?? camp.bid ?? camp.max_bid ?? 1)
-    ) || 1;
-    const newBid = parseFloat((currentBid * multiplier).toFixed(4));
-    // TJ uses query params for updates (confirmed from scaleDailyBudget)
-    await this.apiFetch(`/campaigns/${campaignId}.json?cpm=${newBid}`, { method: "PUT" });
+
+    // Detect bid type: CPM or CPC.
+    // TJ V1 confirmed fields: campaign_cpm, campaign_cpc, cpm, cpc, bid, max_bid.
+    // We check CPM first; if it's > 0 the campaign is CPM-billed.
+    // If CPM is zero or absent but CPC is present, it's CPC-billed.
+    const rawCpm = parseFloat(String(camp.campaign_cpm ?? camp.cpm ?? 0)) || 0;
+    const rawCpc = parseFloat(String(camp.campaign_cpc ?? camp.cpc ?? 0)) || 0;
+
+    const isCpc     = rawCpm === 0 && rawCpc > 0;
+    const currentBid = isCpc ? rawCpc : rawCpm;
+
+    if (currentBid <= 0) {
+      // Last resort: try generic bid fields
+      const fallback = parseFloat(String(camp.bid ?? camp.max_bid ?? 1)) || 1;
+      const newFallback = parseFloat((fallback * multiplier).toFixed(4));
+      // Default to CPM if we can't determine the type
+      await this.apiFetch(`/campaigns/${campaignId}.json?cpm=${newFallback}`, { method: "PUT" });
+      return { oldBid: fallback, newBid: newFallback };
+    }
+
+    const newBid    = parseFloat((currentBid * multiplier).toFixed(4));
+    const bidParam  = isCpc ? "cpc" : "cpm";
+
+    await this.apiFetch(`/campaigns/${campaignId}.json?${bidParam}=${newBid}`, { method: "PUT" });
     return { oldBid: currentBid, newBid };
   }
 
   /**
    * Set bid to a fixed € amount.
-   * PUT /api/campaigns/{id}.json?cpm=N
+   * Detects bid type (CPM vs CPC) from the current campaign before updating.
    */
   async setBid(campaignId: string, amount: number): Promise<void> {
-    await this.apiFetch(`/campaigns/${campaignId}.json?cpm=${amount}`, { method: "PUT" });
+    const raw  = await this.apiFetch<Record<string, unknown>>(`/campaigns/${campaignId}.json`);
+    const camp = ((raw as Record<string, unknown>).campaign ?? raw) as Record<string, unknown>;
+    const rawCpm   = parseFloat(String(camp.campaign_cpm ?? camp.cpm ?? 0)) || 0;
+    const rawCpc   = parseFloat(String(camp.campaign_cpc ?? camp.cpc ?? 0)) || 0;
+    const bidParam = (rawCpm === 0 && rawCpc > 0) ? "cpc" : "cpm";
+    await this.apiFetch(`/campaigns/${campaignId}.json?${bidParam}=${amount}`, { method: "PUT" });
   }
 
   /**

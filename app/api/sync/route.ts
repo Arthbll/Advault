@@ -5,6 +5,8 @@ import { decrypt } from "@/lib/crypto";
 import { ExoClickAdapter }    from "@/lib/adapters/exoclick";
 import { TrafficStarsAdapter } from "@/lib/adapters/trafficstars";
 import { TrafficJunkyAdapter } from "@/lib/adapters/trafficjunky";
+import * as PropellerAds       from "@/lib/adapters/propellerads";
+import * as Adsterra           from "@/lib/adapters/adsterra";
 import { Network, CampaignStatus } from "@prisma/client";
 import { cookies } from "next/headers";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
@@ -163,7 +165,7 @@ export async function POST(req: NextRequest) {
                     },
                   },
                   create: {
-                    userId:      user.id,
+                    userId:      userId,
                     accountId:   account.id,
                     externalId:  String(campaign.id),
                     name:        campaign.name,
@@ -236,7 +238,7 @@ export async function POST(req: NextRequest) {
                   },
                 },
                 create: {
-                  userId:      user.id,
+                  userId:      userId,
                   accountId:   account.id,
                   externalId:  String(campaign.id),
                   name:        campaign.name,
@@ -308,7 +310,7 @@ export async function POST(req: NextRequest) {
                   },
                 },
                 create: {
-                  userId:      user.id,
+                  userId:      userId,
                   accountId:   account.id,
                   externalId:  extId,
                   name:        campaign.campaign_name,
@@ -347,6 +349,142 @@ export async function POST(req: NextRequest) {
             type:     "SYNC",
             message:  `TrafficJunky sync: ${campaigns.length} campagnes × ${daysToSync.length} jour(s)`,
             metadata: { network: "TRAFFICJUNKY", campaigns: campaigns.length, days: daysToSync.length, mode: isBackfill ? "backfill" : "daily" },
+          },
+        });
+      }
+
+      if (account.network === Network.PROPELLERADS) {
+        const campaigns = await PropellerAds.getCampaigns(decrypt(account.apiKeyEnc));
+
+        for (let di = 0; di < daysToSync.length; di++) {
+          const day = daysToSync[di];
+          if (isBackfill && di > 0) await sleep(300);
+          try {
+            const stats    = await PropellerAds.getCampaignStats(decrypt(account.apiKeyEnc), day, day);
+            const statsMap: Record<string, typeof stats[0]> = {};
+            for (const s of stats) statsMap[String(s.campaign_id)] = s;
+
+            for (const campaign of campaigns) {
+              const extId = String(campaign.id);
+              const stat  = statsMap[extId];
+              await prisma.campaign.upsert({
+                where: {
+                  accountId_externalId_dateFrom_dateTo: {
+                    accountId:  account.id,
+                    externalId: extId,
+                    dateFrom:   new Date(day),
+                    dateTo:     new Date(day),
+                  },
+                },
+                create: {
+                  userId:      userId,
+                  accountId:   account.id,
+                  externalId:  extId,
+                  name:        campaign.title,
+                  network:     Network.PROPELLERADS,
+                  status:      PropellerAds.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.spent       ?? 0,
+                  revenue:     stat?.revenue     ?? 0,
+                  impressions: stat?.impressions ?? 0,
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  dateFrom:    new Date(day),
+                  dateTo:      new Date(day),
+                  syncedAt:    new Date(),
+                },
+                update: {
+                  name:        campaign.title,
+                  status:      PropellerAds.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.spent       ?? 0,
+                  revenue:     stat?.revenue     ?? 0,
+                  impressions: stat?.impressions ?? 0,
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  syncedAt:    new Date(),
+                },
+              });
+              totalSynced++;
+            }
+          } catch (dayErr) {
+            const msg = dayErr instanceof Error ? dayErr.message : String(dayErr);
+            errors.push(`PROPELLERADS day ${day}: ${msg}`);
+          }
+        }
+
+        await prisma.log.create({
+          data: {
+            userId:   userId,
+            type:     "SYNC",
+            message:  `PropellerAds sync: ${campaigns.length} campagnes × ${daysToSync.length} jour(s)`,
+            metadata: { network: "PROPELLERADS", campaigns: campaigns.length, days: daysToSync.length, mode: isBackfill ? "backfill" : "daily" },
+          },
+        });
+      }
+
+      if (account.network === Network.ADSTERRA) {
+        const campaigns = await Adsterra.getCampaigns(decrypt(account.apiKeyEnc));
+
+        for (let di = 0; di < daysToSync.length; di++) {
+          const day = daysToSync[di];
+          if (isBackfill && di > 0) await sleep(300);
+          try {
+            const stats    = await Adsterra.getCampaignStats(decrypt(account.apiKeyEnc), day, day);
+            const statsMap: Record<string, typeof stats[0]> = {};
+            for (const s of stats) statsMap[String(s.campaign_id)] = s;
+
+            for (const campaign of campaigns) {
+              const extId = String(campaign.id);
+              const stat  = statsMap[extId];
+              await prisma.campaign.upsert({
+                where: {
+                  accountId_externalId_dateFrom_dateTo: {
+                    accountId:  account.id,
+                    externalId: extId,
+                    dateFrom:   new Date(day),
+                    dateTo:     new Date(day),
+                  },
+                },
+                create: {
+                  userId:      userId,
+                  accountId:   account.id,
+                  externalId:  extId,
+                  name:        campaign.title,
+                  network:     Network.ADSTERRA,
+                  status:      Adsterra.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.spent       ?? 0,
+                  revenue:     stat?.revenue     ?? 0,
+                  impressions: stat?.impressions ?? 0,
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  dateFrom:    new Date(day),
+                  dateTo:      new Date(day),
+                  syncedAt:    new Date(),
+                },
+                update: {
+                  name:        campaign.title,
+                  status:      Adsterra.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.spent       ?? 0,
+                  revenue:     stat?.revenue     ?? 0,
+                  impressions: stat?.impressions ?? 0,
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  syncedAt:    new Date(),
+                },
+              });
+              totalSynced++;
+            }
+          } catch (dayErr) {
+            const msg = dayErr instanceof Error ? dayErr.message : String(dayErr);
+            errors.push(`ADSTERRA day ${day}: ${msg}`);
+          }
+        }
+
+        await prisma.log.create({
+          data: {
+            userId:   userId,
+            type:     "SYNC",
+            message:  `Adsterra sync: ${campaigns.length} campagnes × ${daysToSync.length} jour(s)`,
+            metadata: { network: "ADSTERRA", campaigns: campaigns.length, days: daysToSync.length, mode: isBackfill ? "backfill" : "daily" },
           },
         });
       }

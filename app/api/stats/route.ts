@@ -116,9 +116,16 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Si les adapters n'ont retourné aucune ligne → demo
+  // No data yet — return zero state (not demo)
   if (rows.length === 0) {
-    return NextResponse.json(getDemoStatsResponse(dateFrom, dateTo));
+    return NextResponse.json({
+      kpis: { totalSpend: "0.00", totalRevenue: "0.00", profit: "0.00", roi: "0", totalImpressions: 0, totalClicks: 0 },
+      byNetwork: {},
+      syncErrors: syncErrors.map(m => ({ message: m, createdAt: new Date().toISOString() })),
+      dateFrom,
+      dateTo,
+      campaigns: [],
+    });
   }
 
   // Aggregate

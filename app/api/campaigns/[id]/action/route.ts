@@ -5,6 +5,8 @@ import { decrypt } from "@/lib/crypto";
 import { ExoClickAdapter }    from "@/lib/adapters/exoclick";
 import { TrafficStarsAdapter } from "@/lib/adapters/trafficstars";
 import { TrafficJunkyAdapter } from "@/lib/adapters/trafficjunky";
+import * as PropellerAds       from "@/lib/adapters/propellerads";
+import * as Adsterra           from "@/lib/adapters/adsterra";
 import { Network, CampaignStatus } from "@prisma/client";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
 
@@ -21,12 +23,14 @@ export async function POST(
   const { id } = await params;
   const body = await req.json() as {
     action:          "pause" | "resume" | "kill" | "scale" | "archive";
+    force?:          boolean; // skip network API call — DB-only status correction
     multiplier?:     number;  // budget multiplier (legacy, default 1.25)
     budgetAmount?:   number;  // set daily budget to fixed € amount
     bidMultiplier?:  number;  // scale bid by this factor (e.g. 1.10 = +10%)
     bidAmount?:      number;  // set bid to fixed € amount
   };
   const { action } = body;
+  const forceDbOnly = body.force === true;
   const scaleMultiplier = body.multiplier ?? 1.25; // default +25% budget scale
 
   // ── Demo mode fast-path ───────────────────────────────────────────────────
@@ -50,8 +54,8 @@ export async function POST(
   try {
     const apiKey = decrypt(campaign.account.apiKeyEnc);
 
-    // ── Call network API ───────────────────────────────────────────────────────
-    if (action === "pause" || action === "kill") {
+    // ── Call network API (skipped if force=true) ──────────────────────────────
+    if (!forceDbOnly && (action === "pause" || action === "kill")) {
       if (campaign.network === Network.EXOCLICK) {
         const adapter = new ExoClickAdapter(apiKey);
         await adapter.pauseCampaign(campaign.externalId);
@@ -61,8 +65,12 @@ export async function POST(
       } else if (campaign.network === Network.TRAFFICJUNKY) {
         const adapter = new TrafficJunkyAdapter(apiKey);
         await adapter.pauseCampaign(campaign.externalId);
+      } else if (campaign.network === Network.PROPELLERADS) {
+        await PropellerAds.pauseCampaign(apiKey, campaign.externalId);
+      } else if (campaign.network === Network.ADSTERRA) {
+        await Adsterra.pauseCampaign(apiKey, campaign.externalId);
       }
-    } else if (action === "resume") {
+    } else if (!forceDbOnly && action === "resume") {
       if (campaign.network === Network.EXOCLICK) {
         const adapter = new ExoClickAdapter(apiKey);
         await adapter.resumeCampaign(campaign.externalId);
@@ -72,8 +80,12 @@ export async function POST(
       } else if (campaign.network === Network.TRAFFICJUNKY) {
         const adapter = new TrafficJunkyAdapter(apiKey);
         await adapter.resumeCampaign(campaign.externalId);
+      } else if (campaign.network === Network.PROPELLERADS) {
+        await PropellerAds.resumeCampaign(apiKey, campaign.externalId);
+      } else if (campaign.network === Network.ADSTERRA) {
+        await Adsterra.resumeCampaign(apiKey, campaign.externalId);
       }
-    } else if (action === "scale") {
+    } else if (!forceDbOnly && action === "scale") {
       if (campaign.network === Network.EXOCLICK) {
         const adapter = new ExoClickAdapter(apiKey);
         // Budget
@@ -137,7 +149,7 @@ export async function POST(
         userId:   userId,
         type:     action === "kill" ? "KILL_SWITCH_TRIGGERED" : "CAMPAIGN_ACTION",
         message:  `${action.toUpperCase()} → ${campaign.name} (${campaign.network})`,
-        metadata: { campaignId: id, externalId: campaign.externalId, action },
+        metadata: { campaignId: id, externalId: campaign.externalId, action, campaignName: campaign.name, network: campaign.network },
       },
     });
 

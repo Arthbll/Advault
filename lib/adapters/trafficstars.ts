@@ -255,7 +255,7 @@ export class TrafficStarsAdapter {
     const typeForFormat = (fid: number): string => {
       if (fid === 7)   return "direct"; // Popunder → Direct (seul ad_type supporté)
       if (fid === 63)  return "video";  // Video
-      if (fid === 104) return "html5";  // Push
+      if (fid === 104) return "image";  // Push → image (html5 nécessite permissions spéciales)
       return "image";                   // Banner, Native, Interstitial
     };
 

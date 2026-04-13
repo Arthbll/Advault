@@ -10,6 +10,8 @@ import { decrypt } from "@/lib/crypto";
 import { ExoClickAdapter }    from "@/lib/adapters/exoclick";
 import { TrafficStarsAdapter } from "@/lib/adapters/trafficstars";
 import { TrafficJunkyAdapter } from "@/lib/adapters/trafficjunky";
+import * as PropellerAds       from "@/lib/adapters/propellerads";
+import * as Adsterra           from "@/lib/adapters/adsterra";
 import { Network, CampaignStatus } from "@prisma/client";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
 
@@ -49,6 +51,10 @@ export async function POST() {
           } else if (account.network === Network.TRAFFICJUNKY) {
             const adapter = new TrafficJunkyAdapter(apiKey);
             await adapter.pauseCampaign(campaign.externalId);
+          } else if (account.network === Network.PROPELLERADS) {
+            await PropellerAds.pauseCampaign(apiKey, campaign.externalId);
+          } else if (account.network === Network.ADSTERRA) {
+            await Adsterra.pauseCampaign(apiKey, campaign.externalId);
           }
           paused++;
         } catch (e) {

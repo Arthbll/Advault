@@ -42,13 +42,6 @@ function sourceTone(src: string | null): { border: string; bg: string; text: str
   return                             { border: "rgba(196,181,253,0.16)", bg: "rgba(99,102,241,0.08)",  text: "rgba(199,210,254,1)", bar: "rgba(165,180,252,0.8)" };
 }
 
-function rowStatus(row: ConvRow): "Approved" | "Pending" | "Rejected" {
-  const seed = row.clickId ? parseInt(row.clickId.replace(/\D/g, "").slice(-4) || "0") : 0;
-  const r = seed % 20;
-  if (r < 1) return "Rejected";
-  if (r < 3) return "Pending";
-  return "Approved";
-}
 
 function inferNetwork(row: ConvRow): string {
   const name = (row.campaignName ?? "").toLowerCase();
@@ -88,18 +81,6 @@ const DROP_ITEM_BASE: React.CSSProperties = {
   fontFamily: "inherit",
 };
 
-function StatusBadge({ status }: { status: "Approved" | "Pending" | "Rejected" }) {
-  const styles = {
-    Approved: { border: "rgba(110,231,183,0.16)", bg: "rgba(16,185,129,0.08)",  text: "rgba(167,243,208,1)" },
-    Pending:  { border: "rgba(252,211,77,0.16)",  bg: "rgba(245,158,11,0.08)",  text: "rgba(253,230,138,1)" },
-    Rejected: { border: "rgba(253,164,175,0.16)", bg: "rgba(244,63,94,0.08)",   text: "rgba(254,205,211,1)" },
-  }[status];
-  return (
-    <span style={{ ...BADGE_BASE, borderColor: styles.border, background: styles.bg, color: styles.text }}>
-      {status}
-    </span>
-  );
-}
 
 function SourceBadge({ source }: { source: string | null }) {
   const t = sourceTone(source);
@@ -110,27 +91,6 @@ function SourceBadge({ source }: { source: string | null }) {
   );
 }
 
-// ─── Demo rows ────────────────────────────────────────────────────────────────
-const DEMO_ROWS: ConvRow[] = [
-  { id:"d1", campaignId:"c1", campaignName:"Nutra — Push — ES — Mobile",           clickId:"ck_edb6493d393e", revenue:18, currency:"USD", source:"crakrevenue",  createdAt:"2026-03-30T01:38:00Z" },
-  { id:"d2", campaignId:"c2", campaignName:"Casino — Native — UK — Desktop",        clickId:"ck_396295169622", revenue:55, currency:"USD", source:"crakrevenue",  createdAt:"2026-03-30T01:20:00Z" },
-  { id:"d3", campaignId:"c3", campaignName:"Casino — Native — UK — Desktop",        clickId:"ck_d5d8ad68643b", revenue:20, currency:"USD", source:"maxbounty",    createdAt:"2026-03-29T23:35:00Z" },
-  { id:"d4", campaignId:"c4", campaignName:"Crypto — Native — AU — Desktop",        clickId:"ck_15c17c992672", revenue:22, currency:"USD", source:"crakrevenue",  createdAt:"2026-03-29T23:15:00Z" },
-  { id:"d5", campaignId:"c5", campaignName:"Sweepstakes — Push — IT — All Devices", clickId:"ck_008e874abf35", revenue:48, currency:"USD", source:"crakrevenue",  createdAt:"2026-03-29T23:03:00Z" },
-  { id:"d6", campaignId:"c6", campaignName:"Adult Dating — Push — US — Tier1",      clickId:"ck_e2d81ef1c1be", revenue:22, currency:"USD", source:"crakrevenue",  createdAt:"2026-03-29T22:33:00Z" },
-  { id:"d7", campaignId:"c7", campaignName:"Dating — Push — FR — Mobile Broad",     clickId:"ck_019ad172660a", revenue:48, currency:"USD", source:"clickdealer",  createdAt:"2026-03-29T21:05:00Z" },
-];
-const DEMO_BY_SOURCE: SourceRow[] = [
-  { source: "crakrevenue", revenue: 20063, count: 581 },
-  { source: "maxbounty",   revenue: 5262,  count: 269 },
-  { source: "clickdealer", revenue: 1222,  count: 120 },
-  { source: "adcombo",     revenue: 726,   count: 90  },
-];
-const DEMO_DATA: ConvData = {
-  totalRevenue: 27273, totalCount: 92,
-  page: 0, limit: 50,
-  rows: DEMO_ROWS, bySource: DEMO_BY_SOURCE,
-};
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function ConversionsPage() {
@@ -139,30 +99,31 @@ export default function ConversionsPage() {
   const [page,     setPage]     = useState(0);
   const [data,     setData]     = useState<ConvData | null>(null);
   const [loading,  setLoading]  = useState(true);
-  const [isDemo,   setIsDemo]   = useState(false);
+  const [isDemo,   setIsDemo]   = useState(false); // true only when profitdash_demo cookie is set
 
   // ── Filter state ────────────────────────────────────────────────────────────
-  type StatusFilter = "All" | "Approved" | "Pending" | "Rejected";
-  const [filterStatus,   setFilterStatus]   = useState<StatusFilter>("All");
   const [filterCampaign, setFilterCampaign] = useState("");
   const [filterSource,   setFilterSource]   = useState("All");
   const [searchClickId,  setSearchClickId]  = useState("");
-  const [openDrop,       setOpenDrop]       = useState<"status" | "source" | null>(null);
+  const [openDrop,       setOpenDrop]       = useState<"source" | null>(null);
   const [campaignSearch, setCampaignSearch] = useState(false);
   const [clickIdSearch,  setClickIdSearch]  = useState(false);
 
-  const statusDropRef = useRef<HTMLDivElement>(null);
   const sourceDropRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
     function handle(e: MouseEvent) {
-      if (openDrop === "status" && statusDropRef.current && !statusDropRef.current.contains(e.target as Node)) setOpenDrop(null);
       if (openDrop === "source" && sourceDropRef.current && !sourceDropRef.current.contains(e.target as Node)) setOpenDrop(null);
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [openDrop]);
+
+  // Read demo cookie once on mount
+  useEffect(() => {
+    setIsDemo(document.cookie.split(";").some(c => c.trim().startsWith("profitdash_demo=1")));
+  }, []);
 
   const load = useCallback(async (df: string, dt: string, p: number) => {
     setLoading(true);
@@ -170,10 +131,9 @@ export default function ConversionsPage() {
       const res  = await fetch(`/api/conversions?dateFrom=${df}&dateTo=${dt}&page=${p}&limit=50`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as ConvData;
-      if (json.totalCount === 0) { setData(DEMO_DATA); setIsDemo(true); }
-      else                       { setData(json);       setIsDemo(false); }
+      setData(json);
     } catch {
-      setData(DEMO_DATA); setIsDemo(true);
+      // fetch failed — leave data null, show empty state
     } finally {
       setLoading(false);
     }
@@ -183,13 +143,11 @@ export default function ConversionsPage() {
 
   const totalPages = data ? Math.ceil(data.totalCount / 50) : 0;
 
-  // Derived KPIs
-  const approved   = data ? data.totalCount : 92;
-  const pending    = data ? Math.max(1, Math.round(data.totalCount * 0.09)) : 9;
-  const rejected   = data ? Math.max(1, Math.round(data.totalCount * 0.04)) : 5;
-  const totalEvt   = approved + pending + rejected;
-  const health     = data ? ((approved / totalEvt) * 100).toFixed(1) : "98.2";
-  const approvePct = Math.round((approved / totalEvt) * 100);
+  // Derived KPIs — only real data, no fake fallbacks
+  const totalCount  = data?.totalCount  ?? 0;
+  const totalRev    = data?.totalRevenue ?? 0;
+  const srcCount    = data?.bySource?.length ?? 0;
+  const avgRevenue  = totalCount > 0 ? totalRev / totalCount : 0;
 
   const maxRevenue = useMemo(() =>
     (data?.bySource ?? []).reduce((m, s) => Math.max(m, s.revenue), 1),
@@ -198,7 +156,7 @@ export default function ConversionsPage() {
 
   // Available sources for dropdown
   const availableSources = useMemo(() => {
-    const srcs = (data?.bySource ?? DEMO_BY_SOURCE).map(s => s.source);
+    const srcs = (data?.bySource ?? []).map(s => s.source);
     return ["All", ...srcs];
   }, [data]);
 
@@ -206,18 +164,16 @@ export default function ConversionsPage() {
   const displayRows = useMemo(() => {
     const rows = data?.rows ?? [];
     return rows.filter(row => {
-      if (filterStatus !== "All" && rowStatus(row) !== filterStatus) return false;
       if (filterCampaign.trim() && !(row.campaignName ?? "").toLowerCase().includes(filterCampaign.toLowerCase())) return false;
       if (filterSource !== "All" && row.source !== filterSource) return false;
       if (searchClickId.trim() && !(row.clickId ?? "").toLowerCase().includes(searchClickId.toLowerCase())) return false;
       return true;
     });
-  }, [data, filterStatus, filterCampaign, filterSource, searchClickId]);
+  }, [data, filterCampaign, filterSource, searchClickId]);
 
-  const activeFilters = (filterStatus !== "All" ? 1 : 0) + (filterCampaign ? 1 : 0) + (filterSource !== "All" ? 1 : 0) + (searchClickId ? 1 : 0);
+  const activeFilters = (filterCampaign ? 1 : 0) + (filterSource !== "All" ? 1 : 0) + (searchClickId ? 1 : 0);
 
   const clearAllFilters = () => {
-    setFilterStatus("All");
     setFilterCampaign("");
     setFilterSource("All");
     setSearchClickId("");
@@ -271,40 +227,6 @@ export default function ConversionsPage() {
               />
             </div>
 
-            {/* Status filter dropdown */}
-            <div ref={statusDropRef} style={{ position: "relative" }}>
-              <button
-                style={{
-                  ...GHOST,
-                  display: "flex", alignItems: "center", gap: 6,
-                  ...(filterStatus !== "All" ? { borderColor: "rgba(139,92,246,0.5)", color: "rgba(196,181,253,1)", background: "rgba(139,92,246,0.12)" } : {}),
-                }}
-                onClick={() => setOpenDrop(openDrop === "status" ? null : "status")}
-              >
-                {filterStatus === "All" ? "Status" : filterStatus}
-                <ChevronDown size={12} style={{ opacity: 0.5, transform: openDrop === "status" ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-              </button>
-              {openDrop === "status" && (
-                <div style={DROP_MENU}>
-                  {(["All", "Approved", "Pending", "Rejected"] as StatusFilter[]).map(opt => (
-                    <button
-                      key={opt}
-                      style={{
-                        ...DROP_ITEM_BASE,
-                        color: filterStatus === opt ? "rgba(196,181,253,1)" : "rgba(255,255,255,0.62)",
-                        background: filterStatus === opt ? "rgba(139,92,246,0.15)" : "transparent",
-                      }}
-                      onClick={() => { setFilterStatus(opt); setOpenDrop(null); setPage(0); }}
-                      onMouseEnter={e => { if (filterStatus !== opt) (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)"; }}
-                      onMouseLeave={e => { if (filterStatus !== opt) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
             <button style={PRIMARY} onClick={() => load(dateFrom, dateTo, page)}>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <RefreshCw size={13} strokeWidth={2} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
@@ -319,10 +241,10 @@ export default function ConversionsPage() {
           {/* ── KPI Cards ── */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
             {[
-              { label: "Revenue received",      value: fmtMoney(data?.totalRevenue ?? 27273), sub: `${totalEvt} approved + pending conversion events`, tone: { border: "rgba(110,231,183,0.16)", bg: "rgba(16,185,129,0.08)", text: "rgba(167,243,208,1)" } },
-              { label: "Approved conversions",  value: String(approved), sub: "Validated and feeding real profit",          tone: { border: "rgba(125,211,252,0.16)", bg: "rgba(14,165,233,0.08)", text: "rgba(186,230,253,1)" } },
-              { label: "Pending / rejected",    value: String(pending + rejected), sub: "Need validation or did not pass", tone: { border: "rgba(252,211,77,0.16)",  bg: "rgba(245,158,11,0.08)", text: "rgba(253,230,138,1)" } },
-              { label: "Postback health",       value: `${health}%`,  sub: "Signal quality for the engine",               tone: { border: "rgba(196,181,253,0.16)", bg: "rgba(139,92,246,0.08)", text: "rgba(221,214,254,1)" } },
+              { label: "Revenue received",      value: fmtMoney(totalRev),         sub: `Tracked across ${srcCount} active source${srcCount !== 1 ? "s" : ""}`,  tone: { border: "rgba(110,231,183,0.16)", bg: "rgba(16,185,129,0.08)", text: "rgba(167,243,208,1)" } },
+              { label: "Total conversions",     value: String(totalCount),          sub: "Postback events received this period",                                   tone: { border: "rgba(125,211,252,0.16)", bg: "rgba(14,165,233,0.08)", text: "rgba(186,230,253,1)" } },
+              { label: "Avg revenue / conv.",   value: totalCount > 0 ? fmtMoney(avgRevenue) : "—", sub: "Mean payout per postback event",                         tone: { border: "rgba(252,211,77,0.16)",  bg: "rgba(245,158,11,0.08)", text: "rgba(253,230,138,1)" } },
+              { label: "Active sources",        value: String(srcCount),            sub: "Affiliate networks sending postbacks",                                   tone: { border: "rgba(196,181,253,0.16)", bg: "rgba(139,92,246,0.08)", text: "rgba(221,214,254,1)" } },
             ].map(({ label, value, sub, tone }, i) => (
               <motion.div key={label}
                 initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
@@ -356,10 +278,17 @@ export default function ConversionsPage() {
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {(data?.bySource ?? DEMO_BY_SOURCE).map((s) => {
+                {(data?.bySource ?? []).length === 0 && (
+                  <div style={{ padding: "32px 0", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                    <AlertCircle size={20} style={{ color: "rgba(255,255,255,0.15)" }} />
+                    <p style={{ fontSize: 13, color: "rgba(255,255,255,0.22)", margin: 0, lineHeight: 1.6 }}>
+                      {loading ? "Loading…" : "No postback data for this period.\nConfigure your postback URL in Settings to start tracking revenue."}
+                    </p>
+                  </div>
+                )}
+                {(data?.bySource ?? []).map((s) => {
                   const t   = sourceTone(s.source);
                   const pct = Math.round((s.revenue / Math.max(maxRevenue, 1)) * 100);
-                  const totalRev = data?.totalRevenue ?? 27273;
                   const share = totalRev > 0 ? Math.round((s.revenue / totalRev) * 100) : 0;
                   return (
                     <div key={s.source} style={{ borderRadius: 18, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", padding: 16 }}>
@@ -384,38 +313,36 @@ export default function ConversionsPage() {
               </div>
             </motion.div>
 
-            {/* Right column: Signal health only */}
+            {/* Right column: Revenue summary */}
             <motion.div
               initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, delay: 0.35 }}
-              style={{ borderRadius: 28, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", padding: 24 }}
+              style={{ borderRadius: 28, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)", padding: 24, display: "flex", flexDirection: "column", gap: 20 }}
             >
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.24)", marginBottom: 20 }}>Signal health</div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
-                {/* Donut */}
-                <div style={{ position: "relative", width: 160, height: 160, borderRadius: "50%", flexShrink: 0,
-                  background: `conic-gradient(rgba(110,231,183,0.8) 0% ${approvePct}%, rgba(250,204,21,0.75) ${approvePct}% ${approvePct + Math.round((pending / totalEvt) * 100)}%, rgba(251,113,133,0.72) ${approvePct + Math.round((pending / totalEvt) * 100)}% 100%)`,
-                }}>
-                  <div style={{ position: "absolute", inset: 16, borderRadius: "50%", background: "#0e1017", border: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ fontSize: 30, letterSpacing: "-0.05em", fontWeight: 300, fontVariantNumeric: "tabular-nums" }}>{approvePct}%</div>
-                    <div style={{ marginTop: 4, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.28)" }}>Approved</div>
-                  </div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.24)" }}>Revenue summary</div>
+
+              {totalCount === 0 ? (
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, textAlign: "center", padding: "24px 0" }}>
+                  <AlertCircle size={22} style={{ color: "rgba(255,255,255,0.15)" }} />
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.22)", margin: 0, lineHeight: 1.6 }}>
+                    No postback data for<br />this period
+                  </p>
                 </div>
-                {/* Legend */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 14 }}>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   {[
-                    { label: "Approved", count: approved,  color: "#6ee7b7" },
-                    { label: "Pending",  count: pending,   color: "#fcd34d" },
-                    { label: "Rejected", count: rejected,  color: "#fb7185" },
-                  ].map(({ label, count, color }) => (
-                    <div key={label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                      <span style={{ color: "rgba(255,255,255,0.42)", flex: 1 }}>{label}</span>
-                      <span style={{ color: "rgba(255,255,255,0.80)", fontVariantNumeric: "tabular-nums" }}>{count}</span>
+                    { label: "Total revenue",      value: fmtMoney(totalRev),       color: "rgba(110,231,183,0.88)" },
+                    { label: "Conversions",         value: String(totalCount),       color: "rgba(186,230,253,0.88)" },
+                    { label: "Avg per conversion",  value: fmtMoney(avgRevenue),     color: "rgba(253,230,138,0.88)" },
+                    { label: "Active sources",      value: String(srcCount),         color: "rgba(221,214,254,0.88)" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 16px", borderRadius: 16, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                      <span style={{ fontSize: 13, color: "rgba(255,255,255,0.38)" }}>{label}</span>
+                      <span style={{ fontSize: 16, fontWeight: 300, letterSpacing: "-0.03em", color, fontVariantNumeric: "tabular-nums" }}>{value}</span>
                     </div>
                   ))}
                 </div>
-              </div>
+              )}
             </motion.div>
           </div>
 
@@ -540,8 +467,8 @@ export default function ConversionsPage() {
             <div style={{ borderRadius: 22, border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
 
               {/* Head */}
-              <div style={{ display: "grid", gridTemplateColumns: "160px 1.5fr 170px 190px 140px 130px 120px", gap: 16, padding: "14px 20px", background: "rgba(255,255,255,0.03)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.28)" }}>
-                <div>Date</div><div>Campaign</div><div>Source</div><div>Click ID</div><div>Revenue</div><div>Status</div><div>Network</div>
+              <div style={{ display: "grid", gridTemplateColumns: "160px 1.5fr 170px 190px 140px 140px", gap: 16, padding: "14px 20px", background: "rgba(255,255,255,0.03)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.28)" }}>
+                <div>Date</div><div>Campaign</div><div>Source</div><div>Click ID</div><div>Revenue</div><div>Network</div>
               </div>
 
               {/* Body */}
@@ -562,15 +489,14 @@ export default function ConversionsPage() {
                 </div>
               ) : (
                 <AnimatePresence mode="wait">
-                  <motion.div key={`${page}-${dateFrom}-${dateTo}-${filterStatus}-${filterCampaign}-${filterSource}-${searchClickId}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+                  <motion.div key={`${page}-${dateFrom}-${dateTo}-${filterCampaign}-${filterSource}-${searchClickId}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
                     {displayRows.map((row, i) => {
-                      const status  = rowStatus(row);
                       const network = inferNetwork(row);
                       return (
                         <motion.div key={row.id}
                           initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.22, delay: i * 0.03 }}
-                          style={{ display: "grid", gridTemplateColumns: "160px 1.5fr 170px 190px 140px 130px 120px", gap: 16, padding: "14px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0))", alignItems: "center", fontSize: 14, transition: "background 0.15s" }}
+                          style={{ display: "grid", gridTemplateColumns: "160px 1.5fr 170px 190px 140px 140px", gap: 16, padding: "14px 20px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0))", alignItems: "center", fontSize: 14, transition: "background 0.15s" }}
                           onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.025)"; }}
                           onMouseLeave={e => { e.currentTarget.style.background = "linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0))"; }}
                         >
@@ -594,7 +520,6 @@ export default function ConversionsPage() {
                           <div style={{ color: "rgba(110,231,183,0.88)", fontVariantNumeric: "tabular-nums" }}>
                             {row.revenue > 0 ? `+${fmtMoney(row.revenue, row.currency)}` : "—"}
                           </div>
-                          <div><StatusBadge status={status} /></div>
                           <div style={{ color: "rgba(255,255,255,0.42)" }}>{network}</div>
                         </motion.div>
                       );

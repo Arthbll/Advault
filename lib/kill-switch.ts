@@ -17,12 +17,15 @@ import { decrypt } from "@/lib/crypto";
 import { ExoClickAdapter }    from "@/lib/adapters/exoclick";
 import { TrafficStarsAdapter } from "@/lib/adapters/trafficstars";
 import { TrafficJunkyAdapter } from "@/lib/adapters/trafficjunky";
+import * as PropellerAds       from "@/lib/adapters/propellerads";
+import * as Adsterra           from "@/lib/adapters/adsterra";
 import { Network, CampaignStatus, LogType } from "@prisma/client";
 
 export interface KillSwitchResult {
   userId:  string;
   checked: number;   // nombre de campagnes évaluées
   killed:  number;   // nombre de campagnes mises en pause
+  scaled:  number;   // nombre de campagnes scalées
   skipped: number;   // kill-switch désactivé ou aucun compte
   errors:  string[];
 }
@@ -31,7 +34,17 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// ─── Helper: évalue et (si besoin) pause une campagne pour un réseau donné ────
+// ─── Shape de la DecisionRule passée au moteur ────────────────────────────────
+interface EngineRule {
+  scaleRoi:       number;   // ROI % au-dessus duquel on scale (défaut 30)
+  scaleIncrement: number;   // % d'augmentation du bid (défaut 10)
+  minSpend:       number;   // € minimum avant toute décision (défaut 20)
+  killCooldownH:  number;   // heures entre deux kills sur la même campagne (défaut 6)
+  scaleCooldownH: number;   // heures entre deux scales sur la même campagne (défaut 6)
+  engineMode:     string;   // "automatic" | "recommendation"
+}
+
+// ─── Helper: évalue et (si besoin) pause / scale une campagne ─────────────────
 async function evaluateCampaigns(
   userId:              string,
   accountId:           string,
@@ -43,6 +56,8 @@ async function evaluateCampaigns(
   pauseFn:             (externalId: string) => Promise<void>,
   result:              KillSwitchResult,
   spendOnlyMode:       boolean = false,
+  scaleFn?:            (externalId: string, multiplier: number) => Promise<{ oldBid: number; newBid: number }>,
+  engineRule?:         EngineRule | null,
 ): Promise<void> {
   const activeCampaigns = await prisma.campaign.findMany({
     where: {
@@ -99,30 +114,166 @@ async function evaluateCampaigns(
     const roiTrigger    = !spendOnlyMode && freshSpend > 0 && roi < roiThreshold;
     const budgetTrigger = maxSpendPerCampaign != null && freshSpend > maxSpendPerCampaign;
 
-    if (!roiTrigger && !budgetTrigger) continue;
+    // isAutomatic est utilisé dans les deux branches (scale et kill) — déclaré ici au niveau du loop
+    const isAutomatic = (engineRule?.engineMode ?? "automatic") === "automatic";
 
-    try {
-      await pauseFn(campaign.externalId);
-    } catch (err) {
-      result.errors.push(`pauseCampaign(${networkLabel}/${campaign.externalId}): ${err instanceof Error ? err.message : String(err)}`);
+    // ── Pas de kill → Watch zone ou Scale zone ──────────────────────────────
+    if (!roiTrigger && !budgetTrigger) {
+
+      // ── Watch zone : ROI négatif mais au-dessus du seuil de kill ────────
+      // Loggué une seule fois par heure par campagne pour éviter le spam
+      const inWatchZone = !spendOnlyMode && freshSpend > 0 && roi < 0 && roi > roiThreshold;
+      if (inWatchZone) {
+        const recentWatch = await prisma.log.findFirst({
+          where: {
+            userId,
+            type:       "DECISION_WATCH" as LogType,
+            campaignId: campaign.id,
+            createdAt:  { gte: new Date(Date.now() - 60 * 60_000) },
+          },
+        });
+        if (!recentWatch) {
+          await prisma.log.create({
+            data: {
+              userId,
+              campaignId: campaign.id,
+              type:       "DECISION_WATCH" as LogType,
+              message:    `Decision Engine — "${campaign.name}" en zone de surveillance. ROI ${roi.toFixed(1)}%`,
+              metadata: {
+                network:      networkLabel,
+                externalId:   campaign.externalId,
+                campaignName: campaign.name,
+                spend:        freshSpend,
+                revenue:      freshRevenue,
+                roi:          parseFloat(roi.toFixed(2)),
+                roiThreshold,
+                trigger:      "watch",
+                reason:       "review zone entered",
+              },
+            },
+          });
+        }
+      }
+
+      // ── Scale zone : ROI au-dessus du seuil de scale ─────────────────────
+      // On scale le bid une seule fois par cooldown par campagne
+      const scaleRoi       = engineRule?.scaleRoi       ?? 30;
+      const scaleIncrement = engineRule?.scaleIncrement ?? 10;
+      const minSpend       = engineRule?.minSpend       ?? 20;
+      const scaleCooldownH = engineRule?.scaleCooldownH ?? 6;
+
+      const inScaleZone = !spendOnlyMode && freshSpend >= minSpend && roi >= scaleRoi;
+
+      if (inScaleZone) {
+        // Cooldown : pas de DECISION_SCALE sur cette campagne dans les X dernières heures
+        const recentScale = await prisma.log.findFirst({
+          where: {
+            userId,
+            type:       "DECISION_SCALE" as LogType,
+            campaignId: campaign.id,
+            createdAt:  { gte: new Date(Date.now() - scaleCooldownH * 60 * 60_000) },
+          },
+        });
+
+        if (!recentScale) {
+          const multiplier = 1 + scaleIncrement / 100;
+          let oldBid = 0;
+          let newBid = 0;
+
+          // En mode automatique : appel API réel pour monter le bid
+          if (isAutomatic && scaleFn) {
+            try {
+              ({ oldBid, newBid } = await scaleFn(campaign.externalId, multiplier));
+            } catch (err) {
+              result.errors.push(`scaleBid(${networkLabel}/${campaign.externalId}): ${err instanceof Error ? err.message : String(err)}`);
+            }
+          } else {
+            // Mode recommendation : calcul estimé sans appel API
+            oldBid = freshSpend;
+            newBid = parseFloat((freshSpend * multiplier).toFixed(2));
+          }
+
+          const injected = parseFloat((newBid - oldBid).toFixed(2));
+
+          await prisma.log.create({
+            data: {
+              userId,
+              campaignId: campaign.id,
+              type:       "DECISION_SCALE" as LogType,
+              message:    `Decision Engine — "${campaign.name}" scalée. ROI ${roi.toFixed(1)}% › bid +${scaleIncrement}%`,
+              metadata: {
+                network:      networkLabel,
+                externalId:   campaign.externalId,
+                campaignName: campaign.name,
+                spend:        freshSpend,
+                revenue:      freshRevenue,
+                roi:          parseFloat(roi.toFixed(2)),
+                scaleRoi,
+                scalePct:     scaleIncrement,
+                oldBid:       parseFloat(oldBid.toFixed(2)),
+                newBid:       parseFloat(newBid.toFixed(2)),
+                injected,
+                trigger:      "scale",
+                mode:         isAutomatic ? "automatic" : "recommendation",
+                reason:       `ROI ${roi.toFixed(1)}% › seuil ${scaleRoi}%`,
+              },
+            },
+          });
+
+          result.scaled++;
+        }
+      }
+
       continue;
     }
-
-    await prisma.campaign.updateMany({
-      where: { userId, accountId, externalId: campaign.externalId },
-      data:  { status: CampaignStatus.KILLED },
-    });
 
     const reason = roiTrigger
       ? `ROI ${roi.toFixed(1)}% < seuil ${roiThreshold}%`
       : `Spend ${freshSpend.toFixed(2)}€ > max ${maxSpendPerCampaign}€`;
 
+    // ── Kill cooldown check ──────────────────────────────────────────────────
+    // Ne pas re-killer une campagne si une action DECISION_KILL a déjà eu lieu
+    // dans la fenêtre de cooldown configurable (défaut 6h).
+    const killCooldownH = engineRule?.killCooldownH ?? 6;
+    if (killCooldownH > 0) {
+      const recentKill = await prisma.log.findFirst({
+        where: {
+          userId,
+          type:       "DECISION_KILL" as LogType,
+          campaignId: campaign.id,
+          createdAt:  { gte: new Date(Date.now() - killCooldownH * 60 * 60_000) },
+        },
+      });
+      if (recentKill) {
+        // Cooldown actif — on ne re-kill pas, on passe silencieusement
+        continue;
+      }
+    }
+
+    if (isAutomatic) {
+      // Mode automatique : pause réelle de la campagne
+      try {
+        await pauseFn(campaign.externalId);
+      } catch (err) {
+        result.errors.push(`pauseCampaign(${networkLabel}/${campaign.externalId}): ${err instanceof Error ? err.message : String(err)}`);
+        continue;
+      }
+
+      await prisma.campaign.updateMany({
+        where: { userId, accountId, externalId: campaign.externalId },
+        data:  { status: CampaignStatus.KILLED },
+      });
+    }
+    // Mode recommendation : log uniquement, aucune action réelle exécutée
+
     await prisma.log.create({
       data: {
         userId,
         campaignId: campaign.id,
-        type:       LogType.KILL_SWITCH_TRIGGERED,
-        message:    `Kill-Switch déclenché — "${campaign.name}" pausée. ${reason}`,
+        type:       "DECISION_KILL" as LogType,
+        message:    isAutomatic
+          ? `Decision Engine — "${campaign.name}" stoppée. ${reason}`
+          : `Decision Engine — "${campaign.name}" : pause suggérée. ${reason}`,
         metadata: {
           network:      networkLabel,
           externalId:   campaign.externalId,
@@ -133,6 +284,7 @@ async function evaluateCampaigns(
           roiThreshold,
           maxSpendPerCampaign,
           trigger:      roiTrigger ? "roi" : "budget",
+          mode:         isAutomatic ? "automatic" : "recommendation",
           reason,
         },
       },
@@ -144,14 +296,32 @@ async function evaluateCampaigns(
 
 // ─── Moteur pour un seul utilisateur (tous réseaux) ──────────────────────────
 export async function runKillSwitchForUser(userId: string): Promise<KillSwitchResult> {
-  const result: KillSwitchResult = { userId, checked: 0, killed: 0, skipped: 0, errors: [] };
+  const result: KillSwitchResult = { userId, checked: 0, killed: 0, scaled: 0, skipped: 0, errors: [] };
 
-  const settings = await prisma.userSettings.findUnique({ where: { userId } });
+  const [settings, decisionRule] = await Promise.all([
+    prisma.userSettings.findUnique({ where: { userId } }),
+    prisma.decisionRule.findUnique({
+      where:  { userId },
+      select: { scaleRoi: true, scaleIncrement: true, minSpend: true, killCooldownH: true, scaleCooldownH: true, engineMode: true },
+    }).catch(() => null),
+  ]);
+
   if (!settings?.killSwitchEnabled) { result.skipped = 1; return result; }
 
   const { roiThreshold, maxSpendPerCampaign } = settings;
-  // spendOnlyMode : nouveau champ — fallback false si colonne pas encore migrée
-  const spendOnlyMode = (settings as unknown as Record<string, unknown>).spendOnlyMode === true;
+  const spendOnlyMode = settings.spendOnlyMode ?? false;
+
+  // Règles du Decision Engine (scale / kill / watch thresholds)
+  const engineRule: EngineRule | null = decisionRule
+    ? {
+        scaleRoi:       decisionRule.scaleRoi,
+        scaleIncrement: decisionRule.scaleIncrement,
+        minSpend:       decisionRule.minSpend,
+        killCooldownH:  decisionRule.killCooldownH,
+        scaleCooldownH: decisionRule.scaleCooldownH,
+        engineMode:     decisionRule.engineMode,
+      }
+    : null;
 
   const accounts = await prisma.account.findMany({
     where: { userId, isActive: true },
@@ -183,7 +353,8 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
       const statsMap: Record<string, { spent: number; revenue?: number }> = {};
       for (const s of freshStats) statsMap[String(s.campaignId)] = { spent: s.spent, revenue: (s as unknown as Record<string, unknown>).revenue as number | undefined };
       await evaluateCampaigns(userId, account.id, Network.EXOCLICK, "EXOCLICK", statsMap, roiThreshold, maxSpendPerCampaign,
-        (id) => adapter.pauseCampaign(id), result, spendOnlyMode);
+        (id) => adapter.pauseCampaign(id), result, spendOnlyMode,
+        (id, mult) => adapter.scaleBid(id, mult), engineRule);
     }
 
     // ── TrafficStars ───────────────────────────────────────────────────────────
@@ -199,7 +370,8 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
       const statsMap: Record<string, { spent: number }> = {};
       for (const s of freshStats) statsMap[String(s.campaignId)] = { spent: s.spent };
       await evaluateCampaigns(userId, account.id, Network.TRAFFICSTARS, "TRAFFICSTARS", statsMap, roiThreshold, maxSpendPerCampaign,
-        (id) => adapter.pauseCampaign(id), result, spendOnlyMode);
+        (id) => adapter.pauseCampaign(id), result, spendOnlyMode,
+        (id, mult) => adapter.scaleBid(id, mult), engineRule);
     }
 
     // ── TrafficJunky ───────────────────────────────────────────────────────────
@@ -215,7 +387,44 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
       const statsMap: Record<string, { spent: number }> = {};
       for (const s of freshStats) statsMap[String(s.campaignId)] = { spent: s.spent };
       await evaluateCampaigns(userId, account.id, Network.TRAFFICJUNKY, "TRAFFICJUNKY", statsMap, roiThreshold, maxSpendPerCampaign,
-        (id) => adapter.pauseCampaign(id), result, spendOnlyMode);
+        (id) => adapter.pauseCampaign(id), result, spendOnlyMode,
+        (id, mult) => adapter.scaleBid(id, mult), engineRule);
+    }
+
+    // ── PropellerAds ──────────────────────────────────────────────────────────
+    else if (account.network === Network.PROPELLERADS) {
+      let freshStats: Awaited<ReturnType<typeof PropellerAds.getCampaignStats>>;
+      try {
+        freshStats = await PropellerAds.getCampaignStats(apiKey, today, today);
+      } catch (err) {
+        result.errors.push(`getStats PropellerAds: ${err instanceof Error ? err.message : String(err)}`);
+        continue;
+      }
+      const statsMap: Record<string, { spent: number }> = {};
+      for (const s of freshStats) statsMap[String(s.campaign_id)] = { spent: s.spent };
+      await evaluateCampaigns(userId, account.id, Network.PROPELLERADS, "PROPELLERADS", statsMap, roiThreshold, maxSpendPerCampaign,
+        (id) => PropellerAds.pauseCampaign(apiKey, id).then(r => { if (!r.ok) throw new Error(r.error); }),
+        result, spendOnlyMode,
+        async () => ({ oldBid: 0, newBid: 0 }), // no bid scale via PropellerAds API V1
+        engineRule);
+    }
+
+    // ── Adsterra ──────────────────────────────────────────────────────────────
+    else if (account.network === Network.ADSTERRA) {
+      let freshStats: Awaited<ReturnType<typeof Adsterra.getCampaignStats>>;
+      try {
+        freshStats = await Adsterra.getCampaignStats(apiKey, today, today);
+      } catch (err) {
+        result.errors.push(`getStats Adsterra: ${err instanceof Error ? err.message : String(err)}`);
+        continue;
+      }
+      const statsMap: Record<string, { spent: number }> = {};
+      for (const s of freshStats) statsMap[String(s.campaign_id)] = { spent: s.spent };
+      await evaluateCampaigns(userId, account.id, Network.ADSTERRA, "ADSTERRA", statsMap, roiThreshold, maxSpendPerCampaign,
+        (id) => Adsterra.pauseCampaign(apiKey, id).then(r => { if (!r.ok) throw new Error(r.error); }),
+        result, spendOnlyMode,
+        async () => ({ oldBid: 0, newBid: 0 }), // no bid scale via Adsterra API V1
+        engineRule);
     }
   }
 
@@ -228,6 +437,7 @@ export async function runKillSwitchGlobal(): Promise<{
   users:   number;
   checked: number;
   killed:  number;
+  scaled:  number;
   errors:  string[];
 }> {
   // Trouve tous les users avec killSwitchEnabled = true
@@ -238,6 +448,7 @@ export async function runKillSwitchGlobal(): Promise<{
 
   let totalChecked = 0;
   let totalKilled  = 0;
+  let totalScaled  = 0;
   const allErrors: string[] = [];
 
   for (const { userId } of allSettings) {
@@ -245,6 +456,7 @@ export async function runKillSwitchGlobal(): Promise<{
       const r = await runKillSwitchForUser(userId);
       totalChecked += r.checked;
       totalKilled  += r.killed;
+      totalScaled  += r.scaled;
       allErrors.push(...r.errors);
     } catch (err) {
       allErrors.push(`user(${userId}): ${err instanceof Error ? err.message : String(err)}`);
@@ -255,6 +467,7 @@ export async function runKillSwitchGlobal(): Promise<{
     users:   allSettings.length,
     checked: totalChecked,
     killed:  totalKilled,
+    scaled:  totalScaled,
     errors:  allErrors,
   };
 }

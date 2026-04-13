@@ -1,4 +1,5 @@
 import { redirect }          from "next/navigation";
+import { cookies }            from "next/headers";
 import { createClient }       from "@/lib/supabase/server";
 import { prisma }             from "@/lib/prisma";
 import { DEMO_ACCOUNTS }      from "@/lib/demo-data";
@@ -16,6 +17,9 @@ export default async function SettingsPage() {
 
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const userPlan: string = (meta.plan as string | undefined) ?? "Observer";
+
+  // Owner check — only the account matching ADMIN_EMAIL sees admin-only UI
+  const isOwner = !!(process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
 
   let accounts: { network: string; isActive: boolean }[] = [];
   let userSettings: {
@@ -60,7 +64,10 @@ export default async function SettingsPage() {
     // DB unreachable
   }
 
-  const isDemo = dbReachable && accounts.length === 0;
+  // Demo mode: only active when the owner explicitly enables it via the cookie
+  const cookieStore = await cookies();
+  const demoActive = isOwner && cookieStore.get("profitdash_demo")?.value === "1";
+  const isDemo = demoActive;
   const displayAccounts = isDemo ? DEMO_ACCOUNTS : accounts;
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "";
 
@@ -70,6 +77,7 @@ export default async function SettingsPage() {
       accounts={displayAccounts}
       isDemo={isDemo}
       plan={userPlan}
+      isOwner={isOwner}
       ksSettings={{
         killSwitchEnabled:    userSettings?.killSwitchEnabled    ?? false,
         roiThreshold:         userSettings?.roiThreshold         ?? -50,

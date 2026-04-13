@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BentoDashboard recovered — 25 mars 2026</title>
+<style>
+  body { margin: 0; background: #0d0d10; color: #e4e4e7; font-family: 'Menlo', 'Monaco', monospace; }
+  header { position: sticky; top: 0; background: #17171e; border-bottom: 1px solid rgba(255,255,255,0.07); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; z-index: 10; }
+  header h1 { font-size: 13px; font-weight: 400; color: rgba(255,255,255,0.6); margin: 0; }
+  header span { font-size: 11px; color: #4ade80; background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.2); padding: 3px 10px; border-radius: 99px; }
+  pre { margin: 0; padding: 24px; font-size: 12px; line-height: 1.7; white-space: pre-wrap; word-wrap: break-word; counter-reset: line; }
+</style>
+</head>
+<body>
+<header>
+  <h1>BentoDashboard_recovered_march25.tsx — Session 19608802</h1>
+  <span>✓ Récupéré · 1439 lignes · 60 350 chars</span>
+</header>
+<pre id="code"></pre>
+<script>
+const raw = `
+"use client";
+
+import { useState, useCallback, useEffect, useRef } from "react";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import {
+  IconCalendar, IconRefresh, IconArrowUpRight, IconTrendingUp, IconTrendingDown,
+  IconPause, IconPlay, IconZap, IconChevronRight, IconWarning, IconXCircle, IconX, IconCheck,
+} from "@/components/ui/Icons";
+import Link from "next/link";
+import WorldMap from "./WorldMap";
+import ProfitChart from "./ProfitChart";
+import ROIChart    from "./ROIChart";
+
+// ─── Geo types ────────────────────────────────────────────────────────────────
+
+interface GeoDot {
+  label: string; countryCode: string;
+  x: number; y: number;
+  impressions: string; clicks: string; spent: string;
+  size: number; delay: string;
+}
+
+function countryFlag(code: string): string {
+  return [...code.toUpperCase()].map(c =>
+    String.fromCodePoint(c.charCodeAt(0) + 127397)
+  ).join("");
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Totals {
+  totalSpend: number; totalRevenue: number; totalProfit: number; roi: number;
+  totalImps: number; totalClicks: number; totalConvs: number; ctr: number; ctrNoPop: number;
+  postbackRevenue?: number; postbackConvs?: number;
+}
+interface NetworkRow { network: string; spend: number; revenue: number; profit: number; roi: number; campaigns: number; impressions?: number; }
+interface ChartPoint  { date: string; spend: number; revenue: number; profit: number; }
+
+export interface AlertCampaign { id: string; name: string; network: string; roi: number; spend: number; }
+export interface CampaignRow   { id: string; name: string; network: string; status: string; spend: number; revenue: number; profit: number; roi: number; }
+
+interface DashboardData {
+  totals: Totals;
+  chartData: ChartPoint[];
+  networkBreakdown: NetworkRow[];
+  activeCampaigns: number;
+  alerts: AlertCampaign[];
+  topCampaigns: CampaignRow[];
+  trend: number | null;
+}
+
+interface Props extends DashboardData {
+  profitLabel: string; roiLabel: string; spendLabel: string;
+  convLabel: string; spendSub: string; convSub: string;
+  needsSync?: boolean;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const NET_META: Record<string, { label: string; color: string }> = {
+  EXOCLICK:     { label: "ExoClick",     color: "#c08835" },
+  TRAFFICSTARS: { label: "TrafficStars", color: "#7264a8" },
+  TRAFFICJUNKY: { label: "TrafficJunky", color: "#4a8fb4" },
+  VOLUUM:       { label: "Voluum",       color: "#3a8a6a" },
+  BEMOB:        { label: "Bemob",        color: "#a05060" },
+};
+
+const CARD: React.CSSProperties = {
+  background: "#17171e",
+  border: "1px solid rgba(255,255,255,0.06)",
+  borderRadius: 18,
+  overflow: "hidden",
+};
+
+const BAR_COLORS = ["#7264a8", "#b09040", "#4a8fb4", "#3a8a6a", "#c08835"];
+
+// ─── Clickable card wrapper ───────────────────────────────────────────────────
+
+function ClickableCard({ href, children, motionProps, style }: {
+  href: string;
+  children: React.ReactNode;
+  motionProps: object;
+  style: React.CSSProperties;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <motion.div
+      {...motionProps}
+      whileHover={{ y: -3, scale: 1.005, boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}
+      transition={{ type: "spring", stiffness: 300, damping: 28 }}
+      style={{
+        ...style,
+        cursor: "pointer",
+        position: "relative",
+        overflow: "hidden",
+        border: hovered
+          ? "1px solid rgba(255,255,255,0.12)"
+          : "1px solid rgba(255,255,255,0.05)",
+        background: hovered
+          ? "rgba(255,255,255,0.038)"
+          : "rgba(255,255,255,0.022)",
+        transition: "border-color 0.25s ease, background 0.25s ease",
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <Link href={href} style={{ textDecoration: "none", color: "inherit", display: "block", height: "100%" }}>
+        {children}
+        <motion.div
+          animate={{ opacity: hovered ? 0.55 : 0, x: hovered ? 0 : 4, y: hovered ? 0 : 4 }}
+          transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+          style={{ position: "absolute", top: 16, right: 16 }}
+        >
+          <IconArrowUpRight size={14} color="#ffffff" />
+        </motion.div>
+      </Link>
+    </motion.div>
+  );
+}
+
+// ─── useCountUp ───────────────────────────────────────────────────────────────
+
+function useCountUp(target: number, duration = 0.9): number {
+  const [display, setDisplay] = useState(0);
+  const frameRef = useRef<number>(0);
+  const startRef = useRef<number>(0);
+  const prevTarget = useRef<number>(0);
+
+  useEffect(() => {
+    if (target === 0) { setDisplay(0); return; }
+    const from = prevTarget.current;
+    prevTarget.current = target;
+    const startTime = performance.now();
+    startRef.current = startTime;
+    const animate = (now: number) => {
+      const elapsed = (now - startRef.current) / (duration * 1000);
+      const t = Math.min(elapsed, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(from + (target - from) * eased);
+      if (t < 1) frameRef.current = requestAnimationFrame(animate);
+    };
+    frameRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [target, duration]);
+
+  return display;
+}
+
+// ─── Typography helpers ───────────────────────────────────────────────────────
+
+const LABEL: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600,
+  textTransform: "uppercase", letterSpacing: "0.12em",
+  color: "#3f3f46",
+};
+
+function BigNum({ value, color = "rgba(255,255,255,0.92)", size = 38, animate: doAnimate = false, fmt }: {
+  value: string | number; color?: string; size?: number;
+  animate?: boolean;
+  fmt?: (n: number) => string;
+}) {
+  const numVal  = typeof value === "number" ? value : parseFloat(String(value).replace(/[^\\d.-]/g, "")) || 0;
+  const counted = useCountUp(doAnimate && typeof value === "number" ? value : 0);
+  const display = doAnimate && fmt ? fmt(counted) : value;
+
+  return (
+    <motion.span
+      key={String(value)}
+      initial={{ opacity: 0.6 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.25 }}
+      style={{
+        fontSize: size, fontWeight: 500,
+        letterSpacing: "-0.02em", lineHeight: 1,
+        color, display: "block",
+        fontVariantNumeric: "tabular-nums",
+        fontFeatureSettings: '"tnum"',
+      }}
+    >
+      {display}
+    </motion.span>
+  );
+}
+
+function zeroFmt(n: number, fmt: (n: number) => string): string {
+  return n === 0 ? "—" : fmt(n);
+}
+function zeroColor(n: number, activeColor: string): string {
+  return n === 0 ? "rgba(255,255,255,0.18)" : activeColor;
+}
+
+// ─── Format helpers ───────────────────────────────────────────────────────────
+
+function fmtEuro(n: number) {
+  if (n === 0) return "—";
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n);
+}
+function fmtPct(n: number) {
+  if (n === 0) return "—";
+  return \`\${n >= 0 ? "+" : ""}\${n.toFixed(1)}%\`;
+}
+function fmtBig(n: number) {
+  if (n === 0) return "—";
+  if (n >= 1_000_000) return \`\${(n / 1_000_000).toFixed(1)}M\`;
+  if (n >= 1_000)     return \`\${(n / 1_000).toFixed(1)}k\`;
+  return n.toLocaleString("fr-FR");
+}
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+function isoToday()   { return new Date().toISOString().slice(0, 10); }
+function daysAgo(n: number) {
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+function firstOfMonth() {
+  const d = new Date(); d.setDate(1);
+  return d.toISOString().slice(0, 10);
+}
+
+interface DateRange { from: string; to: string; label: string; }
+
+const PRESETS: DateRange[] = [
+  { from: isoToday(),      to: isoToday(),      label: "Auj."  },
+  { from: daysAgo(7),      to: isoToday(),      label: "7J"    },
+  { from: daysAgo(30),     to: isoToday(),      label: "30J"   },
+  { from: firstOfMonth(),  to: isoToday(),      label: "Mois"  },
+];
+
+// ─── Date Range Selector ──────────────────────────────────────────────────────
+
+function DateSelector({ range, onChange, loading }: {
+  range: DateRange;
+  onChange: (r: DateRange) => void;
+  loading: boolean;
+}) {
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customFrom, setCustomFrom] = useState(range.from);
+  const [customTo,   setCustomTo]   = useState(range.to);
+
+  return (
+    <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 4 }}>
+      {PRESETS.map(p => {
+        const active = range.label === p.label;
+        return (
+          <motion.button
+            key={p.label}
+            onClick={() => { onChange(p); setCustomOpen(false); }}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              padding: "6px 14px", borderRadius: 99, fontSize: 12, cursor: "pointer",
+              fontWeight: active ? 500 : 400,
+              background: "transparent",
+              color: active ? "#000000" : "rgba(113,113,122,0.9)",
+              border: active ? "none" : "1px solid rgba(255,255,255,0.08)",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            {active && (
+              <motion.span
+                layoutId="date-pill"
+                style={{ position: "absolute", inset: 0, background: "#ffffff", borderRadius: 99, zIndex: -1 }}
+                transition={{ type: "spring", stiffness: 420, damping: 36 }}
+              />
+            )}
+            {p.label}
+          </motion.button>
+        );
+      })}
+
+      <button
+        onClick={() => setCustomOpen(v => !v)}
+        style={{
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "6px 14px", borderRadius: 99, fontSize: 12, cursor: "pointer",
+          fontWeight: range.label === "Custom" ? 600 : 400,
+          background: range.label === "Custom" ? "#ffffff" : "rgba(255,255,255,0.04)",
+          color:      range.label === "Custom" ? "#000000" : "rgba(113,113,122,0.9)",
+          border: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        <IconCalendar size={11} />
+        {range.label === "Custom" ? \`\${range.from} → \${range.to}\` : "Custom"}
+      </button>
+
+      {loading && (
+        <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+          <IconRefresh size={13} color="#52525b" />
+        </motion.div>
+      )}
+
+      <AnimatePresence>
+        {customOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.97 }}
+            transition={{ duration: 0.18 }}
+            style={{
+              position: "absolute", top: "calc(100% + 10px)", right: 0, zIndex: 100,
+              background: "#1a1a22",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 16,
+              padding: "16px",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.7)",
+              minWidth: 260,
+            }}
+          >
+            <p style={{ ...LABEL, marginBottom: 10 }}>Plage personnalisée</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <input type="date" value={customFrom} max={customTo}
+                onChange={e => setCustomFrom(e.target.value)}
+                style={{ flex: 1, padding: "8px 10px", borderRadius: 10, fontSize: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", colorScheme: "dark", outline: "none" }}
+              />
+              <span style={{ color: "#3f3f46", fontSize: 12 }}>→</span>
+              <input type="date" value={customTo} min={customFrom} max={isoToday()}
+                onChange={e => setCustomTo(e.target.value)}
+                style={{ flex: 1, padding: "8px 10px", borderRadius: 10, fontSize: 12, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", colorScheme: "dark", outline: "none" }}
+              />
+            </div>
+            <button
+              onClick={() => { onChange({ from: customFrom, to: customTo, label: "Custom" }); setCustomOpen(false); }}
+              style={{ width: "100%", padding: "9px", borderRadius: 10, fontSize: 12, fontWeight: 600, background: "rgba(139,92,246,0.15)", color: "#8b5cf6", border: "1px solid rgba(139,92,246,0.2)", cursor: "pointer" }}
+            >
+              Appliquer
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Stagger ─────────────────────────────────────────────────────────────────
+
+const EASE = [0.23, 1, 0.32, 1] as [number, number, number, number];
+
+function s(i: number) {
+  return {
+    initial:    { opacity: 0, y: 10, filter: "blur(4px)" },
+    animate:    { opacity: 1, y: 0,  filter: "blur(0px)" },
+    transition: { duration: 0.55, delay: i * 0.06, ease: EASE },
+  };
+}
+
+// ─── ActionCenter ─────────────────────────────────────────────────────────────
+// The decision-first strip: Kill / Watch / Scale
+
+interface ActionCol {
+  label: string;
+  emoji: string;
+  color: string;
+  bgTint: string;
+  borderColor: string;
+  campaigns: CampaignRow[];
+  actionLabel: string;
+  actionKey: "kill" | "pause" | "scale";
+  emptyMsg: string;
+}
+
+function ActionCampaignRow({ c, actionKey, color }: { c: CampaignRow; actionKey: "kill" | "pause" | "scale"; color: string }) {
+  const [done, setDone]       = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const meta = NET_META[c.network] ?? { label: c.network, color: "#71717a" };
+
+  async function handleAction() {
+    if (loading || done) return;
+    setLoading(true);
+    try {
+      await fetch(\`/api/campaigns/\${c.id}/action\`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: actionKey }),
+      });
+      setDone(true);
+    } catch { /* silent */ }
+    setLoading(false);
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -4 }}
+      animate={{ opacity: done ? 0.3 : 1, x: 0 }}
+      transition={{ type: "spring", stiffness: 400, damping: 34 }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "9px 16px",
+        borderBottom: "1px solid rgba(255,255,255,0.04)",
+        background: hovered ? "rgba(255,255,255,0.018)" : "transparent",
+        transition: "background 0.12s",
+        cursor: "default",
+      }}
+    >
+      {/* Pulse dot */}
+      <motion.div
+        animate={done ? {} : { opacity: [1, 0.3, 1] }}
+        transition={{ duration: 2.2, repeat: Infinity }}
+        style={{
+          width: 5, height: 5, borderRadius: "50%",
+          background: done ? "rgba(255,255,255,0.2)" : color,
+          flexShrink: 0,
+          boxShadow: done ? "none" : \`0 0 6px \${color}55\`,
+        }}
+      />
+
+      {/* Name */}
+      <span style={{
+        flex: 1, fontSize: 12, fontWeight: 400,
+        color: done ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.72)",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const,
+      }}>
+        {c.name}
+      </span>
+
+      {/* Network tag */}
+      <span style={{
+        fontSize: 9, fontWeight: 600, letterSpacing: "0.04em",
+        color: meta.color, opacity: 0.8, flexShrink: 0,
+      }}>
+        {meta.label}
+      </span>
+
+      {/* ROI */}
+      <span style={{
+        fontSize: 11, fontWeight: 700,
+        color: done ? "rgba(255,255,255,0.2)" : color,
+        fontVariantNumeric: "tabular-nums",
+        flexShrink: 0, minWidth: 44, textAlign: "right" as const,
+      }}>
+        {c.roi >= 0 ? "+" : ""}{c.roi.toFixed(0)}%
+      </span>
+
+      {/* Action button */}
+      <motion.button
+        onClick={handleAction}
+        disabled={loading || done}
+        whileTap={!done ? { scale: 0.88 } : {}}
+        style={{
+          display: "flex", alignItems: "center", gap: 4,
+          padding: "3px 10px", borderRadius: 6, flexShrink: 0,
+          fontSize: 10, fontWeight: 700, letterSpacing: "0.06em",
+          textTransform: "uppercase" as const,
+          background: done ? "transparent" : \`\${color}14\`,
+          border: \`1px solid \${done ? "rgba(255,255,255,0.08)" : color + "30"}\`,
+          color: done ? "rgba(255,255,255,0.2)" : color,
+          cursor: loading || done ? "default" : "pointer",
+          transition: "all 0.12s",
+        }}
+      >
+        {done
+          ? <><IconCheck size={9} /> OK</>
+          : loading
+          ? <IconRefresh size={9} />
+          : actionKey === "kill" || actionKey === "pause"
+          ? <><IconXCircle size={9} /> Kill</>
+          : <><IconZap size={9} /> Scale</>
+        }
+      </motion.button>
+    </motion.div>
+  );
+}
+
+function ActionCenter({ kill, watch, scale }: {
+  kill: CampaignRow[];
+  watch: CampaignRow[];
+  scale: CampaignRow[];
+}) {
+  const isEmpty = kill.length === 0 && watch.length === 0 && scale.length === 0;
+
+  const columns: ActionCol[] = [
+    {
+      label: "À STOPPER",
+      emoji: "❌",
+      color: "#f87171",
+      bgTint: "rgba(248,113,113,0.04)",
+      borderColor: "rgba(248,113,113,0.2)",
+      campaigns: kill,
+      actionLabel: "Kill",
+      actionKey: "kill",
+      emptyMsg: "Aucune campagne en perte active",
+    },
+    {
+      label: "À SURVEILLER",
+      emoji: "⚠️",
+      color: "#fbbf24",
+      bgTint: "rgba(251,191,36,0.04)",
+      borderColor: "rgba(251,191,36,0.2)",
+      campaigns: watch,
+      actionLabel: "Watch",
+      actionKey: "pause",
+      emptyMsg: "Aucune campagne borderline",
+    },
+    {
+      label: "À SCALER",
+      emoji: "🚀",
+      color: "#4ade80",
+      bgTint: "rgba(74,222,128,0.04)",
+      borderColor: "rgba(74,222,128,0.2)",
+      campaigns: scale,
+      actionLabel: "Scale",
+      actionKey: "scale",
+      emptyMsg: "Aucune opportunité identifiée",
+    },
+  ];
+
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr 1fr",
+      background: "#17171e",
+      border: "1px solid rgba(255,255,255,0.06)",
+      borderRadius: 18,
+      overflow: "hidden",
+    }}>
+      {columns.map((col, ci) => (
+        <div
+          key={col.label}
+          style={{
+            borderRight: ci < 2 ? "1px solid rgba(255,255,255,0.05)" : "none",
+            background: col.bgTint,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Column header */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "14px 16px 12px",
+            borderBottom: \`1px solid \${col.borderColor}\`,
+            background: \`linear-gradient(180deg, \${col.bgTint} 0%, transparent 100%)\`,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {/* Colored dot */}
+              <motion.div
+                animate={col.campaigns.length > 0 ? { opacity: [1, 0.3, 1] } : {}}
+                transition={{ duration: 2, repeat: Infinity }}
+                style={{
+                  width: 7, height: 7, borderRadius: "50%",
+                  background: col.campaigns.length > 0 ? col.color : "rgba(255,255,255,0.1)",
+                  boxShadow: col.campaigns.length > 0 ? \`0 0 8px \${col.color}55\` : "none",
+                }}
+              />
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.1em",
+                textTransform: "uppercase" as const,
+                color: col.campaigns.length > 0 ? col.color : "rgba(255,255,255,0.25)",
+              }}>
+                {col.label}
+              </span>
+            </div>
+            {/* Count badge */}
+            {col.campaigns.length > 0 && (
+              <span style={{
+                fontSize: 11, fontWeight: 800,
+                color: col.color,
+                background: \`\${col.color}18\`,
+                border: \`1px solid \${col.color}30\`,
+                borderRadius: 99,
+                padding: "1px 8px",
+                fontVariantNumeric: "tabular-nums",
+              }}>
+                {col.campaigns.length}
+              </span>
+            )}
+          </div>
+
+          {/* Campaign rows */}
+          <div style={{ flex: 1 }}>
+            {col.campaigns.length > 0
+              ? col.campaigns.map(c => (
+                  <ActionCampaignRow
+                    key={c.id}
+                    c={c}
+                    actionKey={col.actionKey}
+                    color={col.color}
+                  />
+                ))
+              : (
+                <div style={{
+                  padding: "18px 16px",
+                  display: "flex", alignItems: "center", gap: 8,
+                }}>
+                  <div style={{
+                    width: 5, height: 5, borderRadius: "50%",
+                    background: "rgba(255,255,255,0.08)",
+                  }} />
+                  <span style={{
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.2)",
+                    fontStyle: "italic",
+                  }}>
+                    {col.emptyMsg}
+                  </span>
+                </div>
+              )
+            }
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Campaign Table Row (with urgency stripe) ─────────────────────────────────
+
+function CampaignTableRow({ c, isLast, index }: { c: CampaignRow; isLast: boolean; index: number }) {
+  const [hovered,       setHovered]       = useState(false);
+  const [localStatus,   setLocalStatus]   = useState(c.status);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const meta = NET_META[c.network] ?? { label: c.network, color: "#71717a" };
+
+  // Urgency classification
+  const isHotLoss  = c.status === "ACTIVE" && c.roi < -20;
+  const isWarmLoss = c.status === "ACTIVE" && c.roi < 0 && c.roi >= -20;
+  const isScalable = c.status === "ACTIVE" && c.roi > 30 && c.spend > 100;
+
+  const stripeColor = isHotLoss  ? "#f87171"
+                    : isWarmLoss ? "#fbbf24"
+                    : isScalable ? "#4ade80"
+                    : "transparent";
+
+  const rowBg = isHotLoss  ? "rgba(248,113,113,0.025)"
+              : isWarmLoss ? "rgba(251,191,36,0.018)"
+              : "transparent";
+
+  const roiColor = c.roi > 30  ? "#4ade80"
+                 : c.roi > 0   ? "#86efac"
+                 : c.roi > -20 ? "#fbbf24"
+                 : "#f87171";
+
+  async function doAction(action: "pause" | "resume" | "scale") {
+    if (actionLoading) return;
+    setActionLoading(action);
+    try {
+      await fetch(\`/api/campaigns/\${c.id}/action\`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (action === "pause")  setLocalStatus("PAUSED");
+      if (action === "resume") setLocalStatus("ACTIVE");
+    } catch { /* silent */ }
+    setActionLoading(null);
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -6 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.35, delay: index * 0.04, ease: [0.23, 1, 0.32, 1] }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex",
+        alignItems: "stretch",
+        borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.04)",
+        background: hovered ? "rgba(255,255,255,0.022)" : rowBg,
+        transition: "background 0.15s",
+      }}
+    >
+      {/* Urgency stripe */}
+      <div style={{
+        width: 3, flexShrink: 0,
+        background: stripeColor,
+        opacity: stripeColor === "transparent" ? 0 : 0.7,
+        transition: "background 0.3s",
+      }} />
+
+      {/* Content */}
+      <div style={{
+        flex: 1,
+        display: "grid",
+        gridTemplateColumns: "3fr 1fr 1fr 1fr 1.3fr 0.9fr",
+        padding: "15px 24px 15px 16px",
+        alignItems: "center",
+      }}>
+        {/* Name + status */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden" }}>
+          <div style={{
+            width: 4, height: 4, borderRadius: "50%", flexShrink: 0,
+            background: localStatus === "ACTIVE" ? "#4ade80" : "rgba(255,255,255,0.2)",
+            boxShadow: localStatus === "ACTIVE" ? "0 0 5px rgba(74,222,128,0.45)" : "none",
+            transition: "all 0.3s",
+          }} />
+          <a href={\`/dashboard/campaigns/\${c.id}\`} style={{
+            fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.82)", textDecoration: "none",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const,
+          }}>
+            {c.name}
+          </a>
+        </div>
+
+        {/* Network */}
+        <span style={{ fontSize: 11, color: meta.color, fontWeight: 600, letterSpacing: "0.04em" }}>
+          {meta.label}
+        </span>
+
+        {/* Spend */}
+        <span style={{ fontSize: 13, fontWeight: 400, color: "rgba(255,255,255,0.38)", fontVariantNumeric: "tabular-nums", textAlign: "right" as const }}>
+          {fmtEuro(c.spend)}
+        </span>
+
+        {/* Revenue */}
+        <span style={{ fontSize: 13, fontWeight: 400, color: "rgba(255,255,255,0.5)", fontVariantNumeric: "tabular-nums", textAlign: "right" as const }}>
+          {fmtEuro(c.revenue)}
+        </span>
+
+        {/* Profit */}
+        <span style={{
+          fontSize: 13, fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right" as const,
+          color: c.profit > 0 ? "#4ade80" : c.profit < 0 ? "#f87171" : "rgba(255,255,255,0.2)",
+        }}>
+          {c.profit > 0 ? "+" : ""}{fmtEuro(c.profit)}
+        </span>
+
+        {/* ROI + actions */}
+        <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, opacity: hovered ? 0 : 1, transition: "opacity 0.12s" }}>
+            {c.roi !== 0 && (
+              c.roi > 0
+                ? <IconTrendingUp   size={10} color={roiColor} strokeWidth={1.5} />
+                : <IconTrendingDown size={10} color={roiColor} strokeWidth={1.5} />
+            )}
+            <span style={{ fontSize: 13, fontWeight: 700, color: roiColor, fontVariantNumeric: "tabular-nums" }}>
+              {c.roi > 0 ? "+" : ""}{c.roi.toFixed(0)}%
+            </span>
+          </div>
+          <div style={{ position: "absolute", right: 0, display: "flex", gap: 4, opacity: hovered ? 1 : 0, pointerEvents: hovered ? "auto" : "none", transition: "opacity 0.12s" }}>
+            {localStatus === "PAUSED" ? (
+              <button
+                onClick={() => doAction("resume")}
+                disabled={!!actionLoading}
+                style={{
+                  display: "flex", alignItems: "center", gap: 3,
+                  padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 500,
+                  background: "transparent", border: "1px solid rgba(74,222,128,0.18)",
+                  color: "#4ade80", cursor: actionLoading ? "default" : "pointer",
+                  opacity: actionLoading === "resume" ? 0.4 : 0.7,
+                  letterSpacing: "0.03em",
+                }}
+              >
+                {actionLoading === "resume" ? <IconRefresh size={10} /> : <><IconPlay size={10} /> Resume</>}
+              </button>
+            ) : (
+              <button
+                onClick={() => doAction("pause")}
+                disabled={!!actionLoading}
+                style={{
+                  display: "flex", alignItems: "center", gap: 3,
+                  padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 500,
+                  background: "transparent", border: "1px solid rgba(255,255,255,0.09)",
+                  color: "rgba(255,255,255,0.38)", cursor: actionLoading ? "default" : "pointer",
+                  opacity: actionLoading === "pause" ? 0.4 : 0.7,
+                  letterSpacing: "0.03em",
+                }}
+              >
+                {actionLoading === "pause" ? <IconRefresh size={10} /> : <><IconPause size={10} /> Pause</>}
+              </button>
+            )}
+            <button
+              onClick={() => doAction("scale")}
+              disabled={!!actionLoading}
+              style={{
+                display: "flex", alignItems: "center", gap: 3,
+                padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 500,
+                background: "transparent", border: "1px solid rgba(74,222,128,0.18)",
+                color: "#4ade80", cursor: actionLoading ? "default" : "pointer",
+                opacity: actionLoading === "scale" ? 0.4 : 0.7,
+                letterSpacing: "0.03em",
+              }}
+            >
+              {actionLoading === "scale" ? <IconRefresh size={10} /> : <><IconZap size={10} /> Boost</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── KPI Chip — compact metric tile ──────────────────────────────────────────
+
+function KpiChip({ label, value, sub, color, icon }: {
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div style={{
+      padding: "16px 20px",
+      borderBottom: "1px solid rgba(255,255,255,0.04)",
+      display: "flex", flexDirection: "column", gap: 4,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+        {icon}
+        <span style={{ ...LABEL }}>{label}</span>
+      </div>
+      <span style={{
+        fontSize: 22, fontWeight: 600, letterSpacing: "-0.03em",
+        color, fontVariantNumeric: "tabular-nums",
+        fontFeatureSettings: '"tnum"',
+      }}>
+        {value}
+      </span>
+      {sub && (
+        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", letterSpacing: "-0.01em" }}>
+          {sub}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export default function BentoDashboard(props: Props) {
+  const [dateRange, setDateRange] = useState<DateRange>({ from: daysAgo(30), to: isoToday(), label: "30J" });
+  const [data, setData]           = useState<DashboardData>({
+    totals:           props.totals,
+    chartData:        props.chartData,
+    networkBreakdown: props.networkBreakdown,
+    activeCampaigns:  props.activeCampaigns,
+    alerts:           props.alerts,
+    topCampaigns:     props.topCampaigns,
+    trend:            props.trend,
+  });
+  const [loading,     setLoading]     = useState(false);
+  const [geoDots,     setGeoDots]     = useState<GeoDot[]>([]);
+  const [syncState,   setSyncState]   = useState<"idle" | "syncing" | "done" | "error">(
+    props.needsSync ? "syncing" : "idle"
+  );
+  const [syncMsg,     setSyncMsg]     = useState<string>("");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const shimmerControls               = useAnimation();
+  const dateRangeRef                  = useRef(dateRange);
+
+  useEffect(() => {
+    const run = () => shimmerControls.start({
+      x: ["-220%", "220%"],
+      transition: { duration: 1.5, ease: [0.4, 0, 0.2, 1] },
+    });
+    const t = setTimeout(run, 800);
+    const i = setInterval(run, 30_000);
+    return () => { clearTimeout(t); clearInterval(i); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchGeo = useCallback(async (range: DateRange) => {
+    try {
+      const res = await fetch(\`/api/dashboard/geo?dateFrom=\${range.from}&dateTo=\${range.to}\`);
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.dots?.length) {
+        setGeoDots(json.dots.map((d: GeoDot, i: number) => ({
+          ...d, delay: \`\${(i * 0.35).toFixed(1)}s\`,
+        })));
+      }
+    } catch { /* silently ignore */ }
+  }, []);
+
+  const fetchData = useCallback(async (range: DateRange) => {
+    setLoading(true);
+    try {
+      const [statsRes] = await Promise.all([
+        fetch(\`/api/dashboard/stats?dateFrom=\${range.from}&dateTo=\${range.to}\`),
+        fetchGeo(range),
+      ]);
+      if (statsRes.ok) setData(await statsRes.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchGeo]);
+
+  useEffect(() => { dateRangeRef.current = dateRange; }, [dateRange]);
+  useEffect(() => { fetchGeo(dateRange); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (props.needsSync) return;
+    fetch(\`/api/dashboard/stats?dateFrom=\${dateRange.from}&dateTo=\${dateRange.to}\`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && !d.error) { setData(d); setLastUpdated(new Date()); } })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (props.needsSync) return;
+    const poll = () => {
+      const r = dateRangeRef.current;
+      fetch(\`/api/dashboard/stats?dateFrom=\${r.from}&dateTo=\${r.to}\`)
+        .then(res => res.ok ? res.json() : null)
+        .then(d => { if (d && !d.error) { setData(d); setLastUpdated(new Date()); } })
+        .catch(() => {});
+    };
+    const interval = setInterval(poll, 60_000);
+    return () => clearInterval(interval);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!props.needsSync) return;
+    setSyncState("syncing");
+    setSyncMsg("Importation de vos campagnes en cours…");
+    fetch("/api/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "backfill" }),
+    })
+      .then(r => r.json())
+      .then((d: { synced?: number; error?: string }) => {
+        if (d.error) {
+          setSyncState("error");
+          setSyncMsg(\`Erreur de synchronisation : \${d.error}\`);
+        } else {
+          setSyncState("done");
+          setSyncMsg(\`\${d.synced ?? 0} entrée(s) importée(s) — rechargement…\`);
+          setTimeout(() => window.location.reload(), 1500);
+        }
+      })
+      .catch(() => {
+        setSyncState("error");
+        setSyncMsg("Impossible de contacter le serveur de sync.");
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleDateChange(range: DateRange) {
+    setDateRange(range);
+    fetchData(range);
+  }
+
+  const { totals, chartData, networkBreakdown, activeCampaigns } = data;
+  const profitPos   = totals.totalProfit >= 0;
+  const profitColor = zeroColor(totals.totalProfit, profitPos ? "#4ade80" : "#f87171");
+
+  // ── Decision buckets ────────────────────────────────────────────────────────
+  const killList  = data.topCampaigns.filter(c => c.status === "ACTIVE" && c.roi < -20).slice(0, 4);
+  const watchList = data.topCampaigns.filter(c => c.status === "ACTIVE" && c.roi < 0 && c.roi >= -20).slice(0, 4);
+  const scaleList = data.topCampaigns.filter(c => c.status === "ACTIVE" && c.roi > 30 && c.spend > 100).slice(0, 4);
+
+  // Campaign table: sorted losing → breakeven → profitable
+  const losing     = data.topCampaigns.filter(c => c.roi < 0);
+  const breakeven  = data.topCampaigns.filter(c => c.roi === 0);
+  const profitable = data.topCampaigns.filter(c => c.roi > 0).reverse();
+  const sortedCampaigns = [...losing, ...breakeven, ...profitable];
+
+  return (
+    <div style={{ padding: "20px 32px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* ── Sync Banner ─────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {syncState !== "idle" && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "12px 18px", borderRadius: 12, fontSize: 13,
+              background: syncState === "error" ? "rgba(248,113,113,0.07)" : syncState === "done" ? "rgba(74,222,128,0.07)" : "rgba(192,136,53,0.07)",
+              color: syncState === "error" ? "#f87171" : syncState === "done" ? "#4ade80" : "#fbbf24",
+              border: \`1px solid \${syncState === "error" ? "rgba(248,113,113,0.15)" : syncState === "done" ? "rgba(74,222,128,0.15)" : "rgba(251,191,36,0.15)"}\`,
+            }}
+          >
+            {syncState === "syncing" && (
+              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} style={{ display: "flex" }}>
+                <IconRefresh size={14} strokeWidth={1.3} />
+              </motion.div>
+            )}
+            {syncMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Top bar: title + date controls ──────────────────────────────────── */}
+      <motion.div {...s(0)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+        {/* Left: title + live indicator */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div>
+            <span style={{
+              fontSize: 11, fontWeight: 700, letterSpacing: "0.14em",
+              textTransform: "uppercase" as const,
+              color: "rgba(255,255,255,0.22)",
+            }}>
+              Command Center
+            </span>
+          </div>
+          {/* Live dot */}
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <motion.div
+              animate={{ opacity: [1, 0.3, 1], scale: [1, 0.85, 1] }}
+              transition={{ duration: 2.8, repeat: Infinity }}
+              style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80" }}
+            />
+            <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(74,222,128,0.55)", letterSpacing: "0.08em" }}>
+              LIVE
+            </span>
+          </div>
+        </div>
+
+        {/* Right: refresh + date selector */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {lastUpdated && !loading && (
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.15)", letterSpacing: "0.04em" }}>
+              {lastUpdated.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+          )}
+          <button
+            onClick={() => { fetchData(dateRange).then(() => setLastUpdated(new Date())); }}
+            disabled={loading}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: 30, height: 30, borderRadius: 8,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.4 : 1,
+            }}
+          >
+            <motion.div
+              animate={loading ? { rotate: 360 } : { rotate: 0 }}
+              transition={loading ? { repeat: Infinity, duration: 0.8, ease: "linear" } : { duration: 0.3 }}
+              style={{ display: "flex" }}
+            >
+              <IconRefresh size={12} color="rgba(255,255,255,0.45)" strokeWidth={1.3} />
+            </motion.div>
+          </button>
+          <DateSelector range={dateRange} onChange={handleDateChange} loading={loading} />
+        </div>
+      </motion.div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          ROW 1 — ACTION CENTER (full width decision strip)
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <motion.div {...s(1)}>
+        {/* Section label */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <span style={{ ...LABEL, color: "rgba(255,255,255,0.18)", letterSpacing: "0.14em" }}>
+            Décisions immédiates
+          </span>
+          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.04)" }} />
+        </div>
+        <ActionCenter kill={killList} watch={watchList} scale={scaleList} />
+      </motion.div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          ROW 2 — Hero chart (left) + KPI stack (right)
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: 16 }}>
+
+        {/* ── Hero: Profit chart ────────────────────────────────────────────── */}
+        <motion.div {...s(2)} style={{
+          background: "#17171e",
+          border: totals.totalProfit === 0
+            ? "1px solid rgba(255,255,255,0.06)"
+            : profitPos
+              ? "1px solid rgba(74,222,128,0.1)"
+              : "1px solid rgba(248,113,113,0.1)",
+          borderRadius: 18,
+          padding: "24px 28px 20px",
+          position: "relative",
+          overflow: "hidden",
+        }}>
+          {/* Ambient glow */}
+          {totals.totalProfit !== 0 && (
+            <div style={{
+              position: "absolute", top: -60, left: -60, width: 260, height: 220,
+              borderRadius: "50%",
+              background: profitPos
+                ? "radial-gradient(ellipse, rgba(74,222,128,0.05) 0%, transparent 70%)"
+                : "radial-gradient(ellipse, rgba(248,113,113,0.04) 0%, transparent 70%)",
+              pointerEvents: "none", filter: "blur(40px)",
+            }} />
+          )}
+
+          {/* Top row: profit number + secondary metrics */}
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 0, marginBottom: 20 }}>
+            {/* Main profit */}
+            <div style={{ paddingRight: 28 }}>
+              <span style={{ ...LABEL, display: "block", marginBottom: 10, color: "rgba(255,255,255,0.3)" }}>
+                Profit net
+              </span>
+              <div style={{ position: "relative", overflow: "hidden", display: "inline-block" }}>
+                <motion.span
+                  initial={{ opacity: 0, y: 8, filter: "blur(6px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
+                  style={{
+                    fontSize: 54, fontWeight: 700,
+                    letterSpacing: "-0.03em", lineHeight: 1,
+                    color: totals.totalProfit === 0 ? "rgba(255,255,255,0.15)" : profitColor,
+                    fontVariantNumeric: "tabular-nums",
+                    fontFeatureSettings: '"tnum"',
+                    display: "block",
+                    textShadow: totals.totalProfit !== 0 && profitPos
+                      ? "0 0 24px rgba(74,222,128,0.18)"
+                      : totals.totalProfit !== 0 ? "0 0 24px rgba(248,113,113,0.15)" : "none",
+                  }}
+                >
+                  {fmtEuro(totals.totalProfit)}
+                </motion.span>
+                {totals.totalProfit !== 0 && (
+                  <motion.div
+                    initial={{ x: "-220%" }}
+                    animate={shimmerControls}
+                    style={{
+                      position: "absolute", inset: 0,
+                      background: "linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.12) 50%, transparent 80%)",
+                      pointerEvents: "none", skewX: "-8deg",
+                    }}
+                  />
+                )}
+              </div>
+              {/* ROI badge */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "3px 10px", borderRadius: 6,
+                  fontSize: 12, fontWeight: 700, letterSpacing: "-0.01em",
+                  background: totals.roi === 0 ? "transparent"
+                    : profitPos ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.08)",
+                  color: totals.roi === 0 ? "rgba(255,255,255,0.18)" : profitColor,
+                  border: totals.roi === 0 ? "none"
+                    : profitPos ? "1px solid rgba(74,222,128,0.2)" : "1px solid rgba(248,113,113,0.15)",
+                }}>
+                  {totals.roi !== 0 && (profitPos
+                    ? <IconTrendingUp size={11} strokeWidth={2} />
+                    : <IconTrendingDown size={11} strokeWidth={2} />
+                  )}
+                  {fmtPct(totals.roi)} ROI
+                </span>
+                {data.trend !== null && (
+                  <span style={{
+                    fontSize: 11, fontWeight: 500,
+                    color: data.trend >= 0 ? "rgba(74,222,128,0.6)" : "rgba(248,113,113,0.55)",
+                  }}>
+                    {data.trend >= 0 ? "↑" : "↓"} {Math.abs(data.trend)}% vs période préc.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div style={{ width: 1, height: 48, background: "rgba(255,255,255,0.05)", flexShrink: 0 }} />
+
+            {/* Revenue + Spend secondary */}
+            <div style={{ paddingLeft: 28, display: "flex", gap: 28, opacity: 0.65 }}>
+              <div>
+                <span style={{ ...LABEL, display: "block", marginBottom: 7, color: "rgba(255,255,255,0.3)" }}>Revenue</span>
+                <span style={{ fontSize: 18, fontWeight: 500, color: zeroColor(totals.totalRevenue, "#a78bfa"), fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
+                  {fmtEuro(totals.totalRevenue)}
+                </span>
+              </div>
+              <div>
+                <span style={{ ...LABEL, display: "block", marginBottom: 7, color: "rgba(255,255,255,0.3)" }}>Spend</span>
+                <span style={{ fontSize: 18, fontWeight: 500, color: zeroColor(totals.totalSpend, "#fbbf24"), fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
+                  {fmtEuro(totals.totalSpend)}
+                </span>
+              </div>
+              {activeCampaigns > 0 && (
+                <div>
+                  <span style={{ ...LABEL, display: "block", marginBottom: 7, color: "rgba(255,255,255,0.3)" }}>Actives</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <motion.div
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ duration: 2.2, repeat: Infinity }}
+                      style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80" }}
+                    />
+                    <span style={{ fontSize: 18, fontWeight: 600, color: "rgba(255,255,255,0.7)", fontVariantNumeric: "tabular-nums" }}>
+                      {activeCampaigns}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Chart */}
+          <motion.div
+            initial={{ opacity: 0, scaleY: 0.92, transformOrigin: "bottom" }}
+            animate={{ opacity: 1, scaleY: 1 }}
+            transition={{ duration: 0.65, delay: 0.25, ease: [0.23, 1, 0.32, 1] }}
+          >
+            <ProfitChart data={chartData} profitPos={profitPos} height={140} />
+          </motion.div>
+        </motion.div>
+
+        {/* ── KPI stack ────────────────────────────────────────────────────── */}
+        <motion.div {...s(3)} style={{
+          background: "#17171e",
+          border: "1px solid rgba(255,255,255,0.06)",
+          borderRadius: 18,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+        }}>
+          <KpiChip
+            label="Conversions"
+            value={totals.totalConvs > 0 ? totals.totalConvs.toLocaleString("fr-FR") : "—"}
+            sub={totals.ctr > 0 ? \`CTR \${totals.ctr.toFixed(2)}%\` : undefined}
+            color={zeroColor(totals.totalConvs, "rgba(255,255,255,0.85)")}
+          />
+          <KpiChip
+            label="Impressions"
+            value={fmtBig(totals.totalImps)}
+            sub={totals.totalClicks > 0 ? \`\${fmtBig(totals.totalClicks)} clics\` : undefined}
+            color={zeroColor(totals.totalImps, "rgba(255,255,255,0.6)")}
+          />
+          {/* ROI gauge */}
+          <div style={{ padding: "16px 20px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <span style={{ ...LABEL, display: "block", marginBottom: 12 }}>ROI Global</span>
+            <ROIChart roi={totals.roi} profitPos={profitPos} height={100} />
+          </div>
+        </motion.div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          ROW 3 — Campaign P&L Table
+      ═══════════════════════════════════════════════════════════════════════ */}
+      {sortedCampaigns.length > 0 && (
+        <motion.div {...s(4)} style={{ ...CARD }}>
+          {/* Header */}
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "18px 24px 16px",
+            borderBottom: "1px solid rgba(255,255,255,0.04)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.88)", letterSpacing: "-0.01em" }}>
+                Campagnes
+              </span>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+                color: "rgba(255,255,255,0.2)",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                padding: "2px 8px", borderRadius: 99,
+              }}>
+                P&L
+              </span>
+              {/* Legend */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: 6 }}>
+                {[
+                  { color: "#f87171", label: "À stopper" },
+                  { color: "#fbbf24", label: "À surveiller" },
+                  { color: "#4ade80", label: "À scaler" },
+                ].map(({ color, label }) => (
+                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <div style={{ width: 3, height: 10, borderRadius: 2, background: color, opacity: 0.7 }} />
+                    <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.2)", letterSpacing: "0.06em", textTransform: "uppercase" as const }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <Link href="/dashboard/campaigns" style={{
+              fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.2)", textDecoration: "none",
+              display: "flex", alignItems: "center", gap: 3,
+              padding: "4px 12px", borderRadius: 99,
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}>
+              Tout voir <IconChevronRight size={11} />
+            </Link>
+          </div>
+
+          {/* Column headers */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "3fr 1fr 1fr 1fr 1.3fr 0.9fr",
+            padding: "10px 24px 8px 20px",
+            marginLeft: 3,
+          }}>
+            {["Campagne", "Réseau", "Dépenses", "Revenus", "Profit", "ROI"].map((h, i) => (
+              <span key={h} style={{ ...LABEL, ...(i >= 2 ? { textAlign: "right" as const } : {}) }}>{h}</span>
+            ))}
+          </div>
+
+          {/* Rows */}
+          {sortedCampaigns.slice(0, 9).map((c, i, arr) => (
+            <CampaignTableRow key={c.id} c={c} isLast={i === arr.length - 1} index={i} />
+          ))}
+        </motion.div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          ROW 4 — Secondary stats (Réseaux | ROI | WorldMap)
+      ═══════════════════════════════════════════════════════════════════════ */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1.6fr", gap: 16 }}>
+
+        {/* ── Réseaux ──────────────────────────────────────────────────────── */}
+        <motion.div {...s(5)} style={{
+          background: "rgba(255,255,255,0.012)",
+          border: "1px solid rgba(255,255,255,0.04)",
+          borderRadius: 14,
+          padding: "18px 20px",
+          opacity: 0.8,
+        }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.22)", marginBottom: 18, letterSpacing: "0.12em", textTransform: "uppercase" as const }}>
+            Réseaux
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {(() => {
+              const rows = networkBreakdown.length > 0
+                ? [...networkBreakdown].sort((a, b) => b.spend - a.spend).slice(0, 4)
+                : [
+                    { network: "EXOCLICK",     profit: 0, spend: 0, campaigns: 0, roi: 0, revenue: 0 } as NetworkRow,
+                    { network: "TRAFFICSTARS", profit: 0, spend: 0, campaigns: 0, roi: 0, revenue: 0 } as NetworkRow,
+                    { network: "TRAFFICJUNKY", profit: 0, spend: 0, campaigns: 0, roi: 0, revenue: 0 } as NetworkRow,
+                  ];
+              const maxSpend = Math.max(...rows.map(r => r.spend), 1);
+              return rows.map((row, ri) => {
+                const meta   = NET_META[row.network] ?? { label: row.network, color: "#71717a" };
+                const isPos  = row.profit >= 0;
+                const barPct = row.spend > 0 ? (row.spend / maxSpend) * 100 : 0;
+                return (
+                  <div key={row.network} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ width: 3, height: 26, borderRadius: 99, background: meta.color, opacity: 0.45, flexShrink: 0 }} />
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 500, color: "rgba(212,212,216,0.75)", margin: 0, letterSpacing: "-0.01em" }}>{meta.label}</p>
+                          <p style={{ ...LABEL, marginTop: 1 }}>{row.campaigns > 0 ? \`\${row.campaigns} camp.\` : "—"}</p>
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: 12, fontWeight: 500, letterSpacing: "-0.02em",
+                        fontVariantNumeric: "tabular-nums",
+                        color: row.profit === 0 ? "rgba(255,255,255,0.1)" : (isPos ? "#4ade80" : "#f87171"),
+                        opacity: row.profit === 0 ? 1 : 0.8,
+                      }}>
+                        {row.profit === 0 ? "—" : \`\${row.profit >= 0 ? "+" : ""}\${row.profit.toFixed(0)}€\`}
+                      </span>
+                    </div>
+                    <div style={{ position: "relative", height: 2, background: "rgba(255,255,255,0.04)", borderRadius: 99, overflow: "hidden" }}>
+                      <motion.div
+                        initial={{ width: "0%" }}
+                        animate={{ width: \`\${barPct}%\` }}
+                        transition={{ duration: 0.9, delay: 0.3 + ri * 0.1, ease: [0.23, 1, 0.32, 1] }}
+                        style={{ position: "absolute", left: 0, top: 0, bottom: 0, background: meta.color, borderRadius: 99, opacity: 0.45 }}
+                      />
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </motion.div>
+
+        {/* ── ROI + Impressions ────────────────────────────────────────────── */}
+        <motion.div {...s(6)} style={{
+          background: "rgba(255,255,255,0.012)",
+          border: "1px solid rgba(255,255,255,0.04)",
+          borderRadius: 14,
+          padding: "18px 20px",
+          opacity: 0.8,
+          display: "flex",
+          flexDirection: "column",
+        }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.22)", marginBottom: 8, letterSpacing: "0.12em", textTransform: "uppercase" as const }}>
+            Impressions & CTR
+          </p>
+
+          {/* Impressions / Clics / CTR */}
+          <div style={{ display: "flex", gap: 0, marginBottom: 16 }}>
+            {[
+              { label: "Impressions", value: fmtBig(totals.totalImps),    color: "rgba(255,255,255,0.55)", n: totals.totalImps    },
+              { label: "Clics",       value: fmtBig(totals.totalClicks),  color: "#a78bfa",               n: totals.totalClicks  },
+              { label: "CTR",         value: \`\${totals.ctr.toFixed(2)}%\`, color: "#fbbf24",               n: totals.ctr          },
+            ].map(({ label, value, color, n }, i) => (
+              <div key={label} style={{
+                flex: 1,
+                paddingLeft: i > 0 ? 12 : 0,
+                borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.04)" : "none",
+              }}>
+                <p style={{ ...LABEL, marginBottom: 5 }}>{label}</p>
+                <span style={{ fontSize: 14, fontWeight: 400, letterSpacing: "-0.02em", color: n === 0 ? "rgba(255,255,255,0.15)" : color, fontVariantNumeric: "tabular-nums" }}>
+                  {n === 0 ? "—" : value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Conversions */}
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 14, flex: 1 }}>
+            <p style={{ ...LABEL, marginBottom: 6 }}>Conversions</p>
+            <span style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.03em", color: zeroColor(totals.totalConvs, "rgba(255,255,255,0.75)"), fontVariantNumeric: "tabular-nums" }}>
+              {totals.totalConvs > 0 ? totals.totalConvs.toLocaleString("fr-FR") : "—"}
+            </span>
+            {(totals.postbackRevenue ?? 0) > 0 && (
+              <div style={{ marginTop: 6, display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: 6, background: "rgba(74,222,128,0.07)", border: "1px solid rgba(74,222,128,0.14)", fontSize: 9, fontWeight: 700, color: "#4ade80", letterSpacing: "0.06em", textTransform: "uppercase" as const }}>
+                ✦ {fmtEuro(totals.postbackRevenue ?? 0)} CPA
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* ── WorldMap + Countries ─────────────────────────────────────────── */}
+        <motion.div {...s(7)} style={{
+          background: "rgba(255,255,255,0.012)",
+          border: "1px solid rgba(255,255,255,0.04)",
+          borderRadius: 14,
+          overflow: "hidden",
+          opacity: 0.8,
+          display: "flex",
+          flexDirection: "column",
+        }}>
+          <div style={{ flex: "0 0 155px" }}>
+            <WorldMap dots={geoDots} />
+          </div>
+          <div style={{ padding: "12px 18px 16px", flex: 1 }}>
+            {geoDots.length > 0
+              ? geoDots.slice(0, 4).map(({ countryCode, label, impressions }, i, arr) => (
+                  <div key={countryCode} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "7px 0",
+                    borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 14, lineHeight: 1 }}>{countryFlag(countryCode)}</span>
+                      <span style={{ fontSize: 12, fontWeight: 400, color: "rgba(212,212,216,0.7)" }}>{label}</span>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 400, color: "rgba(255,255,255,0.35)", fontVariantNumeric: "tabular-nums" }}>{impressions}</span>
+                  </div>
+                ))
+              : Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} style={{ padding: "7px 0", borderBottom: i < 3 ? "1px solid rgba(255,255,255,0.04)" : "none", display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 16, height: 10, borderRadius: 3, background: "rgba(255,255,255,0.04)", flexShrink: 0 }} />
+                    <div style={{ height: 8, borderRadius: 4, background: "rgba(255,255,255,0.04)", flex: 1, maxWidth: \`\${70 - i * 12}%\` }} />
+                  </div>
+                ))
+            }
+          </div>
+        </motion.div>
+      </div>
+
+    </div>
+  );
+}
+`;
+document.getElementById('code').textContent = raw;
+</script>
+</body>
+</html>

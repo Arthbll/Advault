@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import ReactDOM from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -29,6 +30,7 @@ interface ArchivedDraft {
 interface Campaign {
   id: string; name: string; network: string; status: string;
   spend: number; revenue: number; impressions: number; clicks: number; conversions: number;
+  syncedAt?: string | null;
 }
 
 type EngineState = "SCALING" | "WATCHING" | "MONITORED" | "NEEDS_ACTION" | "PAUSED" | "KILLED";
@@ -77,9 +79,11 @@ const COL_LABEL: React.CSSProperties = {
 // ─── Networks ─────────────────────────────────────────────────────────────────
 
 const NET_CFG: Record<string, { label: string; domain: string; color: string; rgb: string }> = {
-  EXOCLICK:     { label: "ExoClick",     domain: "exoclick.com",     color: "#f59e0b", rgb: "245,158,11"  },
-  TRAFFICSTARS: { label: "TrafficStars", domain: "trafficstars.com", color: "#8b5cf6", rgb: "139,92,246"  },
-  TRAFFICJUNKY: { label: "TrafficJunky", domain: "trafficjunky.com", color: "#0ea5e9", rgb: "14,165,233"  },
+  EXOCLICK:     { label: "ExoClick",     domain: "exoclick.com",       color: "#f59e0b", rgb: "245,158,11"  },
+  TRAFFICSTARS: { label: "TrafficStars", domain: "trafficstars.com",   color: "#8b5cf6", rgb: "139,92,246"  },
+  TRAFFICJUNKY: { label: "TrafficJunky", domain: "trafficjunky.com",   color: "#0ea5e9", rgb: "14,165,233"  },
+  PROPELLERADS: { label: "PropellerAds", domain: "propellerads.com",   color: "#f97316", rgb: "249,115,22"  },
+  ADSTERRA:     { label: "Adsterra",     domain: "adsterra.com",       color: "#06b6d4", rgb: "6,182,212"   },
 };
 
 const NET_KEYS = Object.keys(NET_CFG);
@@ -107,6 +111,19 @@ const OP_FILTERS: { id: OpFilter; label: string }[] = [
   { id: "ARCHIVED",     label: "Archived"     },
 ];
 
+// ─── Time helper ──────────────────────────────────────────────────────────────
+
+function timeAgo(iso: string | null | undefined): string {
+  if (!iso) return "never";
+  const diff = Date.now() - new Date(iso).getTime();
+  const min  = Math.floor(diff / 60_000);
+  if (min < 1)  return "just now";
+  if (min < 60) return `${min}m ago`;
+  const h = Math.floor(min / 60);
+  if (h < 24)   return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CampaignsPage() {
@@ -115,6 +132,7 @@ export default function CampaignsPage() {
   const [campaigns,     setCampaigns]     = useState<Campaign[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [syncing,       setSyncing]       = useState(false);
+  const [now,           setNow]           = useState(Date.now());
   const [backfilling,   setBackfilling]   = useState(false);
   const [acting,        setActing]        = useState<string | null>(null);
   const [opFilter,      setOpFilter]      = useState<OpFilter>("ALL");
@@ -126,6 +144,51 @@ export default function CampaignsPage() {
   // ── Recovery flow states (optimistic UI) ────────────────────────────────────
   const [excludedIds,    setExcludedIds]    = useState<Set<string>>(new Set());
   const [pausedAutoIds,  setPausedAutoIds]  = useState<Set<string>>(new Set());
+
+  // ── Manage menu (rendu hors du loop pour éviter le bug filter:blur Framer Motion) ──
+  const [activeMenu, setActiveMenu] = useState<{
+    id: string; status: string; engine: EngineState;
+    isExcluded: boolean; isPending: boolean;
+    top: number; left: number;
+  } | null>(null);
+  const menuRef    = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!activeMenu) return;
+    function onOutside(e: MouseEvent) {
+      // Si le clic vient du bouton Manage qui a ouvert ce menu → on laisse le onClick gérer le toggle
+      if (triggerRef.current && triggerRef.current.contains(e.target as Node)) return;
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setActiveMenu(null);
+      }
+    }
+    document.addEventListener("mousedown", onOutside);
+    window.addEventListener("scroll", () => setActiveMenu(null), { capture: true, once: true });
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [activeMenu]);
+
+  function openManageMenu(
+    e: React.MouseEvent,
+    c: { id: string; status: string; engineState: EngineState }
+  ) {
+    e.stopPropagation();
+    triggerRef.current = e.currentTarget as HTMLElement;
+    if (activeMenu?.id === c.id) { setActiveMenu(null); return; }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const MENU_H = 220; // hauteur approximative max du dropdown
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow < MENU_H + 8 ? rect.top - MENU_H - 4 : rect.bottom + 4;
+    setActiveMenu({
+      id:         c.id,
+      status:     c.status,
+      engine:     c.engineState,
+      isExcluded: excludedIds.has(c.id),
+      isPending:  !!acting?.startsWith(c.id),
+      top:        Math.max(8, top),   // jamais hors écran en haut
+      left:       rect.right - 182,  // aligne le bord droit du menu sur le bord droit du bouton
+    });
+  }
 
   // ── Read ?filter= URL param (from dashboard Action Center links) ─────────────
   useEffect(() => {
@@ -283,9 +346,8 @@ export default function CampaignsPage() {
   }
 
   useEffect(() => {
-    fetchCampaigns();
+    // Load rules + archived drafts in parallel
     loadArchivedDrafts();
-    // Load real engine thresholds from the user's saved DecisionRule
     fetch("/api/rules")
       .then(r => r.json())
       .then((d: { killRoi?: number; watchLow?: number; scaleRoi?: number }) => {
@@ -294,9 +356,39 @@ export default function CampaignsPage() {
         }
       })
       .catch(() => { /* keep defaults */ });
+
+    // Auto-sync on page open: pull fresh data from ad networks immediately,
+    // then show campaigns. No need to click "Sync now" manually.
+    async function openSync() {
+      setSyncing(true);
+      try {
+        await fetch("/api/sync", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ mode: "daily" }),
+        });
+      } catch { /* silent — we'll still load from DB below */ }
+      await fetchCampaigns();
+      setSyncing(false);
+    }
+    openSync();
+
+    // Update "X ago" timestamps every minute without re-fetching data
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
   }, []);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
+
+  // Most recent syncedAt across all campaigns — used for global freshness indicator
+  const lastSyncedAt = campaigns.reduce<string | null>((best, c) => {
+    if (!c.syncedAt) return best;
+    if (!best || c.syncedAt > best) return c.syncedAt;
+    return best;
+  }, null);
+
+  // Suppress ESLint warning — `now` is read via `timeAgo()` calls in render
+  void now;
 
   const withEngine = campaigns.map(c => ({ ...c, engineState: getEngineState(c, engineRules) }));
 
@@ -387,6 +479,16 @@ export default function CampaignsPage() {
                 {opCounts.SCALING} scaling
               </span>
             )}
+            {lastSyncedAt && (
+              <span style={{
+                fontSize: 10, fontWeight: 400, letterSpacing: "0.10em",
+                color: C_WHITE(0.22),
+                borderLeft: "1px solid rgba(255,255,255,0.08)",
+                paddingLeft: 14,
+              }}>
+                {syncing ? "syncing…" : `synced ${timeAgo(lastSyncedAt)}`}
+              </span>
+            )}
           </div>
 
           {/* Right: action buttons */}
@@ -459,8 +561,8 @@ export default function CampaignsPage() {
             <h1 style={{ fontSize: 44, fontWeight: 300, letterSpacing: "-0.05em", lineHeight: 0.96, color: "#fff", margin: "0 0 14px" }}>
               Campaign Operations
             </h1>
-            <p style={{ fontSize: 15, lineHeight: 1.7, color: C_WHITE(0.44), maxWidth: 640, margin: 0 }}>
-              The engine monitors and acts. Here, you inspect campaign states, filter by what matters, launch new ones, and override when needed.
+            <p style={{ fontSize: 15, lineHeight: 1.7, color: C_WHITE(0.36), maxWidth: 420, margin: 0 }}>
+              Monitor, act, and override at campaign level.
             </p>
           </motion.div>
 
@@ -514,7 +616,7 @@ export default function CampaignsPage() {
                       }}
                     />
                     <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(240,171,252,0.9)" }}>
-                      Launch flow · engine active from day one
+                      New campaign · Decision Engine enabled
                     </span>
                   </div>
 
@@ -681,7 +783,7 @@ export default function CampaignsPage() {
             {!loading && filtered.length > 0 && (
               <div style={{
                 display: "grid",
-                gridTemplateColumns: "1.7fr 0.7fr 0.65fr 1fr 0.5fr 0.65fr",
+                gridTemplateColumns: "1.7fr 0.7fr 0.65fr 1fr 0.5fr 0.82fr",
                 gap: 14, padding: "10px 22px",
                 borderBottom: "1px solid rgba(255,255,255,0.05)",
               }}>
@@ -764,7 +866,7 @@ export default function CampaignsPage() {
                       whileHover={{ background: needsAttn ? "rgba(248,113,113,0.045)" : "rgba(255,255,255,0.024)" }}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "1.7fr 0.7fr 0.65fr 1fr 0.5fr 0.65fr",
+                        gridTemplateColumns: "1.7fr 0.7fr 0.65fr 1fr 0.5fr 0.82fr",
                         gap: 14, alignItems: "center",
                         padding: "18px 22px",
                         borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)",
@@ -789,13 +891,23 @@ export default function CampaignsPage() {
                         ) : (
                           <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: engCfg.color }} />
                         )}
-                        <span style={{
-                          fontSize: 19, fontWeight: 300, letterSpacing: "-0.03em",
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                          color: C_WHITE(0.88),
-                        }}>
-                          {c.name}
-                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{
+                            fontSize: 19, fontWeight: 300, letterSpacing: "-0.03em",
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            color: C_WHITE(0.88), display: "block",
+                          }}>
+                            {c.name}
+                          </span>
+                          {c.syncedAt && (
+                            <span style={{
+                              fontSize: 9, color: C_WHITE(0.22),
+                              letterSpacing: "0.06em", lineHeight: 1,
+                            }}>
+                              {timeAgo(c.syncedAt)}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Network */}
@@ -863,78 +975,80 @@ export default function CampaignsPage() {
                         </span>
                       </div>
 
-                      {/* Actions — including recovery flows */}
-                      <div
-                        onClick={e => e.stopPropagation()}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, flexWrap: "wrap" }}
-                      >
-                        {/* ACTIVE: Inspect (Watch zone) */}
-                        {c.status === "ACTIVE" && (engine === "WATCHING" || engine === "MONITORED") && (
-                          <ActionBtn
-                            onClick={() => router.push(`/dashboard/campaigns/${c.id}`)}
-                            disabled={false} label="Inspect"
-                            color={C_WHITE(0.58)} bg="rgba(255,255,255,0.04)" border="rgba(255,255,255,0.1)"
-                          />
-                        )}
-                        {/* ACTIVE: Scale */}
-                        {c.status === "ACTIVE" && (
-                          <ActionBtn
-                            onClick={() => doAction(c.id, "scale", 1.25)}
-                            disabled={!!isPend} label="Scale"
-                            color="#a78bfa" bg="rgba(167,139,250,0.07)" border="rgba(167,139,250,0.18)"
-                          />
-                        )}
-                        {/* ACTIVE: Pause */}
-                        {c.status === "ACTIVE" && (
-                          <ActionBtn
-                            onClick={() => doAction(c.id, "pause")}
-                            disabled={!!isPend} label="Pause"
-                            color={C_WHITE(0.58)} bg="rgba(255,255,255,0.04)" border="rgba(255,255,255,0.1)"
-                          />
-                        )}
-                        {/* ACTIVE: Exclude from engine toggle (Bloc 4) */}
-                        {c.status === "ACTIVE" && (
-                          <ActionBtn
-                            onClick={() => toggleExclude(c.id)}
-                            disabled={!!isPend}
-                            label={isExcluded ? "Include" : "Exclude"}
-                            color={isExcluded ? "rgba(196,181,253,0.80)" : C_WHITE(0.38)}
-                            bg={isExcluded ? "rgba(139,92,246,0.09)" : "rgba(255,255,255,0.03)"}
-                            border={isExcluded ? "rgba(139,92,246,0.28)" : "rgba(255,255,255,0.08)"}
-                          />
-                        )}
-                        {/* PAUSED: Resume */}
-                        {c.status === "PAUSED" && (
-                          <ActionBtn
-                            onClick={() => doAction(c.id, "resume")}
-                            disabled={!!isPend} label="Resume"
-                            color={C_GREEN} bg="rgba(74,222,128,0.07)" border="rgba(74,222,128,0.18)"
-                          />
-                        )}
-                        {/* KILLED: Restore (Bloc 4) */}
-                        {c.status === "KILLED" && (
-                          <>
-                            <ActionBtn
-                              onClick={() => doAction(c.id, "resume")}
-                              disabled={!!isPend} label="Restore"
-                              color={C_GREEN} bg="rgba(74,222,128,0.07)" border="rgba(74,222,128,0.18)"
-                            />
-                            <ActionBtn
-                              onClick={() => restoreWithAutoPause(c.id)}
-                              disabled={!!isPend} label="Restore+Lock"
-                              color="rgba(253,230,138,0.80)" bg="rgba(245,158,11,0.05)" border="rgba(251,191,36,0.20)"
-                            />
-                          </>
-                        )}
-                        {/* Kill (not for KILLED) */}
-                        {c.status !== "KILLED" && (
-                          <ActionBtn
-                            onClick={() => doAction(c.id, "kill")}
-                            disabled={!!isPend} label="Kill"
-                            color={C_RED} bg="rgba(248,113,113,0.07)" border="rgba(248,113,113,0.18)"
-                          />
-                        )}
-                      </div>
+                      {/* Actions: primary + overflow ⋯ */}
+                      {(() => {
+                        // State-dependent primary action
+                        const primary: {
+                          label: string; color: string; bg: string; border: string;
+                          handler: () => void;
+                        } | null = (() => {
+                          if (engine === "SCALING") return {
+                            label: "Scale",
+                            color: "#4ade80",
+                            bg: "rgba(74,222,128,0.08)", border: "rgba(74,222,128,0.24)",
+                            handler: () => { doAction(c.id, "scale", 1.25); setActiveMenu(null); },
+                          };
+                          if (engine === "NEEDS_ACTION" || engine === "MONITORED") return {
+                            label: "Review",
+                            color: "rgba(255,255,255,0.76)",
+                            bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.12)",
+                            handler: () => router.push(`/dashboard/campaigns/${c.id}`),
+                          };
+                          if (c.status === "PAUSED" || c.status === "KILLED") return {
+                            label: "Resume",
+                            color: "#4ade80",
+                            bg: "rgba(74,222,128,0.08)", border: "rgba(74,222,128,0.24)",
+                            handler: () => { doAction(c.id, "resume"); setActiveMenu(null); },
+                          };
+                          return null;
+                        })();
+
+                        return (
+                          <div onClick={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
+                            {primary && (
+                              <motion.button
+                                onClick={(e) => { e.stopPropagation(); primary.handler(); }}
+                                whileTap={{ scale: 0.91 }}
+                                disabled={!!isPend}
+                                style={{
+                                  padding: "5px 12px", borderRadius: 9,
+                                  background: primary.bg, border: `1px solid ${primary.border}`,
+                                  color: primary.color, fontSize: 11, fontWeight: 600,
+                                  cursor: isPend ? "not-allowed" : "pointer",
+                                  opacity: isPend ? 0.4 : 1,
+                                  transition: "opacity 0.12s",
+                                  whiteSpace: "nowrap" as const,
+                                  letterSpacing: "0.01em",
+                                  fontFamily: "inherit",
+                                }}
+                              >
+                                {primary.label}
+                              </motion.button>
+                            )}
+
+                            {/* Overflow — always visible */}
+                            <motion.button
+                              onClick={(e) => openManageMenu(e, c)}
+                              whileHover={{ background: "rgba(255,255,255,0.08)" }}
+                              whileTap={{ scale: 0.88 }}
+                              style={{
+                                width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                background: activeMenu?.id === c.id ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
+                                border: `1px solid ${activeMenu?.id === c.id ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.07)"}`,
+                                cursor: "pointer",
+                                color: "rgba(255,255,255,0.40)",
+                                fontSize: 13, fontWeight: 700, letterSpacing: "0.04em",
+                                transition: "all 0.12s",
+                                fontFamily: "inherit",
+                                lineHeight: 1,
+                              }}
+                            >
+                              ···
+                            </motion.button>
+                          </div>
+                        );
+                      })()}
                     </motion.div>
                   );
                 })}
@@ -966,7 +1080,7 @@ export default function CampaignsPage() {
                     transition={{ delay: i * 0.04 }}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1.7fr 0.7fr 0.65fr 1fr 0.5fr 0.65fr",
+                      gridTemplateColumns: "1.7fr 0.7fr 0.65fr 1fr 0.5fr 0.82fr",
                       gap: 14, padding: "14px 22px",
                       borderBottom: i < archivedDrafts.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
                       alignItems: "center",
@@ -1082,11 +1196,84 @@ export default function CampaignsPage() {
         />
       )}
 
+      {/* ── MANAGE DROPDOWN — portal vers document.body pour échapper au filter:blur du layout ── */}
+      {activeMenu && ReactDOM.createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: "fixed",
+            top:      activeMenu.top,
+            left:     activeMenu.left,
+            zIndex:   99999,
+            minWidth: 182,
+            background:   "#0c0d14",
+            border:       "1px solid rgba(255,255,255,0.13)",
+            borderRadius: 12,
+            boxShadow:    "0 24px 64px rgba(0,0,0,0.80)",
+            padding:      "5px 0",
+            overflow:     "hidden",
+          }}
+        >
+          {/* View detail */}
+          <OverflowItem label="View detail"
+            onClick={() => { router.push(`/dashboard/campaigns/${activeMenu.id}`); setActiveMenu(null); }}
+            disabled={false} color="rgba(255,255,255,0.72)" />
+
+          {/* Scale */}
+          {activeMenu.status === "ACTIVE" && (
+            <OverflowItem label="Scale +25%"
+              onClick={() => { doAction(activeMenu.id, "scale", 1.25); setActiveMenu(null); }}
+              disabled={activeMenu.isPending} color="#a78bfa" />
+          )}
+
+          {/* Resume */}
+          {(activeMenu.status === "PAUSED" || activeMenu.status === "KILLED") && (
+            <OverflowItem label="Resume"
+              onClick={() => { doAction(activeMenu.id, "resume"); setActiveMenu(null); }}
+              disabled={activeMenu.isPending} color={C_GREEN} />
+          )}
+
+          {/* Resume + Lock */}
+          {activeMenu.status === "KILLED" && (
+            <OverflowItem label="Resume + Lock"
+              onClick={() => { restoreWithAutoPause(activeMenu.id); setActiveMenu(null); }}
+              disabled={activeMenu.isPending} color="rgba(253,230,138,0.80)" />
+          )}
+
+          {/* Pause */}
+          {activeMenu.status === "ACTIVE" && (
+            <OverflowItem label="Pause"
+              onClick={() => { doAction(activeMenu.id, "pause"); setActiveMenu(null); }}
+              disabled={activeMenu.isPending} color="rgba(255,255,255,0.55)" />
+          )}
+
+          {/* Exclude / Include */}
+          {(activeMenu.status === "ACTIVE" || activeMenu.status === "PAUSED") && (
+            <OverflowItem
+              label={activeMenu.isExcluded ? "Include in engine" : "Exclude from engine"}
+              onClick={() => { toggleExclude(activeMenu.id); setActiveMenu(null); }}
+              disabled={activeMenu.isPending}
+              color={activeMenu.isExcluded ? "rgba(196,181,253,0.85)" : "rgba(255,255,255,0.50)"} />
+          )}
+
+          {/* Séparateur + Kill */}
+          {activeMenu.status !== "KILLED" && (
+            <>
+              <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "5px 0" }} />
+              <OverflowItem label="Kill campaign"
+                onClick={() => { doAction(activeMenu.id, "kill"); setActiveMenu(null); }}
+                disabled={activeMenu.isPending} color={C_RED} destructive />
+            </>
+          )}
+        </div>,
+        document.body
+      )}
+
     </div>
   );
 }
 
-// ─── ActionBtn ────────────────────────────────────────────────────────────────
+// ─── ActionBtn (legacy — kept for archived drafts section) ───────────────────
 
 function ActionBtn({ onClick, disabled, label, color, bg, border }: {
   onClick: () => void; disabled: boolean; label: string;
@@ -1104,6 +1291,58 @@ function ActionBtn({ onClick, disabled, label, color, bg, border }: {
         color, fontSize: 11, fontWeight: 500,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.3 : 1, transition: "opacity 0.12s",
+      }}
+    >
+      {label}
+    </motion.button>
+  );
+}
+
+// ─── PrimaryBtn — single visible action per row ───────────────────────────────
+
+function PrimaryBtn({ onClick, disabled, label, color, bg, border }: {
+  onClick: () => void; disabled: boolean; label: string;
+  color: string; bg: string; border: string;
+}) {
+  return (
+    <motion.button
+      onClick={onClick} disabled={disabled}
+      whileHover={{ y: -1 }} whileTap={{ scale: 0.92 }}
+      style={{
+        padding: "6px 14px", borderRadius: 10, flexShrink: 0,
+        background: bg, border: `1px solid ${border}`,
+        color, fontSize: 11, fontWeight: 600,
+        letterSpacing: "0.01em",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.3 : 1,
+        transition: "opacity 0.12s",
+        whiteSpace: "nowrap" as const,
+      }}
+    >
+      {label}
+    </motion.button>
+  );
+}
+
+// ─── OverflowItem — item inside the dropdown menu ────────────────────────────
+
+function OverflowItem({ onClick, disabled, label, color, destructive }: {
+  onClick: () => void; disabled: boolean; label: string;
+  color: string; destructive?: boolean;
+}) {
+  return (
+    <motion.button
+      onClick={onClick} disabled={disabled}
+      whileHover={{ background: destructive ? "rgba(248,113,113,0.08)" : "rgba(255,255,255,0.05)" }}
+      style={{
+        display: "block", width: "100%", textAlign: "left",
+        padding: "8px 14px", fontSize: 12, fontWeight: 500,
+        color: disabled ? "rgba(255,255,255,0.20)" : color,
+        background: "transparent", border: "none",
+        cursor: disabled ? "not-allowed" : "pointer",
+        transition: "background 0.10s",
+        fontFamily: "inherit",
+        letterSpacing: destructive ? "0.01em" : undefined,
       }}
     >
       {label}

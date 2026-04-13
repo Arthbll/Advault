@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isTrustedDevice } from "@/app/actions/trusted-device";
 
 export async function login(formData: FormData) {
   const supabase = await createClient();
@@ -14,6 +15,15 @@ export async function login(formData: FormData) {
 
   if (error) {
     return { error: error.message };
+  }
+
+  // Check if the account has 2FA enrolled — if so, require aal2 challenge
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+    // Skip MFA challenge if this device was trusted within the last 30 days
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const trusted = authUser ? await isTrustedDevice(authUser.id) : false;
+    if (!trusted) redirect("/mfa-challenge");
   }
 
   revalidatePath("/", "layout");

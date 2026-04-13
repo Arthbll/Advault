@@ -435,13 +435,7 @@ export default function AutomationSettings() {
   const [sugLoading,  setSugLoading]  = useState(false);
   const [sugError,    setSugError]    = useState<string | null>(null);
   const [addingIdx,   setAddingIdx]   = useState<number | null>(null);
-  const [migrated,    setMigrated]    = useState(false);
-
-  // Auto-migrate on mount if needed
-  useEffect(() => {
-    fetch("/api/debug/migrate-automation").catch(() => {});
-    setMigrated(true);
-  }, []);
+  const [migrated,    setMigrated]    = useState(true); // debug migration removed
 
   const loadRules = useCallback(async () => {
     setLoading(true);

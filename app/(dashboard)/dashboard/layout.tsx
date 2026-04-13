@@ -44,17 +44,53 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   useEffect(() => {
-    fetch("/api/me")
-      .then(r => r.ok ? r.json() : null)
-      .then((d: MeData | null) => { if (d) setMe(d); })
-      .catch(() => {});
+    function fetchMe() {
+      fetch("/api/me")
+        .then(r => r.ok ? r.json() : null)
+        .then((d: MeData | null) => { if (d) setMe(d); })
+        .catch(() => {});
+    }
 
-    fetch("/api/user/status")
-      .then(r => r.ok ? r.json() : null)
-      .then((d: { hasAccounts: boolean; hasCampaigns: boolean } | null) => {
-        if (d && !d.hasAccounts) setIsDemo(true);
-      })
-      .catch(() => {});
+    fetchMe();
+
+    // Demo banner only shows when the owner has explicitly enabled demo mode
+    setIsDemo(document.cookie.split(";").some(c => c.trim().startsWith("profitdash_demo=1")));
+
+    // Auto-sync every 15 min in background — keeps campaign statuses fresh
+    // without requiring a manual "Sync now" click
+    const syncInterval = setInterval(() => {
+      fetch("/api/sync", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ mode: "daily" }),
+      }).catch(() => {}); // silent — campaigns page will show updated data on next render
+    }, 15 * 60 * 1000);
+
+    // Update the chip immediately when the profile page saves a new display name.
+    // We apply the same formatting as /api/me and update local state directly —
+    // no server round-trip needed (server-side JWT can be stale right after updateUser).
+    function handleProfileUpdated(e: Event) {
+      const raw = (e as CustomEvent<{ displayName: string }>).detail?.displayName;
+      if (!raw) { fetchMe(); return; }
+
+      const name = raw
+        .split(/[\s._-]+/)
+        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+      const words = name.split(" ");
+      const initials = words.length >= 2
+        ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
+        : name.slice(0, 2).toUpperCase();
+
+      setMe(prev => ({ ...prev, name, initials }));
+    }
+
+    window.addEventListener("profitdash:profile-updated", handleProfileUpdated);
+
+    return () => {
+      clearInterval(syncInterval);
+      window.removeEventListener("profitdash:profile-updated", handleProfileUpdated);
+    };
   }, []);
 
 
