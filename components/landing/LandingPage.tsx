@@ -1526,23 +1526,23 @@ function PricingSection() {
             </a>
           </motion.div>
 
-          {/* Dominion — green identity, confident */}
+          {/* Dominion — amber / precision tier */}
           <motion.div
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }} transition={{ delay: 0.16, duration: 0.6 }}
             style={{
               borderRadius: 20, padding: "28px 24px",
-              background: "rgba(74,222,128,0.07)",
-              border: "1px solid rgba(74,222,128,0.32)",
-              boxShadow: "0 0 0 1px rgba(74,222,128,0.06), 0 20px 50px rgba(0,0,0,0.30)",
+              background: "rgba(251,191,36,0.06)",
+              border: "1px solid rgba(251,191,36,0.28)",
+              boxShadow: "0 0 0 1px rgba(251,191,36,0.05), 0 20px 50px rgba(0,0,0,0.30)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "#4ade80" }}>Dominion</div>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "#fbbf24" }}>Dominion</div>
               <div style={{
-                borderRadius: 6, border: "1px solid rgba(74,222,128,0.30)",
-                background: "rgba(74,222,128,0.12)", padding: "3px 9px",
-                fontSize: 8, textTransform: "uppercase", letterSpacing: "0.18em", color: "#86efac",
+                borderRadius: 6, border: "1px solid rgba(251,191,36,0.26)",
+                background: "rgba(251,191,36,0.10)", padding: "3px 9px",
+                fontSize: 8, textTransform: "uppercase", letterSpacing: "0.18em", color: "#fde68a",
               }}>Most automated</div>
             </div>
             <div style={{ marginTop: 18 }}>
@@ -1551,7 +1551,7 @@ function PricingSection() {
             <div style={{ fontSize: 12, color: T_MUTED, marginTop: 2 }}>
               per month{annual ? ", billed annually" : ""}
             </div>
-            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid rgba(74,222,128,0.12)" }}>
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid rgba(251,191,36,0.10)" }}>
               <div style={{ fontSize: 13, lineHeight: "22px", color: "rgba(255,255,255,0.58)", marginBottom: 18 }}>
                 Kill, watch, and scale — automatically, around the clock. For operators who want the engine to run without them.
               </div>
@@ -1565,8 +1565,8 @@ function PricingSection() {
             <a href="/register?plan=dominion" style={{ textDecoration: "none", display: "block", marginTop: 22 }}>
               <button style={{
                 width: "100%", height: 44, borderRadius: 11,
-                border: "none", background: "#4ade80",
-                fontSize: 13, fontWeight: 700, color: "#052e16", cursor: "pointer",
+                border: "none", background: "#f59e0b",
+                fontSize: 13, fontWeight: 700, color: "#1c1004", cursor: "pointer",
                 transition: "opacity 0.15s",
               }}>Get Dominion →</button>
             </a>
@@ -1592,8 +1592,18 @@ function PricingSection() {
           <div style={{ fontSize: 36, fontWeight: 500, letterSpacing: "-0.05em", color: T_PRIMARY, marginBottom: 12 }}>
             Built for teams and agencies.
           </div>
-          <div style={{ fontSize: 15, lineHeight: "26px", color: T_MUTED, maxWidth: "48ch", margin: "0 auto 32px" }}>
+          <div style={{ fontSize: 15, lineHeight: "26px", color: T_MUTED, maxWidth: "48ch", margin: "0 auto 24px" }}>
             Multi-seat decision layer for agencies and trading desks. Shared rules, operator-level oversight, and governance controls — not just more seats.
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 32 }}>
+            {["Shared kill/scale rules", "Multi-seat access", "Operator-level oversight", "Governance controls", "Priority support"].map((chip) => (
+              <span key={chip} style={{
+                fontSize: 12, color: "rgba(255,255,255,0.46)",
+                border: "1px solid rgba(255,255,255,0.09)",
+                borderRadius: 20, padding: "4px 12px",
+                background: "rgba(255,255,255,0.02)",
+              }}>{chip}</span>
+            ))}
           </div>
           <a href="mailto:hello@profitdash.io" style={{ textDecoration: "none" }}>
             <button style={{
