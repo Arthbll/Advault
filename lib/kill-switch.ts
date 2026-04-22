@@ -30,18 +30,27 @@ export interface KillSwitchResult {
   errors:  string[];
 }
 
+// ─── Garde-fous postback (défense en profondeur) ──────────────────────────────
+// Période de grâce pendant laquelle l'engine ne peut pas KILL par ROI un user
+// qui n'a jamais reçu de postback. Laisse le temps au tracker d'être branché
+// et aux premières ventes d'arriver avant que le moteur agisse.
+// Passée cette durée, si toujours aucun postback en mode automatic → downgrade
+// automatique vers mode recommendation pour protéger l'utilisateur.
+const GRACE_PERIOD_HOURS = 48;
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
 // ─── Shape de la DecisionRule passée au moteur ────────────────────────────────
 interface EngineRule {
-  scaleRoi:       number;   // ROI % au-dessus duquel on scale (défaut 30)
-  scaleIncrement: number;   // % d'augmentation du bid (défaut 10)
-  minSpend:       number;   // € minimum avant toute décision (défaut 20)
-  killCooldownH:  number;   // heures entre deux kills sur la même campagne (défaut 6)
-  scaleCooldownH: number;   // heures entre deux scales sur la même campagne (défaut 6)
-  engineMode:     string;   // "automatic" | "recommendation"
+  scaleRoi:        number;   // ROI % au-dessus duquel on scale (défaut 30)
+  scaleIncrement:  number;   // % d'augmentation du bid (défaut 10)
+  minSpend:        number;   // € minimum avant toute décision (défaut 20)
+  minConversions:  number;   // conversions minimum avant de scaler (défaut 3)
+  killCooldownH:   number;   // heures entre deux kills sur la même campagne (défaut 6)
+  scaleCooldownH:  number;   // heures entre deux scales sur la même campagne (défaut 6)
+  engineMode:      string;   // "automatic" | "recommendation"
 }
 
 // ─── Helper: évalue et (si besoin) pause / scale une campagne ─────────────────
@@ -58,6 +67,7 @@ async function evaluateCampaigns(
   spendOnlyMode:       boolean = false,
   scaleFn?:            (externalId: string, multiplier: number) => Promise<{ oldBid: number; newBid: number }>,
   engineRule?:         EngineRule | null,
+  inGracePeriod:       boolean = false,
 ): Promise<void> {
   const activeCampaigns = await prisma.campaign.findMany({
     where: {
@@ -157,38 +167,57 @@ async function evaluateCampaigns(
 
       // ── Scale zone : ROI au-dessus du seuil de scale ─────────────────────
       // On scale le bid une seule fois par cooldown par campagne
-      const scaleRoi       = engineRule?.scaleRoi       ?? 30;
-      const scaleIncrement = engineRule?.scaleIncrement ?? 10;
-      const minSpend       = engineRule?.minSpend       ?? 20;
-      const scaleCooldownH = engineRule?.scaleCooldownH ?? 6;
+      const scaleRoi        = engineRule?.scaleRoi        ?? 30;
+      const scaleIncrement  = engineRule?.scaleIncrement  ?? 10;
+      const minSpend        = engineRule?.minSpend        ?? 20;
+      const minConversions  = engineRule?.minConversions  ?? 3;
+      const scaleCooldownH  = engineRule?.scaleCooldownH  ?? 6;
 
-      const inScaleZone = !spendOnlyMode && freshSpend >= minSpend && roi >= scaleRoi;
+      // IMPORTANT : pour le scale, on n'utilise QUE les stats fraîches de l'API du jour.
+      // Si l'API ne retourne pas de spend aujourd'hui (stat absent ou spend=0),
+      // on NE scale pas — évite de scaler sur des données historiques obsolètes.
+      const hasFreshActivity = stat != null && (stat.spent ?? 0) > 0;
+
+      // Nombre de conversions sur la campagne (depuis la DB — mis à jour à chaque sync)
+      const campaignConversions = campaign.conversions ?? 0;
+
+      const inScaleZone = !spendOnlyMode
+        && hasFreshActivity
+        && freshSpend >= minSpend
+        && roi >= scaleRoi
+        && campaignConversions >= minConversions;
 
       if (inScaleZone) {
-        // Cooldown : pas de DECISION_SCALE sur cette campagne dans les X dernières heures
-        const recentScale = await prisma.log.findFirst({
-          where: {
-            userId,
-            type:       "DECISION_SCALE" as LogType,
-            campaignId: campaign.id,
-            createdAt:  { gte: new Date(Date.now() - scaleCooldownH * 60 * 60_000) },
-          },
-        });
+        // Cooldown : pas de DECISION_SCALE sur cette campagne dans les X dernières heures.
+        // On cherche par metadata->externalId (pas campaignId) car le UUID interne change
+        // à chaque sync — l'externalId est la vraie clé stable côté réseau publicitaire.
+        const recentScaleRows = await prisma.$queryRaw<{ id: string }[]>`
+          SELECT id FROM "Log"
+          WHERE "userId"    = ${userId}
+            AND "type"      = 'DECISION_SCALE'
+            AND "createdAt" >= ${new Date(Date.now() - scaleCooldownH * 60 * 60_000)}
+            AND metadata->>'externalId' = ${campaign.externalId}
+          LIMIT 1
+        `;
+        const recentScale = recentScaleRows.length > 0 ? recentScaleRows[0] : null;
 
         if (!recentScale) {
           const multiplier = 1 + scaleIncrement / 100;
           let oldBid = 0;
           let newBid = 0;
 
-          // En mode automatique : appel API réel pour monter le bid
+          // En mode automatique : appel API réel pour monter le bid CPM/CPC
           if (isAutomatic && scaleFn) {
             try {
               ({ oldBid, newBid } = await scaleFn(campaign.externalId, multiplier));
             } catch (err) {
+              // L'appel API a échoué — on logue l'erreur et on skip complètement.
+              // IMPORTANT : on ne crée PAS de log DECISION_SCALE si l'action n'a pas eu lieu.
               result.errors.push(`scaleBid(${networkLabel}/${campaign.externalId}): ${err instanceof Error ? err.message : String(err)}`);
+              continue;
             }
           } else {
-            // Mode recommendation : calcul estimé sans appel API
+            // Mode recommendation : estimation sans appel API
             oldBid = freshSpend;
             newBid = parseFloat((freshSpend * multiplier).toFixed(2));
           }
@@ -200,7 +229,9 @@ async function evaluateCampaigns(
               userId,
               campaignId: campaign.id,
               type:       "DECISION_SCALE" as LogType,
-              message:    `Decision Engine — "${campaign.name}" scalée. ROI ${roi.toFixed(1)}% › bid +${scaleIncrement}%`,
+              message:    isAutomatic
+                ? `Decision Engine — "${campaign.name}" scalée. ROI ${roi.toFixed(1)}% › bid +${scaleIncrement}%`
+                : `[RECOMMEND] Decision Engine — "${campaign.name}" : scale suggéré. ROI ${roi.toFixed(1)}% › bid +${scaleIncrement}%`,
               metadata: {
                 network:      networkLabel,
                 externalId:   campaign.externalId,
@@ -227,6 +258,42 @@ async function evaluateCampaigns(
       continue;
     }
 
+    // ── Grace period : pas de KILL par ROI tant que le user n'a pas de postback ──
+    // Le KILL par budget reste valide (il ne dépend pas du revenue reçu).
+    // Loggué une fois par campagne par heure pour éviter le spam.
+    if (inGracePeriod && roiTrigger && !budgetTrigger) {
+      const recentBlocked = await prisma.log.findFirst({
+        where: {
+          userId,
+          type:       "KILL_BLOCKED_NO_DATA" as LogType,
+          campaignId: campaign.id,
+          createdAt:  { gte: new Date(Date.now() - 60 * 60_000) },
+        },
+      });
+      if (!recentBlocked) {
+        await prisma.log.create({
+          data: {
+            userId,
+            campaignId: campaign.id,
+            type:       "KILL_BLOCKED_NO_DATA" as LogType,
+            message:    `Kill bloqué — "${campaign.name}" : aucun postback reçu, période de grâce ${GRACE_PERIOD_HOURS}h active`,
+            metadata: {
+              network:          networkLabel,
+              externalId:       campaign.externalId,
+              campaignName:     campaign.name,
+              spend:            freshSpend,
+              revenue:          freshRevenue,
+              roi:              parseFloat(roi.toFixed(2)),
+              roiThreshold,
+              gracePeriodHours: GRACE_PERIOD_HOURS,
+              reason:           "no postback received yet — grace period active",
+            },
+          },
+        });
+      }
+      continue;
+    }
+
     const reason = roiTrigger
       ? `ROI ${roi.toFixed(1)}% < seuil ${roiThreshold}%`
       : `Spend ${freshSpend.toFixed(2)}€ > max ${maxSpendPerCampaign}€`;
@@ -236,15 +303,17 @@ async function evaluateCampaigns(
     // dans la fenêtre de cooldown configurable (défaut 6h).
     const killCooldownH = engineRule?.killCooldownH ?? 6;
     if (killCooldownH > 0) {
-      const recentKill = await prisma.log.findFirst({
-        where: {
-          userId,
-          type:       "DECISION_KILL" as LogType,
-          campaignId: campaign.id,
-          createdAt:  { gte: new Date(Date.now() - killCooldownH * 60 * 60_000) },
-        },
-      });
-      if (recentKill) {
+      // Même logique que le scale cooldown : on cherche par externalId dans metadata,
+      // pas par campaignId interne qui change à chaque nouvelle sync.
+      const recentKillRows = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "Log"
+        WHERE "userId"    = ${userId}
+          AND "type"      = 'DECISION_KILL'
+          AND "createdAt" >= ${new Date(Date.now() - killCooldownH * 60 * 60_000)}
+          AND metadata->>'externalId' = ${campaign.externalId}
+        LIMIT 1
+      `;
+      if (recentKillRows.length > 0) {
         // Cooldown actif — on ne re-kill pas, on passe silencieusement
         continue;
       }
@@ -273,7 +342,7 @@ async function evaluateCampaigns(
         type:       "DECISION_KILL" as LogType,
         message:    isAutomatic
           ? `Decision Engine — "${campaign.name}" stoppée. ${reason}`
-          : `Decision Engine — "${campaign.name}" : pause suggérée. ${reason}`,
+          : `[RECOMMEND] Decision Engine — "${campaign.name}" : pause suggérée. ${reason}`,
         metadata: {
           network:      networkLabel,
           externalId:   campaign.externalId,
@@ -302,11 +371,23 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
     prisma.userSettings.findUnique({ where: { userId } }),
     prisma.decisionRule.findUnique({
       where:  { userId },
-      select: { scaleRoi: true, scaleIncrement: true, minSpend: true, killCooldownH: true, scaleCooldownH: true, engineMode: true },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      select: { scaleRoi: true, scaleIncrement: true, minSpend: true, minConversions: true, killCooldownH: true, scaleCooldownH: true, engineMode: true, timeWindowStart: true, timeWindowEnd: true } as any,
     }).catch(() => null),
   ]);
 
   if (!settings?.killSwitchEnabled) { result.skipped = 1; return result; }
+
+  // ── Vérification plage horaire (UTC) ─────────────────────────────────────────
+  const twStart = (decisionRule as { timeWindowStart?: number | null } | null)?.timeWindowStart ?? null;
+  const twEnd   = (decisionRule as { timeWindowEnd?:   number | null } | null)?.timeWindowEnd   ?? null;
+  if (twStart != null && twEnd != null) {
+    const utcHour = new Date().getUTCHours();
+    const inWindow = twStart <= twEnd
+      ? utcHour >= twStart && utcHour < twEnd
+      : utcHour >= twStart || utcHour < twEnd; // overnight window (ex: 22h → 06h)
+    if (!inWindow) { result.skipped = 1; return result; }
+  }
 
   const { roiThreshold, maxSpendPerCampaign } = settings;
   const spendOnlyMode = settings.spendOnlyMode ?? false;
@@ -317,6 +398,7 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
         scaleRoi:       decisionRule.scaleRoi,
         scaleIncrement: decisionRule.scaleIncrement,
         minSpend:       decisionRule.minSpend,
+        minConversions: decisionRule.minConversions,
         killCooldownH:  decisionRule.killCooldownH,
         scaleCooldownH: decisionRule.scaleCooldownH,
         engineMode:     decisionRule.engineMode,
@@ -328,6 +410,79 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
   });
 
   if (accounts.length === 0) { result.skipped = 1; return result; }
+
+  // ── Garde-fous postback (défense en profondeur) ─────────────────────────────
+  // 1. inGracePeriod : si aucun postback reçu ET premier réseau connecté
+  //    il y a moins de 48h → les kills par ROI seront bloqués.
+  // 2. Downgrade auto : après 48h sans postback en mode automatic → bascule
+  //    forcée en mode recommendation pour éviter un massacre de campagnes.
+  //
+  // Exception : spend-only mode. L'utilisateur a explicitement choisi de kill
+  // uniquement sur budget (sans revenue). Pas besoin de postback, pas de garde.
+  let inGracePeriod = false;
+  if (!spendOnlyMode) {
+    const [firstPostback, oldestAccount] = await Promise.all([
+      prisma.conversion.findFirst({
+        where:  { userId },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      }),
+      prisma.account.findFirst({
+        where:  { userId, isActive: true },
+        orderBy: { createdAt: "asc" },
+        select: { createdAt: true },
+      }),
+    ]);
+
+    const hasAnyPostback = firstPostback !== null;
+    const now            = Date.now();
+    const graceMs        = GRACE_PERIOD_HOURS * 60 * 60_000;
+
+    if (!hasAnyPostback && oldestAccount) {
+      const connectedSinceMs = now - oldestAccount.createdAt.getTime();
+
+      if (connectedSinceMs < graceMs) {
+        // Toujours dans la fenêtre de grâce — on bloquera les kills par ROI
+        inGracePeriod = true;
+      } else if (engineRule?.engineMode === "automatic") {
+        // Passé 48h sans postback en mode automatic → downgrade vers recommendation
+        try {
+          await prisma.decisionRule.update({
+            where: { userId },
+            data:  { engineMode: "recommendation" },
+          });
+          engineRule.engineMode = "recommendation";
+
+          // Log une seule fois par 24h pour éviter le spam
+          const recentDowngrade = await prisma.log.findFirst({
+            where: {
+              userId,
+              type:      "SAFETY_DOWNGRADE" as LogType,
+              createdAt: { gte: new Date(now - 24 * 60 * 60_000) },
+            },
+          });
+          if (!recentDowngrade) {
+            await prisma.log.create({
+              data: {
+                userId,
+                type:    "SAFETY_DOWNGRADE" as LogType,
+                message: `Engine basculé en mode Recommend — aucun postback reçu après ${GRACE_PERIOD_HOURS}h`,
+                metadata: {
+                  hoursSinceFirstConnection: Math.round(connectedSinceMs / (60 * 60_000)),
+                  gracePeriodHours:          GRACE_PERIOD_HOURS,
+                  previousMode:              "automatic",
+                  newMode:                   "recommendation",
+                  reason:                    "no postback received after grace period",
+                },
+              },
+            });
+          }
+        } catch (err) {
+          result.errors.push(`safety-downgrade(${userId}): ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+  }
 
   const today = todayStr();
 
@@ -354,7 +509,7 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
       for (const s of freshStats) statsMap[String(s.campaignId)] = { spent: s.spent, revenue: (s as unknown as Record<string, unknown>).revenue as number | undefined };
       await evaluateCampaigns(userId, account.id, Network.EXOCLICK, "EXOCLICK", statsMap, roiThreshold, maxSpendPerCampaign,
         (id) => adapter.pauseCampaign(id), result, spendOnlyMode,
-        (id, mult) => adapter.scaleBid(id, mult), engineRule);
+        (id, mult) => adapter.scaleBid(id, mult), engineRule, inGracePeriod);
     }
 
     // ── TrafficStars ───────────────────────────────────────────────────────────
@@ -371,7 +526,7 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
       for (const s of freshStats) statsMap[String(s.campaignId)] = { spent: s.spent };
       await evaluateCampaigns(userId, account.id, Network.TRAFFICSTARS, "TRAFFICSTARS", statsMap, roiThreshold, maxSpendPerCampaign,
         (id) => adapter.pauseCampaign(id), result, spendOnlyMode,
-        (id, mult) => adapter.scaleBid(id, mult), engineRule);
+        (id, mult) => adapter.scaleBid(id, mult), engineRule, inGracePeriod);
     }
 
     // ── TrafficJunky ───────────────────────────────────────────────────────────
@@ -388,7 +543,8 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
       for (const s of freshStats) statsMap[String(s.campaignId)] = { spent: s.spent };
       await evaluateCampaigns(userId, account.id, Network.TRAFFICJUNKY, "TRAFFICJUNKY", statsMap, roiThreshold, maxSpendPerCampaign,
         (id) => adapter.pauseCampaign(id), result, spendOnlyMode,
-        (id, mult) => adapter.scaleBid(id, mult), engineRule);
+        (id, mult) => adapter.scaleBid(id, mult),
+        engineRule, inGracePeriod);
     }
 
     // ── PropellerAds ──────────────────────────────────────────────────────────
@@ -405,8 +561,8 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
       await evaluateCampaigns(userId, account.id, Network.PROPELLERADS, "PROPELLERADS", statsMap, roiThreshold, maxSpendPerCampaign,
         (id) => PropellerAds.pauseCampaign(apiKey, id).then(r => { if (!r.ok) throw new Error(r.error); }),
         result, spendOnlyMode,
-        async () => ({ oldBid: 0, newBid: 0 }), // no bid scale via PropellerAds API V1
-        engineRule);
+        (id, mult) => PropellerAds.scaleBid(apiKey, id, mult),
+        engineRule, inGracePeriod);
     }
 
     // ── Adsterra ──────────────────────────────────────────────────────────────
@@ -423,8 +579,8 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
       await evaluateCampaigns(userId, account.id, Network.ADSTERRA, "ADSTERRA", statsMap, roiThreshold, maxSpendPerCampaign,
         (id) => Adsterra.pauseCampaign(apiKey, id).then(r => { if (!r.ok) throw new Error(r.error); }),
         result, spendOnlyMode,
-        async () => ({ oldBid: 0, newBid: 0 }), // no bid scale via Adsterra API V1
-        engineRule);
+        (id, mult) => Adsterra.scaleBid(apiKey, id, mult),
+        engineRule, inGracePeriod);
     }
   }
 

@@ -1,8 +1,6 @@
 import { redirect }          from "next/navigation";
-import { cookies }            from "next/headers";
 import { createClient }       from "@/lib/supabase/server";
 import { prisma }             from "@/lib/prisma";
-import { DEMO_ACCOUNTS }      from "@/lib/demo-data";
 import SettingsPageClient     from "@/components/settings/SettingsPageClient";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +16,6 @@ export default async function SettingsPage() {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const userPlan: string = (meta.plan as string | undefined) ?? "Observer";
 
-  // Owner check — only the account matching ADMIN_EMAIL sees admin-only UI
-  const isOwner = !!(process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL);
-
   let accounts: { network: string; isActive: boolean }[] = [];
   let userSettings: {
     killSwitchEnabled: boolean;
@@ -28,6 +23,8 @@ export default async function SettingsPage() {
     maxSpendPerCampaign: number | null;
     checkIntervalMinutes: number;
   } | null = null;
+  let wsTimezone = "UTC";
+  let wsCurrency = "USD";
   let dbReachable = false;
   let teamMembers: MemberRow[]  = [];
   let pendingInvites: InviteRow[] = [];
@@ -41,6 +38,17 @@ export default async function SettingsPage() {
       prisma.userSettings.findUnique({ where: { userId: user.id } }),
     ]);
     dbReachable = true;
+
+    // Workspace preferences (timezone, currency) via raw query (new columns)
+    try {
+      const wsRows = await prisma.$queryRaw<{ timezone: string; currency: string }[]>`
+        SELECT timezone, currency FROM "UserSettings" WHERE "userId" = ${user.id} LIMIT 1
+      `;
+      if (wsRows.length > 0) {
+        wsTimezone = wsRows[0].timezone ?? "UTC";
+        wsCurrency = wsRows[0].currency ?? "USD";
+      }
+    } catch { /* columns not yet migrated */ }
 
     // Team data (only meaningful for Command plan owners)
     if (userPlan === "Command") {
@@ -64,20 +72,13 @@ export default async function SettingsPage() {
     // DB unreachable
   }
 
-  // Demo mode: only active when the owner explicitly enables it via the cookie
-  const cookieStore = await cookies();
-  const demoActive = isOwner && cookieStore.get("profitdash_demo")?.value === "1";
-  const isDemo = demoActive;
-  const displayAccounts = isDemo ? DEMO_ACCOUNTS : accounts;
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "";
 
   return (
     <SettingsPageClient
-      connectedCount={displayAccounts.filter(a => a.isActive).length}
-      accounts={displayAccounts}
-      isDemo={isDemo}
+      connectedCount={accounts.filter(a => a.isActive).length}
+      accounts={accounts}
       plan={userPlan}
-      isOwner={isOwner}
       ksSettings={{
         killSwitchEnabled:    userSettings?.killSwitchEnabled    ?? false,
         roiThreshold:         userSettings?.roiThreshold         ?? -50,
@@ -86,6 +87,8 @@ export default async function SettingsPage() {
       }}
       teamMembers={teamMembers}
       pendingInvites={pendingInvites.map(i => ({ ...i, inviteUrl: `${origin}/invite/${i.token}` }))}
+      timezone={wsTimezone}
+      currency={wsCurrency}
     />
   );
 }

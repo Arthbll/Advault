@@ -25,7 +25,38 @@ const AD_FORMATS = [
 const NETWORKS: { id: string; label: string; color: string; rgb: string; disabled: boolean; badge?: string }[] = [
   { id: "EXOCLICK",     label: "ExoClick",     color: "#c08835", rgb: "192,136,53",  disabled: false },
   { id: "TRAFFICSTARS", label: "TrafficStars", color: "#7264a8", rgb: "114,100,168", disabled: false },
+  { id: "PROPELLERADS", label: "PropellerAds", color: "#5b6ea8", rgb: "91,110,168",  disabled: false },
+  { id: "ADSTERRA",     label: "Adsterra",     color: "#2e7d9c", rgb: "46,125,156",  disabled: false },
   { id: "TRAFFICJUNKY", label: "TrafficJunky", color: "#4a8fb4", rgb: "74,143,180",  disabled: true,  badge: "Sync & manage only" },
+];
+
+// ─── PropellerAds direction options ───────────────────────────────────────────
+// Swagger confirmed: direction enum = ["onclick", "nativeads"] only.
+// Push & Interstitial use different creation flows (creatives endpoint).
+const PA_DIRECTIONS = [
+  { id: "onclick",   label: "Pop-under / Onclick", sub: "Opens in background tab", apiVal: "onclick"   },
+  { id: "nativeads", label: "Native Ads",           sub: "Native sponsored content", apiVal: "nativeads" },
+];
+
+const PA_RATE_MODELS = [
+  { value: "cpm",  label: "CPM",  sub: "Cost per 1000 impressions" },
+  { value: "cpc",  label: "CPC",  sub: "Cost per click"            },
+];
+
+// ─── Adsterra format options ──────────────────────────────────────────────────
+const ADT_FORMATS = [
+  { id: "pop",          label: "Pop-under",     sub: "Opens in background"        },
+  { id: "direct",       label: "Direct Link",   sub: "URL-based traffic"          },
+  { id: "banner",       label: "Banner",        sub: "Display 300×250, 728×90…"   },
+  { id: "native",       label: "Native",        sub: "Native sponsored content"   },
+  { id: "push",         label: "Push",          sub: "Browser push notification"  },
+  { id: "interstitial", label: "Interstitial",  sub: "Full-screen between pages"  },
+];
+
+const ADT_PRICING_TYPES = [
+  { value: "CPM",  label: "CPM",  sub: "Cost per 1000 impressions" },
+  { value: "CPC",  label: "CPC",  sub: "Cost per click"            },
+  { value: "CPA",  label: "CPA",  sub: "Cost per action"           },
 ];
 
 // ─── Time slot presets ─────────────────────────────────────────────────────────
@@ -163,17 +194,78 @@ const FREQ_CAP_PERIODS = [
   { value: "24", label: "24 heures" },
 ];
 
-// ─── Step config ───────────────────────────────────────────────────────────────
+// ─── Per-network wizard step definitions ──────────────────────────────────────
+type StepKey =
+  | "identity" | "ec-format" | "ts-campaign" | "pa-format" | "adt-campaign"
+  | "geo" | "devices" | "publishers" | "schedule" | "ts-schedule"
+  | "budget" | "rules" | "creative";
 
-const STEPS = [
-  { label: "Identity",       sub: "Name, URL, format"       },  // 0
-  { label: "Geo",            sub: "Countries & regions"     },  // 1
-  { label: "Targeting",      sub: "Devices & OS"            },  // 2
-  { label: "Schedule",       sub: "Delivery windows"        },  // 3
-  { label: "Budget",         sub: "Bid & spend limits"      },  // 4
-  { label: "Publishers",     sub: "Publication sites"        },  // 5
-  { label: "Decision Rules", sub: "Kill · Watch · Scale"    },  // 6
-  { label: "Creative",       sub: "Visual & summary"        },  // 7
+const NETWORK_WIZARD: Record<string, Array<{key: StepKey; label: string; sub: string}>> = {
+  EXOCLICK: [
+    { key: "identity",   label: "Identity",   sub: "Network, name & URL"          },
+    { key: "ec-format",  label: "Format",     sub: "Ad type & pricing model"      },
+    { key: "geo",        label: "Geo",        sub: "Countries & regions"          },
+    { key: "devices",    label: "Targeting",  sub: "Devices & OS"                 },
+    { key: "publishers", label: "Publishers", sub: "Publication sites"            },
+    { key: "schedule",   label: "Schedule",   sub: "Time slots & frequency cap"   },
+    { key: "budget",     label: "Budget",     sub: "Bid & spend limits"           },
+    { key: "rules",      label: "Rules",      sub: "Kill · Watch · Scale"         },
+    { key: "creative",   label: "Creative",   sub: "Visual & summary"             },
+  ],
+  TRAFFICSTARS: [
+    { key: "identity",    label: "Identity",   sub: "Network, name & URL"     },
+    { key: "ts-campaign", label: "Campaign",   sub: "Format & traffic type"   },
+    { key: "geo",         label: "Geo",        sub: "Countries & regions"     },
+    { key: "devices",     label: "Targeting",  sub: "Devices & OS"            },
+    { key: "ts-schedule", label: "Schedule",   sub: "Hours grid & freq cap"   },
+    { key: "publishers",  label: "Publishers", sub: "Publication sites"       },
+    { key: "budget",      label: "Budget",     sub: "Pricing, bid & limits"   },
+    { key: "rules",       label: "Rules",      sub: "Kill · Watch · Scale"    },
+    { key: "creative",    label: "Creative",   sub: "Visual & summary"        },
+  ],
+  PROPELLERADS: [
+    { key: "identity",  label: "Identity",  sub: "Network, name & URL"   },
+    { key: "pa-format", label: "Format",    sub: "Direction & pricing"   },
+    { key: "geo",       label: "Geo",       sub: "Countries & regions"   },
+    { key: "devices",   label: "Targeting", sub: "Devices & OS"          },
+    { key: "schedule",  label: "Schedule",  sub: "Time slots"            },
+    { key: "budget",    label: "Budget",    sub: "Bid & spend limits"    },
+    { key: "rules",     label: "Rules",     sub: "Kill · Watch · Scale"  },
+    { key: "creative",  label: "Creative",  sub: "Visual & summary"      },
+  ],
+  ADSTERRA: [
+    { key: "identity",     label: "Identity",  sub: "Network, name & URL"       },
+    { key: "adt-campaign", label: "Campaign",  sub: "Format & pricing type"     },
+    { key: "geo",          label: "Geo",       sub: "Countries & regions"       },
+    { key: "devices",      label: "Targeting", sub: "Devices & OS"              },
+    { key: "schedule",     label: "Schedule",  sub: "Time slots"                },
+    { key: "budget",       label: "Budget",    sub: "Bid & spend limits"        },
+    { key: "rules",        label: "Rules",     sub: "Kill · Watch · Scale"      },
+    { key: "creative",     label: "Creative",  sub: "Visual & summary"          },
+  ],
+};
+
+// ExoClick pricing models (1=CPC, 2=CPM, 3=SmartBid, 4=SmartCPM)
+const EC_PRICING_MODELS = [
+  { value: "cpm",       label: "CPM",      sub: "Cost per 1000 impressions"             },
+  { value: "cpc",       label: "CPC",      sub: "Cost per click"                        },
+  { value: "smart_cpm", label: "SmartCPM", sub: "Auto-optimized CPM within your budget" },
+  { value: "smart_bid", label: "SmartBid", sub: "Bid auto-adjusted by performance"      },
+];
+
+// TrafficStars traffic type
+const TS_TRAFFIC_TYPES = [
+  { value: "ron",          label: "RON",          sub: "Run of Network — all sites"  },
+  { value: "prime",        label: "Prime",         sub: "Premium partner sites only"  },
+  { value: "members_area", label: "Members Area",  sub: "Logged-in users only"        },
+];
+
+// PropellerAds extended rate models
+const PA_RATE_MODELS_EXT = [
+  { value: "cpm",  label: "CPM",       sub: "Cost per 1000 impressions"       },
+  { value: "cpc",  label: "CPC",       sub: "Cost per click"                  },
+  { value: "scpm", label: "SmartCPM",  sub: "Auto-optimized CPM"              },
+  { value: "scpc", label: "SmartCPC",  sub: "Auto-optimized CPC"              },
 ];
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
@@ -255,6 +347,12 @@ interface FormState {
   bidType:        "cpm" | "cpc";
   bid:            string;
   dailyBudget:    string;
+  // ── PropellerAds specific ───────────────────────────────────────────────────
+  paDirection:    string;  // "onclick" | "push" | "nativeads" | "interstitial"
+  paRateModel:    string;  // "cpm" | "cpc"
+  // ── Adsterra specific ───────────────────────────────────────────────────────
+  adtFormat:      string;  // "pop" | "direct" | "banner" | "native" | "push" | "interstitial"
+  adtPricingType: string;  // "CPM" | "CPC" | "CPA"
   totalBudget:    string;
   freqCapImps:    string;
   freqCapHrs:     string;
@@ -275,6 +373,9 @@ interface FormState {
   cooldownMins:          number;  // minutes between consecutive actions
   maxActionsPerDay:      number;  // max engine actions per day
   scanFreqMins:          number;  // how often engine scans (minutes)
+  // ── Per-network extras (linked to APIs) ─────────────────────────────────────
+  ecPricingModel:  string;  // ExoClick: "cpm"|"cpc"|"smart_cpm"|"smart_bid"
+  tsTrafficType:   string;  // TrafficStars: "ron"|"prime"|"members_area"
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -287,8 +388,9 @@ export default function NewCampaignPage() {
   const [dir,         setDir]         = useState(1);
   const [submitting,  setSubmitting]  = useState(false);
   const [error,       setError]       = useState<string | null>(null);
-  const [success,     setSuccess]     = useState(false);
-  const [createdName, setCreatedName] = useState("");
+  const [success,      setSuccess]      = useState(false);
+  const [createdName,  setCreatedName]  = useState("");
+  const [verification, setVerification] = useState<{ verified: boolean; id?: string; name?: string; status?: string; reason?: string } | null>(null);
   const [vaultOpen,   setVaultOpen]   = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -315,6 +417,10 @@ export default function NewCampaignPage() {
     totalBudget:    "",
     freqCapImps:    "",
     freqCapHrs:     "24",
+    paDirection:    "onclick",
+    paRateModel:    "cpm",
+    adtFormat:      "pop",
+    adtPricingType: "CPM",
     active:         false,
     imageFile:      null,
     imagePreview:   null,
@@ -332,6 +438,8 @@ export default function NewCampaignPage() {
     cooldownMins:         120,
     maxActionsPerDay:       5,
     scanFreqMins:          60,
+    ecPricingModel:  "cpm",
+    tsTrafficType:   "ron",
   });
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
@@ -381,27 +489,43 @@ export default function NewCampaignPage() {
   }
 
   // ── Per-step validation ──────────────────────────────────────────────────────
-  const selectedFormat    = AD_FORMATS.find(f => f.id === form.adFormat);
-  const urlRequired       = selectedFormat?.urlRequired ?? true;
-  const urlFilled         = form.url.trim().length > 4;
+  const selectedFormat = AD_FORMATS.find(f => f.id === form.adFormat);
+  const isPA  = form.network === "PROPELLERADS";
+  const isADT = form.network === "ADSTERRA";
+  const urlFilled = form.url.trim().length > 4;
 
-  const stepValid = [
-    form.name.trim().length > 2 && (urlFilled || !urlRequired) && form.adFormat > 0,  // 0 — identity
-    true,                                                                                // 1 — geo optional
-    form.devices.length > 0,                                                            // 2 — ciblage
-    true,                                                                                // 3 — horaires optional
-    parseFloat(form.bid) > 0 && parseFloat(form.dailyBudget) > 0,                     // 4 — budget
-    true,                                                                                // 5 — publishers optional
-    true,                                                                                // 6 — decision rules optional
-    true,                                                                                // 7 — créatif
-  ];
+  // Per-network step config
+  const activeSteps = NETWORK_WIZARD[form.network] ?? NETWORK_WIZARD.EXOCLICK;
+  const currentKey  = activeSteps[step]?.key ?? "identity";
+
+  // Validity per step key
+  const identityValid = form.name.trim().length > 2;
+  const budgetValid   = parseFloat(form.bid) > 0 && parseFloat(form.dailyBudget) > 0;
+
+  const stepValidMap: Record<string, boolean> = {
+    "identity":     identityValid,
+    "ec-format":    form.adFormat > 0,
+    "ts-campaign":  form.adFormat > 0,
+    "pa-format":    true,
+    "adt-campaign": true,
+    "geo":          true,
+    "devices":      form.devices.length > 0,
+    "publishers":   true,
+    "schedule":     true,
+    "ts-schedule":  true,
+    "budget":       budgetValid,
+    "rules":        true,
+    "creative":     true,
+  };
+
+  const stepValid = activeSteps.map(s => stepValidMap[s.key] ?? true);
 
   // ── Navigation ───────────────────────────────────────────────────────────────
   function goNext() {
     if (!stepValid[step]) return;
     setDir(1);
     setStep(s => {
-      const next = Math.min(s + 1, STEPS.length - 1);
+      const next = Math.min(s + 1, activeSteps.length - 1);
       setMaxStep(m => Math.max(m, next));
       return next;
     });
@@ -453,12 +577,15 @@ export default function NewCampaignPage() {
   };
 
   async function handleSubmit() {
-    if (!stepValid[7]) return;
+    if (!budgetValid) return;
     setSubmitting(true);
     setError(null);
     try {
-      const isTS = form.network === "TRAFFICSTARS";
-      const isTJ = form.network === "TRAFFICJUNKY";
+      const isTS  = form.network === "TRAFFICSTARS";
+      const isTJ  = form.network === "TRAFFICJUNKY";
+      const isPA  = form.network === "PROPELLERADS";
+      const isADT = form.network === "ADSTERRA";
+
       const res = await fetch("/api/campaigns/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -467,20 +594,37 @@ export default function NewCampaignPage() {
           name:           form.name.trim(),
           url:            form.url.trim(),
           adFormat:       form.adFormat,
-          // TrafficStars uses format_id (different ID space) + pricing_model + price + max_daily
+
+          // ── TrafficStars: format_id + pricing_model + price + max_daily + traffic_type
           ...(isTS ? {
             format_id:     TS_FORMAT_MAP[form.adFormat] ?? 1,
             pricing_model: form.bidType === "cpc" ? "cpc" : "cpm",
             price:         parseFloat(form.bid),
             max_daily:     form.dailyBudget ? parseFloat(form.dailyBudget) : 10,
+            traffic_type:  form.tsTrafficType,
           } : {}),
-          // TrafficJunky uses dailyBudget + bidType + bid
+
+          // ── TrafficJunky: dailyBudget + bidType + bid
           ...(isTJ ? {
             dailyBudget:  form.dailyBudget ? parseFloat(form.dailyBudget) : 10,
             bidType:      form.bidType,
             bid:          parseFloat(form.bid),
           } : {}),
-          bidType:        form.bidType,
+
+          // ── PropellerAds: direction + rate_model
+          ...(isPA ? {
+            direction:    form.paDirection,
+            rate_model:   form.paRateModel,
+          } : {}),
+
+          // ── Adsterra: format + pricing_type
+          ...(isADT ? {
+            format:        form.adtFormat,
+            pricing_type:  form.adtPricingType,
+          } : {}),
+
+          // For ExoClick, use ecPricingModel (CPM/CPC/SmartCPM/SmartBid); for others, use generic bidType
+          bidType:        form.network === "EXOCLICK" ? form.ecPricingModel : form.bidType,
           bid:            parseFloat(form.bid),
           dailyBudget:    form.dailyBudget ? parseFloat(form.dailyBudget) : undefined,
           totalBudget:    form.totalBudget ? parseFloat(form.totalBudget) : undefined,
@@ -496,6 +640,7 @@ export default function NewCampaignPage() {
       const json = await res.json().catch(() => ({}));
       if (res.ok && json.error == null) {
         setCreatedName(form.name.trim());
+        setVerification(json.verification ?? null);
         clearDraftOnSuccess();
         setSuccess(true);
       } else {
@@ -530,7 +675,12 @@ export default function NewCampaignPage() {
   // SUCCESS SCREEN
   // ─────────────────────────────────────────────────────────────────────────────
   if (success) {
-    const networkLabel = form.network === "EXOCLICK" ? "ExoClick" : form.network === "TRAFFICSTARS" ? "TrafficStars" : "TrafficJunky";
+    const NET_NAME: Record<string, string> = {
+      EXOCLICK: "ExoClick", TRAFFICSTARS: "TrafficStars",
+      PROPELLERADS: "PropellerAds", ADSTERRA: "Adsterra",
+      TRAFFICJUNKY: "TrafficJunky",
+    };
+    const networkLabel = NET_NAME[form.network] ?? form.network;
     return (
       <div style={{ minHeight: "100vh", background: "#04050a", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
         <motion.div
@@ -568,6 +718,66 @@ export default function NewCampaignPage() {
                   <p style={{ margin: "14px auto 0", maxWidth: 380, fontSize: 15, lineHeight: 1.7, color: "rgba(255,255,255,0.38)" }}>
                     Live on {networkLabel}.
                   </p>
+
+                  {/* Verification badge — direct GET /campaign/{id} confirmation */}
+                  {verification !== null && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5, duration: 0.3 }}
+                      style={{
+                        marginTop: 18,
+                        padding: "14px 20px", borderRadius: 18,
+                        background: verification.verified ? "rgba(16,185,129,0.06)" : "rgba(251,191,36,0.06)",
+                        border: `1px solid ${verification.verified ? "rgba(74,222,128,0.20)" : "rgba(251,191,36,0.20)"}`,
+                        display: "flex", flexDirection: "column", gap: 6,
+                        textAlign: "left",
+                      }}
+                    >
+                      {/* Status row */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{
+                          width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                          background: verification.verified ? "#4ade80" : "#fbbf24",
+                          boxShadow: verification.verified ? "0 0 6px #4ade80" : "0 0 6px #fbbf24",
+                        }} />
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, letterSpacing: "0.14em",
+                          textTransform: "uppercase",
+                          color: verification.verified ? "#86efac" : "#fde68a",
+                        }}>
+                          {verification.verified ? "Confirmed live on network" : "Pending propagation"}
+                        </span>
+                      </div>
+
+                      {/* Details row */}
+                      {verification.verified && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", paddingLeft: 16 }}>
+                          {verification.id && (
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.38)" }}>
+                              ID <span style={{ color: "rgba(255,255,255,0.70)", fontFamily: "monospace" }}>{verification.id}</span>
+                            </span>
+                          )}
+                          {verification.name && (
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.38)" }}>
+                              Name <span style={{ color: "rgba(255,255,255,0.70)" }}>{verification.name}</span>
+                            </span>
+                          )}
+                          {verification.status && (
+                            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.38)" }}>
+                              Status <span style={{ color: "rgba(255,255,255,0.70)" }}>{verification.status}</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Failure reason */}
+                      {!verification.verified && verification.reason && (
+                        <p style={{ fontSize: 11, color: "rgba(253,230,138,0.60)", margin: "0 0 0 16px", lineHeight: 1.5 }}>
+                          {verification.reason}
+                        </p>
+                      )}
+                    </motion.div>
+                  )}
                 </motion.div>
 
                 {/* Actions */}
@@ -610,11 +820,15 @@ export default function NewCampaignPage() {
                         timeSlots: [], publisherSites: [],
                         bidType: "cpm", bid: "", dailyBudget: "", totalBudget: "",
                         freqCapImps: "", freqCapHrs: "24", active: false,
+                        paDirection: "onclick", paRateModel: "cpm",
+                        adtFormat: "pop", adtPricingType: "CPM",
                         imageFile: null, imagePreview: null, mediaType: null, vaultAssetName: null,
                         engineActive: false,
                         killThreshold: -30, watchMinRoi: -10, watchMaxRoi: 30, scaleThreshold: 50,
                         scaleBy: 25, maxScalingBudget: 200, minSpendBeforeAction: 10,
                         cooldownMins: 120, maxActionsPerDay: 5, scanFreqMins: 60,
+                        ecPricingModel: "cpm",
+                        tsTrafficType: "ron",
                       });
                     }}
                     style={{
@@ -653,16 +867,21 @@ export default function NewCampaignPage() {
   // WIZARD
   // ─────────────────────────────────────────────────────────────────────────────
   // Step subtitles for the vision-style header
-  const STEP_SUBTITLES = [
-    "Choose the network. Set the format and destination URL.",
-    "Countries and regions where the campaign can serve.",
-    "Targeted devices and OS. Precision without unnecessary complexity.",
-    "Choose when your ads can be delivered.",
-    "Bid, daily budget, total cap. Everything needed to launch.",
-    "Publication sites filtered by network. Empty = all available sites.",
-    "Automatic Kill, Watch, Scale based on the ROI thresholds you define.",
-    "Add the visual. Review the summary. Launch.",
-  ];
+  const STEP_SUBTITLES: Record<string, string> = {
+    "identity":     "Choose your network. Set the campaign name and destination URL.",
+    "ec-format":    "Select the ad format and pricing model for ExoClick.",
+    "ts-campaign":  "Configure the ad format and traffic type for TrafficStars.",
+    "pa-format":    "Select the ad direction and pricing model for PropellerAds.",
+    "adt-campaign": "Set the ad format and pricing type for Adsterra.",
+    "geo":          "Countries and regions where the campaign can serve.",
+    "devices":      "Targeted devices and operating systems.",
+    "publishers":   "Publication sites filtered by network. Empty = all available sites.",
+    "schedule":     "Choose delivery windows and frequency cap.",
+    "ts-schedule":  "Configure hourly targeting and frequency cap for TrafficStars.",
+    "budget":       "Bid value, daily budget and total spend cap.",
+    "rules":        "Automatic Kill, Watch, Scale based on ROI thresholds you define.",
+    "creative":     "Add the visual. Review the summary. Launch.",
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: "#05060a", padding: "32px 28px" }}>
@@ -707,7 +926,7 @@ export default function NewCampaignPage() {
 
         {/* Step list */}
         <div style={{ padding: "14px 12px", display: "flex", flexDirection: "column", gap: 3 }}>
-          {STEPS.map((s, i) => {
+          {activeSteps.map((s, i) => {
             const done      = step > i;
             const active    = step === i;
             const clickable = i !== step && i <= maxStep;
@@ -748,7 +967,7 @@ export default function NewCampaignPage() {
         <div style={{ padding: "8px 20px 20px" }}>
           <div style={{ height: 2, borderRadius: 99, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
             <motion.div
-              animate={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+              animate={{ width: `${((step + 1) / activeSteps.length) * 100}%` }}
               transition={{ duration: 0.3, ease: [0.23,1,0.32,1] }}
               style={{ height: "100%", background: "linear-gradient(90deg,#4ade80,#22d3ee)", borderRadius: 99 }}
             />
@@ -790,13 +1009,13 @@ export default function NewCampaignPage() {
                   fontSize: 40, lineHeight: 0.96, letterSpacing: "-0.05em",
                   fontWeight: 300, margin: "0 0 16px", color: "rgba(255,255,255,0.95)",
                 }}>
-                  {STEPS[step].label}
+                  {activeSteps[step]?.label ?? ""}
                 </h1>
                 <p style={{
                   color: "rgba(255,255,255,0.46)", fontSize: 15, lineHeight: 1.75,
                   maxWidth: 640, margin: 0,
                 }}>
-                  {STEP_SUBTITLES[step]}
+                  {STEP_SUBTITLES[currentKey] ?? ""}
                 </p>
               </motion.div>
             </AnimatePresence>
@@ -816,11 +1035,11 @@ export default function NewCampaignPage() {
               style={{ display: "flex", flexDirection: "column", gap: 18 }}
             >
 
-              {/* ══════════════════════════════════════════════════════ STEP 0 — IDENTITY */}
-              {step === 0 && (
+              {/* ══════════════════════════════════════════════════════ IDENTITY */}
+              {currentKey === "identity" && (
                 <>
                   {/* Network selector — tall vision cards */}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
                     {NETWORKS.map(n => {
                       const isSelected = form.network === n.id;
                       return (
@@ -902,58 +1121,31 @@ export default function NewCampaignPage() {
                       <div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                           <label style={{ ...labelStyle, marginBottom: 0 }}>Destination URL</label>
-                          <AnimatePresence mode="wait">
-                            {urlRequired ? (
-                              <motion.span key="req"
-                                initial={{ opacity: 0, scale: 0.85, x: 6 }}
-                                animate={{ opacity: 1, scale: 1, x: 0 }}
-                                exit={{ opacity: 0, scale: 0.85, x: 6 }}
-                                transition={{ duration: 0.18 }}
-                                style={{
-                                  fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 999,
-                                  background: !urlFilled ? "rgba(244,63,94,0.08)" : "rgba(16,185,129,0.08)",
-                                  color: !urlFilled ? "#fda4af" : "#86efac",
-                                  border: `1px solid ${!urlFilled ? "rgba(251,113,133,0.18)" : "rgba(74,222,128,0.20)"}`,
-                                  letterSpacing: "0.2em", textTransform: "uppercase",
-                                  transition: "all 0.2s",
-                                }}>
-                                {!urlFilled ? "Required" : "✓ OK"}
-                              </motion.span>
-                            ) : (
-                              <motion.span key="opt"
-                                initial={{ opacity: 0, scale: 0.85, x: 6 }}
-                                animate={{ opacity: 1, scale: 1, x: 0 }}
-                                exit={{ opacity: 0, scale: 0.85, x: 6 }}
-                                transition={{ duration: 0.18 }}
-                                style={{
-                                  fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 999,
-                                  background: "rgba(255,255,255,0.04)",
-                                  color: "rgba(255,255,255,0.3)",
-                                  border: "1px solid rgba(255,255,255,0.10)",
-                                  letterSpacing: "0.2em", textTransform: "uppercase",
-                                }}>
-                                Optional
-                              </motion.span>
-                            )}
-                          </AnimatePresence>
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 999,
+                            background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.3)",
+                            border: "1px solid rgba(255,255,255,0.10)",
+                            letterSpacing: "0.2em", textTransform: "uppercase",
+                          }}>
+                            Optional
+                          </span>
                         </div>
                         <input
                           value={form.url}
                           onChange={e => set("url", e.target.value)}
-                          placeholder={urlRequired ? "https://… (required)" : "https://… (optional)"}
-                          style={{
-                            ...inputStyle,
-                            borderColor: urlRequired && !urlFilled && form.name.trim().length > 0
-                              ? "rgba(251,113,133,0.35)"
-                              : "rgba(255,255,255,0.08)",
-                          }}
+                          placeholder="https://… (optional)"
+                          style={inputStyle}
                           onFocus={focusGreen} onBlur={blurReset}
                         />
                       </div>
                     </div>
                   </div>
+                </>
+              )}
 
-                  {/* Ad format — big vision grid */}
+              {/* ExoClick: ec-format */}
+              {currentKey === "ec-format" && (
+                <>
                   <div style={cardStyle}>
                     <label style={labelStyle}>Format d&apos;annonce</label>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -962,7 +1154,7 @@ export default function NewCampaignPage() {
                           key={fmt.id}
                           onClick={() => {
                             set("adFormat", fmt.id);
-                            if (fmt.id === 4 && form.bidType === "cpc") set("bidType", "cpm");
+                            if (fmt.id === 4 && form.ecPricingModel === "cpc") set("ecPricingModel", "cpm");
                           }}
                           whileHover={{ y: -2 }}
                           whileTap={{ scale: 0.97 }}
@@ -978,27 +1170,40 @@ export default function NewCampaignPage() {
                             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                               <p style={{ fontSize: 20, fontWeight: 300, letterSpacing: "-0.04em", color: form.adFormat === fmt.id ? "white" : "rgba(255,255,255,0.78)", margin: 0 }}>{fmt.label}</p>
                               {!fmt.urlRequired && (
-                                <span style={{
-                                  fontSize: 9, fontWeight: 600, padding: "2px 7px", borderRadius: 999,
-                                  background: "rgba(167,139,250,0.1)", color: "#a78bfa",
-                                  border: "1px solid rgba(167,139,250,0.2)",
-                                  letterSpacing: "0.1em", textTransform: "uppercase", flexShrink: 0,
-                                }}>
-                                  No URL
-                                </span>
+                                <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 7px", borderRadius: 999, background: "rgba(167,139,250,0.1)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.2)", letterSpacing: "0.1em", textTransform: "uppercase", flexShrink: 0 }}>No URL</span>
                               )}
                             </div>
-                            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.36)", margin: 0, lineHeight: 1.6, maxWidth: "28ch" }}>{fmt.sub}</p>
+                            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.36)", margin: 0, lineHeight: 1.6 }}>{fmt.sub}</p>
                           </div>
-                          <div style={{
-                            width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginTop: 2,
-                            background: form.adFormat === fmt.id ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.03)",
-                            border: form.adFormat === fmt.id ? "1px solid rgba(134,239,172,0.25)" : "1px solid rgba(255,255,255,0.10)",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            color: form.adFormat === fmt.id ? "#86efac" : "transparent",
-                            transition: "all 0.2s",
-                          }}>
+                          <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginTop: 2, background: form.adFormat === fmt.id ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.03)", border: form.adFormat === fmt.id ? "1px solid rgba(134,239,172,0.25)" : "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", color: form.adFormat === fmt.id ? "#86efac" : "transparent", transition: "all 0.2s" }}>
                             {form.adFormat === fmt.id && <Check size={12} strokeWidth={2.5} />}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={cardStyle}>
+                    <label style={labelStyle}>Pricing model</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      {EC_PRICING_MODELS.map(m => (
+                        <motion.div
+                          key={m.value}
+                          onClick={() => set("ecPricingModel", m.value)}
+                          whileTap={{ scale: 0.97 }}
+                          style={{
+                            padding: "20px", borderRadius: 22, cursor: "pointer",
+                            display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
+                            background: form.ecPricingModel === m.value ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)",
+                            border: form.ecPricingModel === m.value ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(255,255,255,0.08)",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <div>
+                            <p style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.04em", color: form.ecPricingModel === m.value ? "white" : "rgba(255,255,255,0.78)", margin: "0 0 8px" }}>{m.label}</p>
+                            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.36)", margin: 0 }}>{m.sub}</p>
+                          </div>
+                          <div style={{ width: 26, height: 26, borderRadius: "50%", flexShrink: 0, marginTop: 2, background: form.ecPricingModel === m.value ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.03)", border: form.ecPricingModel === m.value ? "1px solid rgba(134,239,172,0.25)" : "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", color: form.ecPricingModel === m.value ? "#86efac" : "transparent" }}>
+                            {form.ecPricingModel === m.value && <Check size={11} strokeWidth={2.5} />}
                           </div>
                         </motion.div>
                       ))}
@@ -1007,8 +1212,179 @@ export default function NewCampaignPage() {
                 </>
               )}
 
-              {/* ══════════════════════════════════════════════════════ STEP 1 — GEO */}
-              {step === 1 && (
+              {/* TrafficStars: ts-campaign */}
+              {currentKey === "ts-campaign" && (
+                <>
+                  <div style={cardStyle}>
+                    <label style={labelStyle}>Format d&apos;annonce</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      {AD_FORMATS.map(fmt => (
+                        <motion.div
+                          key={fmt.id}
+                          onClick={() => set("adFormat", fmt.id)}
+                          whileHover={{ y: -2 }}
+                          whileTap={{ scale: 0.97 }}
+                          style={{
+                            padding: "20px", borderRadius: 22, cursor: "pointer", minHeight: 100,
+                            display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16,
+                            background: form.adFormat === fmt.id ? "rgba(114,100,168,0.10)" : "rgba(255,255,255,0.02)",
+                            border: form.adFormat === fmt.id ? "1px solid rgba(114,100,168,0.30)" : "1px solid rgba(255,255,255,0.08)",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 20, fontWeight: 300, letterSpacing: "-0.04em", color: form.adFormat === fmt.id ? "white" : "rgba(255,255,255,0.78)", margin: "0 0 8px" }}>{fmt.label}</p>
+                            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.36)", margin: 0, lineHeight: 1.6 }}>{fmt.sub}</p>
+                          </div>
+                          <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginTop: 2, background: form.adFormat === fmt.id ? "rgba(114,100,168,0.15)" : "rgba(255,255,255,0.03)", border: form.adFormat === fmt.id ? "1px solid rgba(114,100,168,0.35)" : "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", color: form.adFormat === fmt.id ? "#c4b5fd" : "transparent", transition: "all 0.2s" }}>
+                            {form.adFormat === fmt.id && <Check size={12} strokeWidth={2.5} />}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={cardStyle}>
+                    <label style={labelStyle}>Traffic type</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+                      {TS_TRAFFIC_TYPES.map(t => (
+                        <motion.div
+                          key={t.value}
+                          onClick={() => set("tsTrafficType", t.value)}
+                          whileTap={{ scale: 0.97 }}
+                          style={{
+                            padding: "20px", borderRadius: 22, cursor: "pointer",
+                            display: "flex", flexDirection: "column", gap: 8,
+                            background: form.tsTrafficType === t.value ? "rgba(114,100,168,0.10)" : "rgba(255,255,255,0.02)",
+                            border: form.tsTrafficType === t.value ? "1px solid rgba(114,100,168,0.30)" : "1px solid rgba(255,255,255,0.08)",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <p style={{ fontSize: 20, fontWeight: 300, letterSpacing: "-0.04em", color: form.tsTrafficType === t.value ? "white" : "rgba(255,255,255,0.78)", margin: 0 }}>{t.label}</p>
+                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.36)", margin: 0 }}>{t.sub}</p>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* PropellerAds: pa-format */}
+              {currentKey === "pa-format" && (
+                <>
+                  <div style={cardStyle}>
+                    <label style={labelStyle}>Ad format</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      {PA_DIRECTIONS.map(d => (
+                        <motion.div
+                          key={d.id}
+                          onClick={() => set("paDirection", d.apiVal)}
+                          whileTap={{ scale: 0.97 }}
+                          style={{
+                            padding: "20px", borderRadius: 22, cursor: "pointer",
+                            display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
+                            background: form.paDirection === d.apiVal ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)",
+                            border: form.paDirection === d.apiVal ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(255,255,255,0.08)",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <div>
+                            <p style={{ fontSize: 18, fontWeight: 300, letterSpacing: "-0.04em", color: form.paDirection === d.apiVal ? "white" : "rgba(255,255,255,0.78)", margin: "0 0 8px" }}>{d.label}</p>
+                            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.36)", margin: 0 }}>{d.sub}</p>
+                          </div>
+                          <div style={{ width: 26, height: 26, borderRadius: "50%", flexShrink: 0, marginTop: 2, background: form.paDirection === d.apiVal ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.03)", border: form.paDirection === d.apiVal ? "1px solid rgba(134,239,172,0.25)" : "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", color: form.paDirection === d.apiVal ? "#86efac" : "transparent" }}>
+                            {form.paDirection === d.apiVal && <Check size={11} strokeWidth={2.5} />}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={cardStyle}>
+                    <label style={labelStyle}>Pricing model</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      {PA_RATE_MODELS_EXT.map(m => (
+                        <motion.div
+                          key={m.value}
+                          onClick={() => set("paRateModel", m.value)}
+                          whileTap={{ scale: 0.97 }}
+                          style={{
+                            padding: "20px", borderRadius: 22, cursor: "pointer",
+                            display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
+                            background: form.paRateModel === m.value ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)",
+                            border: form.paRateModel === m.value ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(255,255,255,0.08)",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <div>
+                            <p style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.04em", color: form.paRateModel === m.value ? "white" : "rgba(255,255,255,0.78)", margin: "0 0 8px" }}>{m.label}</p>
+                            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.36)", margin: 0 }}>{m.sub}</p>
+                          </div>
+                          <div style={{ width: 26, height: 26, borderRadius: "50%", flexShrink: 0, marginTop: 2, background: form.paRateModel === m.value ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.03)", border: form.paRateModel === m.value ? "1px solid rgba(134,239,172,0.25)" : "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", color: form.paRateModel === m.value ? "#86efac" : "transparent" }}>
+                            {form.paRateModel === m.value && <Check size={11} strokeWidth={2.5} />}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Adsterra: adt-campaign */}
+              {currentKey === "adt-campaign" && (
+                <>
+                  <div style={cardStyle}>
+                    <label style={labelStyle}>Ad format</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      {ADT_FORMATS.map(f => (
+                        <motion.div
+                          key={f.id}
+                          onClick={() => set("adtFormat", f.id)}
+                          whileTap={{ scale: 0.97 }}
+                          style={{
+                            padding: "20px", borderRadius: 22, cursor: "pointer",
+                            display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
+                            background: form.adtFormat === f.id ? "rgba(46,125,156,0.10)" : "rgba(255,255,255,0.02)",
+                            border: form.adtFormat === f.id ? "1px solid rgba(46,125,156,0.30)" : "1px solid rgba(255,255,255,0.08)",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <div>
+                            <p style={{ fontSize: 18, fontWeight: 300, letterSpacing: "-0.04em", color: form.adtFormat === f.id ? "white" : "rgba(255,255,255,0.78)", margin: "0 0 8px" }}>{f.label}</p>
+                            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.36)", margin: 0 }}>{f.sub}</p>
+                          </div>
+                          <div style={{ width: 26, height: 26, borderRadius: "50%", flexShrink: 0, marginTop: 2, background: form.adtFormat === f.id ? "rgba(46,125,156,0.15)" : "rgba(255,255,255,0.03)", border: form.adtFormat === f.id ? "1px solid rgba(46,125,156,0.35)" : "1px solid rgba(255,255,255,0.10)", display: "flex", alignItems: "center", justifyContent: "center", color: form.adtFormat === f.id ? "#7dd3fc" : "transparent" }}>
+                            {form.adtFormat === f.id && <Check size={11} strokeWidth={2.5} />}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={cardStyle}>
+                    <label style={labelStyle}>Pricing type</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
+                      {ADT_PRICING_TYPES.map(pt => (
+                        <motion.div
+                          key={pt.value}
+                          onClick={() => set("adtPricingType", pt.value)}
+                          whileTap={{ scale: 0.97 }}
+                          style={{
+                            padding: "18px", borderRadius: 22, cursor: "pointer",
+                            display: "flex", flexDirection: "column", gap: 8,
+                            background: form.adtPricingType === pt.value ? "rgba(46,125,156,0.10)" : "rgba(255,255,255,0.02)",
+                            border: form.adtPricingType === pt.value ? "1px solid rgba(46,125,156,0.30)" : "1px solid rgba(255,255,255,0.08)",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <p style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.04em", color: form.adtPricingType === pt.value ? "white" : "rgba(255,255,255,0.78)", margin: 0 }}>{pt.label}</p>
+                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.36)", margin: 0 }}>{pt.sub}</p>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* ══════════════════════════════════════════════════════ GEO */}
+              {currentKey === "geo" && (
                 <>
                   {/* Selected count */}
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1116,8 +1492,8 @@ export default function NewCampaignPage() {
                 </>
               )}
 
-              {/* ══════════════════════════════════════════════════════ STEP 2 — TECHNICAL */}
-              {step === 2 && (
+              {/* ══════════════════════════════════════════════════════ DEVICES */}
+              {currentKey === "devices" && (
                 <>
                   {/* Devices */}
                   <div style={cardStyle}>
@@ -1224,36 +1600,59 @@ export default function NewCampaignPage() {
                 </>
               )}
 
-              {/* ══════════════════════════════════════════════════════ STEP 3 — HORAIRES */}
-              {step === 3 && <StepHoraires form={form} set={set} />}
+              {/* ══════════════════════════════════════════════════════ SCHEDULE */}
+              {(currentKey === "schedule" || currentKey === "ts-schedule") && <StepHoraires form={form} set={set} />}
 
-              {/* ══════════════════════════════════════════════════════ STEP 4 — BUDGET */}
-              {step === 4 && (
+              {/* ══════════════════════════════════════════════════════ BUDGET */}
+              {currentKey === "budget" && (
                 <>
-                  {/* Bid type */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    {[
-                      { value: "cpm", label: "CPM", sub: "Cost per 1000 impressions" },
-                      { value: "cpc", label: "CPC", sub: "Cost per click", noCpc: true },
-                    ]
-                      .filter(bt => !(bt.noCpc && form.adFormat === 4))
-                      .map(bt => (
-                      <motion.div
-                        key={bt.value}
-                        onClick={() => set("bidType", bt.value as "cpm" | "cpc")}
-                        whileTap={{ scale: 0.97 }}
-                        style={{
-                          padding: "24px", borderRadius: 24, cursor: "pointer", minHeight: 110,
-                          background: form.bidType === bt.value ? "rgba(16,185,129,0.08)" : "rgba(255,255,255,0.02)",
-                          border: form.bidType === bt.value ? "1px solid rgba(74,222,128,0.20)" : "1px solid rgba(255,255,255,0.08)",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        <div style={{ fontSize: 26, fontWeight: 300, letterSpacing: "-0.04em", color: form.bidType === bt.value ? "white" : "rgba(255,255,255,0.78)" }}>{bt.label}</div>
-                        <div style={{ marginTop: 10, color: "rgba(255,255,255,0.36)", fontSize: 14 }}>{bt.sub}</div>
-                      </motion.div>
-                    ))}
-                  </div>
+                  {/* Bid type — TrafficStars only (EC uses ecPricingModel from ec-format step; PA/ADT set in their format steps) */}
+                  {form.network === "TRAFFICSTARS" && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                      {[
+                        { value: "cpm", label: "CPM", sub: "Cost per 1000 impressions" },
+                        { value: "cpc", label: "CPC", sub: "Cost per click" },
+                      ].map(bt => (
+                        <motion.div
+                          key={bt.value}
+                          onClick={() => set("bidType", bt.value as "cpm" | "cpc")}
+                          whileTap={{ scale: 0.97 }}
+                          style={{
+                            padding: "24px", borderRadius: 24, cursor: "pointer", minHeight: 110,
+                            background: form.bidType === bt.value ? "rgba(114,100,168,0.10)" : "rgba(255,255,255,0.02)",
+                            border: form.bidType === bt.value ? "1px solid rgba(114,100,168,0.30)" : "1px solid rgba(255,255,255,0.08)",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <div style={{ fontSize: 26, fontWeight: 300, letterSpacing: "-0.04em", color: form.bidType === bt.value ? "white" : "rgba(255,255,255,0.78)" }}>{bt.label}</div>
+                          <div style={{ marginTop: 10, color: "rgba(255,255,255,0.36)", fontSize: 14 }}>{bt.sub}</div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* For EC/PA/ADT: show the pricing model selected in their format step */}
+                  {(form.network === "EXOCLICK" || isPA || isADT) && (
+                    <div style={{
+                      padding: "14px 18px", borderRadius: 16,
+                      background: "rgba(16,185,129,0.06)", border: "1px solid rgba(74,222,128,0.15)",
+                      display: "flex", alignItems: "center", gap: 10,
+                    }}>
+                      <span style={{ fontSize: 18 }}>✓</span>
+                      <div>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#86efac" }}>
+                          {form.network === "EXOCLICK"
+                            ? `ExoClick · ${EC_PRICING_MODELS.find(m => m.value === form.ecPricingModel)?.label ?? form.ecPricingModel.toUpperCase()}`
+                            : isPA
+                            ? `PropellerAds · ${form.paRateModel.toUpperCase()}`
+                            : `Adsterra · ${form.adtPricingType}`}
+                        </span>
+                        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginLeft: 8 }}>
+                          set in format step — go back to change
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Bid amount + Budgets + Freq cap — all in one card like vision */}
                   <div style={cardStyle}>
@@ -1276,7 +1675,9 @@ export default function NewCampaignPage() {
                       {/* Budgets */}
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                         <div>
-                          <label style={labelStyle}>Daily budget</label>
+                          <label style={labelStyle}>
+                            Daily budget{isPA ? (form.paRateModel === "cpa" ? " · min $5" : " · min $10") : ""}
+                          </label>
                           <div style={{ position: "relative" }}>
                             <span style={{ position: "absolute", left: 20, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.5)", fontSize: 16, pointerEvents: "none" }}>€</span>
                             <input
@@ -1430,14 +1831,14 @@ export default function NewCampaignPage() {
                 </>
               )}
 
-              {/* ══════════════════════════════════════════════════════ STEP 5 — ÉDITEURS */}
-              {step === 5 && <StepEditeurs form={form} set={set} toggleArr={toggleArr} />}
+              {/* ══════════════════════════════════════════════════════ PUBLISHERS */}
+              {currentKey === "publishers" && <StepEditeurs form={form} set={set} toggleArr={toggleArr} />}
 
-              {/* ══════════════════════════════════════════════════════ STEP 6 — DECISION RULES */}
-              {step === 6 && <StepDecisionRules form={form} set={set} />}
+              {/* ══════════════════════════════════════════════════════ RULES */}
+              {currentKey === "rules" && <StepDecisionRules form={form} set={set} />}
 
-              {/* ══════════════════════════════════════════════════════ STEP 7 — CREATIVE */}
-              {step === 7 && (
+              {/* ══════════════════════════════════════════════════════ CREATIVE */}
+              {currentKey === "creative" && (
                 <>
                   {/* Image upload */}
                   <div style={cardStyle}>
@@ -1577,7 +1978,7 @@ export default function NewCampaignPage() {
               </AnimatePresence>
 
               {/* Continue / Preview */}
-              {step < STEPS.length - 1 ? (
+              {step < activeSteps.length - 1 ? (
                 <motion.button
                   whileHover={stepValid[step] ? { scale: 1.013, boxShadow: "0 18px 44px rgba(139,92,246,0.48)" } : {}}
                   whileTap={stepValid[step] ? { scale: 0.97 } : {}}

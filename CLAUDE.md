@@ -1,5 +1,21 @@
 # ProfitDash
 
+## ⚠️ RÈGLE N°1 — TOUJOURS EXPLIQUER COMME À UN ENFANT DE 10 ANS
+
+**Cette règle prime sur tout le reste.**
+
+Arthur n'a aucune connaissance en code. Zéro.
+
+Chaque explication doit être écrite comme si tu parlais à un enfant curieux qui n'a jamais vu du code de sa vie.
+- Pas de jargon technique sans une analogie simple immédiatement après
+- Pas de "lance juste cette commande" sans expliquer en une phrase ce qu'elle fait
+- Si c'est complexe, coupe en petits morceaux
+- L'objectif : qu'Arthur comprenne ce qui se passe et pourquoi — pas juste qu'il copie-colle correctement
+
+**Toujours répondre en français.**
+
+---
+
 ## Product identity
 
 ProfitDash is a 24/7 autonomous campaign operator — not a passive dashboard.
@@ -318,6 +334,27 @@ Arthur has zero coding knowledge. Every explanation must be written like you are
 - No "just run this command" without explaining what the command does in one plain sentence
 - If something is complex, break it into the smallest possible steps
 - The goal is that Arthur understands what is happening and why, not just that he copies and pastes correctly
+
+---
+
+## ⚠️ RÈGLE — TOUJOURS VÉRIFIER LA DOC API OFFICIELLE EN PREMIER
+
+Avant d'essayer de reverse-engineer une API interne, d'intercepter le trafic réseau, ou de hacker un panel web, **vérifier d'abord la documentation officielle de l'API**.
+
+Exemple concret : pour Adsterra, on a passé des heures à tenter d'utiliser l'API interne du panel (beta.partners.adsterra.com) avec des cookies de session, alors que l'API V3 publique (api3.adsterratools.com) supporte déjà la mise à jour des bids via `PATCH /campaign/{id}/update.json`.
+
+**Procédure systématique avant tout travail sur un adaptateur réseau :**
+1. Chercher la doc API officielle (Swagger, OpenAPI, YAML spec)
+2. Lister TOUS les endpoints disponibles (GET, POST, PUT, PATCH, DELETE)
+3. Vérifier si le besoin est déjà couvert avant d'aller chercher ailleurs
+4. Seulement si l'API officielle ne couvre pas le besoin → envisager des alternatives
+
+**URLs des specs connues :**
+- Adsterra V3 : `https://docs.adsterratools.com/docs/public/v3/partners-api.yml`
+- ExoClick : (à documenter)
+- TrafficStars : (à documenter)
+- TrafficJunky : (à documenter)
+- PropellerAds : (à documenter)
 
 ---
 

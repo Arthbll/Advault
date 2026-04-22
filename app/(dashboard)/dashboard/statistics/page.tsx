@@ -84,46 +84,6 @@ interface SyncData {
 interface DateRange { from: string; to: string; label: string }
 type SortKey = "spend" | "revenue" | "impressions" | "clicks" | "conversions";
 
-// ─── Demo data ────────────────────────────────────────────────────────────────
-const DEMO_CAMPAIGNS: Campaign[] = [
-  { id:"1",  name:"Adult Dating — Push — US — Tier1",    network:"EXOCLICK",     status:"ACTIVE", spend:4100, revenue:6800, impressions:12400000, clicks:18300, conversions:205 },
-  { id:"2",  name:"Casino — Native — UK — Desktop",      network:"EXOCLICK",     status:"ACTIVE", spend:3200, revenue:5300, impressions:7100000,  clicks:12800, conversions:141 },
-  { id:"3",  name:"Crypto — Native — AU — Desktop",      network:"TRAFFICSTARS", status:"ACTIVE", spend:3000, revenue:5400, impressions:6500000,  clicks:10300, conversions:125 },
-  { id:"4",  name:"Dating — Push — FR — Mobile Broad",   network:"TRAFFICSTARS", status:"ACTIVE", spend:2200, revenue:3700, impressions:5200000,  clicks:9100,  conversions:106 },
-  { id:"5",  name:"Crypto — Push — AU — Desktop",        network:"EXOCLICK",     status:"ACTIVE", spend:2100, revenue:3700, impressions:4600000,  clicks:7900,  conversions:86  },
-  { id:"6",  name:"Finance — Banner — UK — Desktop",     network:"TRAFFICSTARS", status:"PAUSED", spend:1900, revenue:2900, impressions:4200000,  clicks:7100,  conversions:73  },
-  { id:"7",  name:"VOD Streaming — Interstitial — CA",   network:"EXOCLICK",     status:"ACTIVE", spend:1800, revenue:2900, impressions:4400000,  clicks:7000,  conversions:74  },
-  { id:"8",  name:"Nutra — Push — ES — Mobile",          network:"TRAFFICJUNKY", status:"ACTIVE", spend:1600, revenue:2700, impressions:3400000,  clicks:6400,  conversions:68  },
-  { id:"9",  name:"iGaming — Pop Under — US",            network:"EXOCLICK",     status:"PAUSED", spend:1300, revenue:678,  impressions:17700000, clicks:17700, conversions:8   },
-  { id:"10", name:"Dating — Push Notification — US",     network:"PROPELLERADS", status:"ACTIVE", spend:2400, revenue:4100, impressions:9800000,  clicks:14200, conversions:160 },
-  { id:"11", name:"iGaming — Popunder — DE — Mobile",    network:"PROPELLERADS", status:"ACTIVE", spend:1750, revenue:3050, impressions:6200000,  clicks:8900,  conversions:98  },
-  { id:"12", name:"Finance — Direct Click — BR",         network:"ADSTERRA",     status:"ACTIVE", spend:1400, revenue:2450, impressions:5100000,  clicks:7600,  conversions:82  },
-  { id:"13", name:"Crypto — Native — IN — Desktop",      network:"ADSTERRA",     status:"ACTIVE", spend:1100, revenue:1980, impressions:4300000,  clicks:6200,  conversions:67  },
-];
-
-const DEMO_TOTALS: DashTotals = {
-  totalRevenue: 87230, totalSpend: 32850, totalProfit: 54380,
-  roi: 165.5, totalImps: 108900000, totalClicks: 162500, totalConvs: 1197, ctr: 0.15, ctrNoPop: 0.21,
-};
-
-const DEMO_CHART: ChartPt[] = Array.from({ length: 30 }, (_, i) => {
-  const base    = 1600 + Math.sin(i / 4) * 500;
-  const spend   = base * 0.38 + (i * 7) % 100;
-  const revenue = base + (i * 13) % 200;
-  return {
-    date: new Date(Date.now() - (29 - i) * 86400000).toISOString().slice(0, 10),
-    spend, revenue, profit: revenue - spend,
-  };
-});
-
-const DEMO_NETWORKS: NetItem[] = [
-  { network:"EXOCLICK",     spend:13300, revenue:21478, profit:8178, roi:50.9, campaigns:5 },
-  { network:"TRAFFICSTARS", spend:10200, revenue:15362, profit:5162, roi:50.5, campaigns:3 },
-  { network:"TRAFFICJUNKY", spend:3600,  revenue:5490,  profit:1890, roi:52.5, campaigns:1 },
-  { network:"PROPELLERADS", spend:4150,  revenue:7150,  profit:3000, roi:72.3, campaigns:2 },
-  { network:"ADSTERRA",     spend:2500,  revenue:4430,  profit:1930, roi:77.2, campaigns:2 },
-];
-
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function isoToday()     { return new Date().toISOString().slice(0, 10); }
 function daysAgo(n: number) {
@@ -342,7 +302,6 @@ export default function StatisticsPage() {
   const [loading,      setLoading]      = useState(true);
   const [dashData,     setDashData]     = useState<DashStats | null>(null);
   const [syncData,     setSyncData]     = useState<SyncData | null>(null);
-  const [isDemo,       setIsDemo]       = useState(false); // true only when profitdash_demo cookie is set
   const [sortKey,      setSortKey]      = useState<SortKey>("revenue");
   const [sortDir,      setSortDir]      = useState<"desc" | "asc">("desc");
   const [activePreset,    setActivePreset]    = useState("30D");
@@ -372,10 +331,6 @@ export default function StatisticsPage() {
     }
   }, []);
 
-  useEffect(() => {
-    setIsDemo(document.cookie.split(";").some(c => c.trim().startsWith("profitdash_demo=1")));
-  }, []);
-
   useEffect(() => { fetchAll(range); }, [range, fetchAll]);
 
   // ── Load engine mode, thresholds, and recent actions ─────────────────────
@@ -402,10 +357,10 @@ export default function StatisticsPage() {
   }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  const campaigns    = isDemo ? DEMO_CAMPAIGNS : (syncData?.campaigns      ?? []);
-  const totals       = isDemo ? DEMO_TOTALS    : dashData?.totals;
-  const chartData    = isDemo ? DEMO_CHART     : (dashData?.chartData      ?? []);
-  const netBreakdown = isDemo ? DEMO_NETWORKS  : (dashData?.networkBreakdown ?? []);
+  const campaigns    = syncData?.campaigns       ?? [];
+  const totals       = dashData?.totals;
+  const chartData    = dashData?.chartData       ?? [];
+  const netBreakdown = dashData?.networkBreakdown ?? [];
 
   const revenue = totals?.totalRevenue ?? 0;
   const spend   = totals?.totalSpend   ?? 0;
@@ -613,57 +568,6 @@ export default function StatisticsPage() {
         {/* ── Body ───────────────────────────────────────────────────────── */}
         <div style={{ padding: "28px 32px", display: "flex", flexDirection: "column", gap: 28 }}>
 
-          {/* ── Analytics empty state ─────────────────────────────────────── */}
-          {isDemo && !loading && (
-            <EmptyStateCard
-              tone="sky"
-              badge="Analytics empty"
-              title="Not enough data yet to analyze patterns."
-              text="Analytics needs spend, clicks, or conversions before trends become meaningful. Connect your ad networks and run campaigns to unlock full performance analysis."
-              cta1="Open campaigns"
-              cta1Href="/dashboard/campaigns"
-              cta2="Connect networks"
-              cta2Href="/dashboard/settings"
-              preview={
-                <div style={{
-                  width: "100%", maxWidth: 480,
-                  borderRadius: 26,
-                  border: "1px solid rgba(56,189,248,0.18)",
-                  background: "rgba(14,165,233,0.07)",
-                  padding: 20,
-                }}>
-                  <div style={{
-                    borderRadius: 20,
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    background: "rgba(0,0,0,0.12)",
-                    height: 200, position: "relative", overflow: "hidden",
-                    padding: "18px 20px",
-                  }}>
-                    {/* Ghost bars */}
-                    <div style={{ position: "absolute", bottom: 16, left: 16, right: 16, display: "flex", alignItems: "flex-end", gap: 6, height: 110 }}>
-                      {[40, 65, 30, 75, 50, 85, 45].map((h, i) => (
-                        <div key={i} style={{ flex: 1, height: `${h}%`, borderRadius: "5px 5px 0 0", background: "rgba(56,189,248,0.08)" }} />
-                      ))}
-                    </div>
-                    {/* Overlay */}
-                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 20 }}>
-                      <div>
-                        <div style={{ fontSize: 20, letterSpacing: "-0.04em", fontWeight: 300, color: "rgba(255,255,255,0.88)" }}>
-                          Waiting for trend data
-                        </div>
-                        <div style={{ marginTop: 8, fontSize: 13, color: "rgba(255,255,255,0.34)", lineHeight: 1.55, fontWeight: 300 }}>
-                          Run campaigns for a bit longer to unlock meaningful performance analysis.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              }
-            />
-          )}
-
-          {/* ── Real data sections (hidden when no data) ─────────────────── */}
-          {!isDemo && (<>
 
           {/* ── Engine layer ─────────────────────────────────────────────── */}
           <motion.div
@@ -1154,7 +1058,6 @@ export default function StatisticsPage() {
 
             </div>
           </div>
-          </>)}
         </div>
       </div>
     </div>

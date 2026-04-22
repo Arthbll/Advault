@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 import {
   IconRefresh, IconPause, IconPlay, IconMinus, IconArrowRight, IconX,
 } from "@/components/ui/Icons";
@@ -127,6 +128,7 @@ function timeAgo(iso: string | null | undefined): string {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CampaignsPage() {
+  const isMobile     = useIsMobile();
   const router       = useRouter();
   const searchParams = useSearchParams();
   const [campaigns,     setCampaigns]     = useState<Campaign[]>([]);
@@ -428,7 +430,7 @@ export default function CampaignsPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ padding: "20px 28px 60px" }}>
+    <div style={{ padding: isMobile ? "12px 12px 80px" : "20px 28px 60px" }}>
 
       {/* ── Outer card ──────────────────────────────────────────────────────── */}
       <motion.div
@@ -444,12 +446,14 @@ export default function CampaignsPage() {
 
         {/* ── Top status bar ──────────────────────────────────────────────── */}
         <div style={{
-          height: 68,
+          height: isMobile ? "auto" : 68,
           borderBottom: "1px solid rgba(255,255,255,0.06)",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 28px",
+          padding: isMobile ? "12px 16px" : "0 28px",
           background: "radial-gradient(circle at 30% 0%, rgba(99,102,241,0.08), transparent 35%)",
           flexShrink: 0,
+          flexWrap: isMobile ? "wrap" : "nowrap",
+          gap: isMobile ? 8 : undefined,
         }}>
           {/* Left: live counters */}
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
@@ -550,14 +554,14 @@ export default function CampaignsPage() {
         </div>
 
         {/* ── Page content ────────────────────────────────────────────────── */}
-        <div style={{ padding: "32px 28px 44px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <div style={{ padding: isMobile ? "16px 12px 28px" : "32px 28px 44px", display: "flex", flexDirection: "column", gap: 24 }}>
 
           {/* ── Header ──────────────────────────────────────────────────────── */}
           <motion.div {...si(1)}>
             <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.24em", color: C_WHITE(0.25), margin: "0 0 10px" }}>
               Execution
             </p>
-            <h1 style={{ fontSize: 44, fontWeight: 300, letterSpacing: "-0.05em", lineHeight: 0.96, color: "#fff", margin: "0 0 14px" }}>
+            <h1 style={{ fontSize: isMobile ? 26 : 44, fontWeight: 300, letterSpacing: "-0.05em", lineHeight: 0.96, color: "#fff", margin: "0 0 14px" }}>
               Campaign Operations
             </h1>
             <p style={{ fontSize: 15, lineHeight: 1.7, color: C_WHITE(0.36), maxWidth: 420, margin: 0 }}>
@@ -566,7 +570,7 @@ export default function CampaignsPage() {
           </motion.div>
 
           {/* ── Two-column: Launch + Engine state ───────────────────────────── */}
-          <motion.div {...si(2)} style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr", gap: 16 }}>
+          <motion.div {...si(2)} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.15fr 0.85fr", gap: 16 }}>
 
             {/* Launch block */}
             <motion.div
@@ -580,7 +584,7 @@ export default function CampaignsPage() {
                   borderRadius: 28, overflow: "hidden", position: "relative",
                   border: "1px solid rgba(255,255,255,0.08)",
                   background: "linear-gradient(180deg, rgba(18,19,28,0.98), rgba(13,14,21,0.98))",
-                  padding: "28px 28px 26px",
+                  padding: isMobile ? "16px 16px 16px" : "28px 28px 26px",
                   transition: "border-color 0.22s",
                 }}
               >
@@ -775,7 +779,22 @@ export default function CampaignsPage() {
             </div>
 
             {/* Column headers */}
-            {!loading && filtered.length > 0 && (
+            {!loading && filtered.length > 0 && isMobile ? (
+              <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                <div style={{ minWidth: 640 }}>
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.7fr 0.7fr 0.65fr 1fr 0.5fr 0.82fr",
+                    gap: 14, padding: "10px 22px",
+                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                  }}>
+                    {["Campaign", "Network", "State", "Spend / Revenue", "ROI", "Actions"].map((h, i) => (
+                      <span key={h} style={{ ...COL_LABEL, textAlign: i >= 4 ? "right" : "left" }}>{h}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : !loading && filtered.length > 0 ? (
               <div style={{
                 display: "grid",
                 gridTemplateColumns: "1.7fr 0.7fr 0.65fr 1fr 0.5fr 0.82fr",
@@ -786,7 +805,7 @@ export default function CampaignsPage() {
                   <span key={h} style={{ ...COL_LABEL, textAlign: i >= 4 ? "right" : "left" }}>{h}</span>
                 ))}
               </div>
-            )}
+            ) : null}
 
             {/* Rows */}
             {loading ? (
@@ -833,6 +852,225 @@ export default function CampaignsPage() {
                 )}
               </div>
 
+            ) : isMobile ? (
+              <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                <div style={{ minWidth: 640 }}>
+                  <AnimatePresence mode="popLayout">
+                    {filtered.map((c, i) => {
+                  const roi       = c.spend > 0 ? ((c.revenue - c.spend) / c.spend) * 100 : 0;
+                  const engine    = c.engineState;
+                  const engCfg    = ENGINE_CFG[engine];
+                  const netCfg    = NET_CFG[c.network] ?? { label: c.network, domain: "", color: C_WHITE(0.5), rgb: "255,255,255" };
+                  const isPend    = acting?.startsWith(c.id);
+                  const roiColor  = roi === 0 ? C_WHITE(0.18) : roi > 0 ? C_GREEN : (engine === "WATCHING" || engine === "MONITORED") ? "#fbbf24" : C_RED;
+                  const barMax    = Math.max(c.spend, c.revenue, 1);
+                  const isLast    = i === filtered.length - 1;
+                  const needsAttn = engine === "NEEDS_ACTION";
+
+                  const isExcluded   = excludedIds.has(c.id);
+                  const isAutoPaused = pausedAutoIds.has(c.id);
+
+                  return (
+                    <motion.div
+                      key={c.id}
+                      layout
+                      initial={{ opacity: 0, x: -8, filter: "blur(2px)" }}
+                      animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                      exit={{ opacity: 0, scale: 0.97 }}
+                      transition={{ duration: 0.35, delay: i * 0.04, ease: EASE }}
+                      onClick={() => router.push(`/dashboard/campaigns/${c.id}`)}
+                      whileHover={{ background: needsAttn ? "rgba(248,113,113,0.045)" : "rgba(255,255,255,0.024)" }}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1.7fr 0.7fr 0.65fr 1fr 0.5fr 0.82fr",
+                        gap: 14, alignItems: "center",
+                        padding: "18px 22px",
+                        borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)",
+                        cursor: "pointer",
+                        background: isExcluded
+                          ? "rgba(139,92,246,0.02)"
+                          : needsAttn ? "rgba(248,113,113,0.025)" : "transparent",
+                        transition: "background 0.15s",
+                      }}
+                    >
+                      {/* Name */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+                        {needsAttn ? (
+                          <motion.span
+                            animate={{ opacity: [1, 0.15, 1] }}
+                            transition={{ duration: 1.6, repeat: Infinity }}
+                            style={{
+                              width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                              background: engCfg.color, boxShadow: `0 0 8px rgba(${engCfg.rgb},0.8)`,
+                            }}
+                          />
+                        ) : (
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: engCfg.color }} />
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{
+                            fontSize: 19, fontWeight: 300, letterSpacing: "-0.03em",
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            color: C_WHITE(0.88), display: "block",
+                          }}>
+                            {c.name}
+                          </span>
+                          {c.syncedAt && (
+                            <span style={{
+                              fontSize: 9, color: C_WHITE(0.22),
+                              letterSpacing: "0.06em", lineHeight: 1,
+                            }}>
+                              {timeAgo(c.syncedAt)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Network */}
+                      <div>
+                        <span style={{
+                          borderRadius: 99, fontSize: 12,
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "rgba(255,255,255,0.03)",
+                          padding: "4px 12px", color: C_WHITE(0.68),
+                        }}>
+                          {netCfg.label}
+                        </span>
+                      </div>
+
+                      {/* State + engine badges */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <span style={{
+                          borderRadius: 99, fontSize: 11, fontWeight: 500,
+                          border: `1px solid rgba(${engCfg.rgb},0.18)`,
+                          background: `rgba(${engCfg.rgb},0.08)`,
+                          padding: "4px 12px", color: engCfg.color,
+                          display: "inline-flex", alignItems: "center",
+                        }}>
+                          {engCfg.label}
+                        </span>
+                        {isExcluded && (
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, letterSpacing: "0.16em",
+                            textTransform: "uppercase", color: "rgba(196,181,253,0.60)",
+                            paddingLeft: 2,
+                          }}>
+                            Manual only
+                          </span>
+                        )}
+                        {isAutoPaused && !isExcluded && (
+                          <span style={{
+                            fontSize: 9, fontWeight: 700, letterSpacing: "0.16em",
+                            textTransform: "uppercase", color: "rgba(253,230,138,0.60)",
+                            paddingLeft: 2,
+                          }}>
+                            Auto paused
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Spend / Revenue */}
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+                          <span style={{ color: C_WHITE(0.45) }}>{c.spend > 0 ? `$${c.spend.toFixed(0)}` : "—"}</span>
+                          <span style={{ color: C_WHITE(0.72) }}>{c.revenue > 0 ? `$${c.revenue.toFixed(0)}` : "—"}</span>
+                        </div>
+                        <div style={{ position: "relative", height: 3, borderRadius: 99, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+                          <div style={{ height: "100%", borderRadius: 99, width: `${(c.spend / barMax) * 100}%`, background: "rgba(255,255,255,0.22)" }} />
+                          <div style={{ position: "absolute", top: 0, left: 0, height: "100%", borderRadius: 99, width: `${(c.revenue / barMax) * 100}%`, background: "rgba(255,255,255,0.6)" }} />
+                        </div>
+                      </div>
+
+                      {/* ROI */}
+                      <div style={{ textAlign: "right" }}>
+                        <span style={{
+                          fontSize: 26, fontWeight: 300, letterSpacing: "-0.04em",
+                          color: roiColor, fontVariantNumeric: "tabular-nums",
+                        }}>
+                          {roi === 0 ? "—" : `${roi >= 0 ? "+" : ""}${roi.toFixed(1)}%`}
+                        </span>
+                      </div>
+
+                      {/* Actions: primary + overflow ⋯ */}
+                      {(() => {
+                        // State-dependent primary action
+                        const primary: {
+                          label: string; color: string; bg: string; border: string;
+                          handler: () => void;
+                        } | null = (() => {
+                          if (engine === "SCALING") return {
+                            label: "Scale",
+                            color: "#4ade80",
+                            bg: "rgba(74,222,128,0.08)", border: "rgba(74,222,128,0.24)",
+                            handler: () => { doAction(c.id, "scale", 1.25); setActiveMenu(null); },
+                          };
+                          if (engine === "NEEDS_ACTION" || engine === "MONITORED") return {
+                            label: "Review",
+                            color: "rgba(255,255,255,0.76)",
+                            bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.12)",
+                            handler: () => router.push(`/dashboard/campaigns/${c.id}`),
+                          };
+                          if (c.status === "PAUSED" || c.status === "KILLED") return {
+                            label: "Resume",
+                            color: "#4ade80",
+                            bg: "rgba(74,222,128,0.08)", border: "rgba(74,222,128,0.24)",
+                            handler: () => { doAction(c.id, "resume"); setActiveMenu(null); },
+                          };
+                          return null;
+                        })();
+
+                        return (
+                          <div onClick={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
+                            {primary && (
+                              <motion.button
+                                onClick={(e) => { e.stopPropagation(); primary.handler(); }}
+                                whileTap={{ scale: 0.91 }}
+                                disabled={!!isPend}
+                                style={{
+                                  padding: "5px 12px", borderRadius: 9,
+                                  background: primary.bg, border: `1px solid ${primary.border}`,
+                                  color: primary.color, fontSize: 11, fontWeight: 600,
+                                  cursor: isPend ? "not-allowed" : "pointer",
+                                  opacity: isPend ? 0.4 : 1,
+                                  transition: "opacity 0.12s",
+                                  whiteSpace: "nowrap" as const,
+                                  letterSpacing: "0.01em",
+                                  fontFamily: "inherit",
+                                }}
+                              >
+                                {primary.label}
+                              </motion.button>
+                            )}
+
+                            {/* Overflow — always visible */}
+                            <motion.button
+                              onClick={(e) => openManageMenu(e, c)}
+                              whileHover={{ background: "rgba(255,255,255,0.08)" }}
+                              whileTap={{ scale: 0.88 }}
+                              style={{
+                                width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                background: activeMenu?.id === c.id ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
+                                border: `1px solid ${activeMenu?.id === c.id ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.07)"}`,
+                                cursor: "pointer",
+                                color: "rgba(255,255,255,0.40)",
+                                fontSize: 13, fontWeight: 700, letterSpacing: "0.04em",
+                                transition: "all 0.12s",
+                                fontFamily: "inherit",
+                                lineHeight: 1,
+                              }}
+                            >
+                              ···
+                            </motion.button>
+                          </div>
+                        );
+                      })()}
+                      </motion.div>
+                    );
+                    })}
+                  </AnimatePresence>
+                </div>
+              </div>
             ) : (
               <AnimatePresence mode="popLayout">
                 {filtered.map((c, i) => {
@@ -994,6 +1232,12 @@ export default function CampaignsPage() {
                             color: "#4ade80",
                             bg: "rgba(74,222,128,0.08)", border: "rgba(74,222,128,0.24)",
                             handler: () => { doAction(c.id, "resume"); setActiveMenu(null); },
+                          };
+                          if (c.status === "ACTIVE") return {
+                            label: "Pause",
+                            color: "rgba(255,255,255,0.70)",
+                            bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.12)",
+                            handler: () => { doAction(c.id, "pause"); setActiveMenu(null); },
                           };
                           return null;
                         })();

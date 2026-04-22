@@ -81,6 +81,8 @@ export async function GET() {
       scaleCooldownH: decision?.scaleCooldownH ?? DEFAULT_DECISION.scaleCooldownH,
       maxKillsDay:    decision?.maxKillsDay    ?? DEFAULT_DECISION.maxKillsDay,
       maxScalesDay:   decision?.maxScalesDay   ?? DEFAULT_DECISION.maxScalesDay,
+      timeWindowStart: (decision as { timeWindowStart?: number | null } | null)?.timeWindowStart ?? null,
+      timeWindowEnd:   (decision as { timeWindowEnd?:   number | null } | null)?.timeWindowEnd   ?? null,
     },
   });
 }
@@ -117,8 +119,10 @@ export async function PUT(req: NextRequest) {
     scaleHoldMin?:   number;
     killCooldownH?:  number;
     scaleCooldownH?: number;
-    maxKillsDay?:    number;
-    maxScalesDay?:   number;
+    maxKillsDay?:      number;
+    maxScalesDay?:     number;
+    timeWindowStart?:  number | null;
+    timeWindowEnd?:    number | null;
   };
 
   try { body = await req.json(); }
@@ -161,6 +165,12 @@ export async function PUT(req: NextRequest) {
   if (body.maxScalesDay !== undefined && (body.maxScalesDay < 0 || body.maxScalesDay > 1000)) {
     return NextResponse.json({ error: "maxScalesDay must be 0–1000" }, { status: 400 });
   }
+  if (body.timeWindowStart !== undefined && body.timeWindowStart !== null && (body.timeWindowStart < 0 || body.timeWindowStart > 23)) {
+    return NextResponse.json({ error: "timeWindowStart must be 0–23" }, { status: 400 });
+  }
+  if (body.timeWindowEnd !== undefined && body.timeWindowEnd !== null && (body.timeWindowEnd < 0 || body.timeWindowEnd > 23)) {
+    return NextResponse.json({ error: "timeWindowEnd must be 0–23" }, { status: 400 });
+  }
 
   const updates: Promise<unknown>[] = [];
 
@@ -200,7 +210,9 @@ export async function PUT(req: NextRequest) {
   if (body.killCooldownH  !== undefined) decisionData.killCooldownH  = body.killCooldownH;
   if (body.scaleCooldownH !== undefined) decisionData.scaleCooldownH = body.scaleCooldownH;
   if (body.maxKillsDay    !== undefined) decisionData.maxKillsDay    = body.maxKillsDay;
-  if (body.maxScalesDay   !== undefined) decisionData.maxScalesDay   = body.maxScalesDay;
+  if (body.maxScalesDay      !== undefined) decisionData.maxScalesDay      = body.maxScalesDay;
+  if (body.timeWindowStart   !== undefined) decisionData.timeWindowStart   = body.timeWindowStart;
+  if (body.timeWindowEnd     !== undefined) decisionData.timeWindowEnd     = body.timeWindowEnd;
 
   if (Object.keys(decisionData).length > 0) {
     updates.push(

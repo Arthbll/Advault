@@ -1,7 +1,6 @@
 import { prisma }        from "@/lib/prisma";
 import { createClient }  from "@/lib/supabase/server";
 import { redirect }      from "next/navigation";
-import { cookies }       from "next/headers";
 
 export const dynamic = "force-dynamic";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -37,13 +36,7 @@ function iso30DaysAgo(): string {
 
 // ─── Data Fetching ────────────────────────────────────────────────────────────
 
-async function getDashboardData(userId: string, dateFrom: string, dateTo: string, forceDemo = false) {
-  // ── Mode aperçu : activé manuellement depuis les Paramètres ───────────────
-  if (forceDemo) {
-    const { getDemoDashboardStatsResponse } = await import("@/lib/demo-data");
-    return { ...getDemoDashboardStatsResponse(dateFrom, dateTo), needsSync: false };
-  }
-
+async function getDashboardData(userId: string, dateFrom: string, dateTo: string) {
   // ── Vérifier si des comptes sont connectés ────────────────────────────────
   let accountCount = 0;
   try {
@@ -218,10 +211,8 @@ export default async function DashboardPage() {
 
   const dateFrom  = iso30DaysAgo();
   const dateTo    = isoToday();
-  const cookieStore = await cookies();
-  const forceDemo   = cookieStore.get("profitdash_demo")?.value === "1";
   const { totals, chartData, networkBreakdown, activeCampaigns, alerts, topCampaigns, trend, needsSync } =
-    await getDashboardData(user.id, dateFrom, dateTo, forceDemo);
+    await getDashboardData(user.id, dateFrom, dateTo);
 
   return (
     <BentoDashboard

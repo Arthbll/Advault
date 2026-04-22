@@ -29,7 +29,7 @@ export interface ExoClickCreateParams {
   name:          string;
   url?:          string;              // URL de destination (variations[0].url)
   bid:           number;              // prix en euros
-  bidType:       "cpm" | "cpc";       // pricing.model : cpm=2, cpc=1, smart_bid=3, smart_cpm=4
+  bidType:       "cpm" | "cpc" | "smart_cpm" | "smart_bid"; // pricing.model : cpm=2, cpc=1, smart_bid=3, smart_cpm=4
   adFormat:      number;              // advertiser_ad_type : popunder=7, banner=1…
   active:        boolean;             // non utilisé dans le payload POST (status séparé)
   categories?:   number[];            // IDs catégories ExoClick (défaut: [97] = adult)
@@ -38,6 +38,8 @@ export interface ExoClickCreateParams {
   countries?:    string[];            // codes ISO 2 lettres (défaut: ["US"])
   startAt?:      string;              // YYYY-MM-DD
   endAt?:        string;
+  freqCap?:      { imps: number; hours: number }; // frequency cap: max N impressions per X hours
+  timeSlots?:    number[];            // active hours 0-23 for day-parting; empty = 24/7
 }
 
 export interface ExoClickCampaign {
@@ -263,28 +265,44 @@ export class ExoClickAdapter {
   /**
    * Scale bid by a multiplier (e.g. 1.10 = +10%).
    * ExoClick bid = pricing.price in centimes.
+   *
+   * Response structure: GET /campaigns/{id} → { result: { pricing: { model, price }, ... } }
+   * We unwrap result (and optionally campaign) before reading pricing.
    */
   async scaleBid(campaignId: string, multiplier: number): Promise<{ oldBid: number; newBid: number }> {
-    const raw = await this.getRawCampaign(campaignId) as Record<string, unknown>;
-    const pricing = (raw as Record<string, unknown>)?.pricing as Record<string, unknown> | undefined;
-    const currentCents = Number(pricing?.price ?? 100); // default 1€ if unreadable
+    const raw    = await this.getRawCampaign(campaignId) as Record<string, unknown>;
+    // ExoClick GET structure: { result: { campaign: { price, pricing_model, ... }, ... }, request_metadata }
+    // Flat fields at campaign level — NOT a nested "pricing" object.
+    const result = (raw?.result ?? raw) as Record<string, unknown>;
+    const camp   = (result?.campaign ?? result) as Record<string, unknown>;
+
+    const currentCents = Number(camp?.price ?? 100);          // flat field "price" in centimes
+    const pricingModel = Number(camp?.pricing_model ?? 2);    // flat field "pricing_model" (2=CPM, 1=CPC)
+
     const newCents = Math.max(51, Math.round(currentCents * multiplier)); // ExoClick min 51 centimes
+
+    // ExoClick PUT accepts the same nested "pricing" object shape as POST
     await this.apiFetch(`/campaigns/${campaignId}`, {
       method: "PUT",
-      body: JSON.stringify({ pricing: { price: newCents } }),
+      body: JSON.stringify({ pricing: { model: pricingModel, price: newCents } }),
     });
     return { oldBid: currentCents / 100, newBid: newCents / 100 };
   }
 
   /**
    * Set bid to a fixed € amount.
-   * ExoClick min = 0.51€.
+   * ExoClick min = 0.51€. Preserves the pricing model (CPM/CPC).
    */
   async setBid(campaignId: string, amount: number): Promise<void> {
+    const raw    = await this.getRawCampaign(campaignId) as Record<string, unknown>;
+    const result = (raw?.result ?? raw) as Record<string, unknown>;
+    const camp   = (result?.campaign ?? result) as Record<string, unknown>;
+    const pricingModel = Number(camp?.pricing_model ?? 2);
+
     const newCents = Math.max(51, Math.round(amount * 100));
     await this.apiFetch(`/campaigns/${campaignId}`, {
       method: "PUT",
-      body: JSON.stringify({ pricing: { price: newCents } }),
+      body: JSON.stringify({ pricing: { model: pricingModel, price: newCents } }),
     });
   }
 
@@ -378,7 +396,22 @@ export class ExoClickAdapter {
       variations:             [],   // ExoClick ignore ce champ au POST — variation créée via PUT après
       optimization_algorithm: 1,
       optimization_idgoal:    null,
-      day_parting:            { timezone: "Europe/Paris", parting: [] },
+      // day_parting: schedule delivery to specific hours.
+      // parting format: array of { weekday: 0-6 (Mon=0…Sun=6), hours: number[] }
+      // Empty parting array = all hours (24/7). One entry per weekday, same hours each day.
+      day_parting: (() => {
+        if (!params.timeSlots || params.timeSlots.length === 0) {
+          return { timezone: "Europe/Paris", parting: [] }; // 24/7
+        }
+        // Apply the same active hours to every weekday (Mon=0 … Sun=6)
+        return {
+          timezone: "Europe/Paris",
+          parting: [0, 1, 2, 3, 4, 5, 6].map(weekday => ({
+            weekday,
+            hours: params.timeSlots,
+          })),
+        };
+      })(),
       retargeting:            { enabled: false, goals: [] },
       countries:              { type: "targeted", elements: countryElements },
       sites:                  { targeted: [], blocked: [] },
@@ -387,7 +420,12 @@ export class ExoClickAdapter {
       vr:                     0,
       email_passing:          0,
       pricing:                { model: pricingModelId, price: priceCents },
-      frequency_capping:      { enabled: false, impressions: 0, minutes: 0, level: null },
+      // frequency_capping: limit how many times a user sees the ad.
+      // ExoClick format: { enabled, impressions (max), minutes (window), level }
+      // level: "campaign" = per campaign, "ad" = per creative.
+      frequency_capping: (params.freqCap?.imps ?? 0) > 0
+        ? { enabled: true,  impressions: params.freqCap!.imps, minutes: params.freqCap!.hours * 60, level: "campaign" }
+        : { enabled: false, impressions: 0,                    minutes: 0,                           level: null },
       // Budgets : ExoClick stocke en centimes MAIS exige des euros entiers (pas de centimes fractionnaires)
       // → toujours arrondir à l'euro avant de multiplier par 100
       // ex: 20.01€ → Math.round(20.01)*100 = 2000 ✓  (pas Math.round(20.01*100)=2001 ✗)
@@ -611,16 +649,28 @@ export class ExoClickAdapter {
     }
   }
 
+  // ExoClick uses ISO-3 codes internally — reverse map for stats parsing
+  private static readonly ISO3_TO_2: Record<string, string> = {
+    USA: "US", GBR: "GB", DEU: "DE", FRA: "FR", ESP: "ES", ITA: "IT",
+    CAN: "CA", AUS: "AU", BRA: "BR", MEX: "MX", IND: "IN", JPN: "JP",
+    KOR: "KR", RUS: "RU", UKR: "UA", POL: "PL", NLD: "NL", BEL: "BE",
+    SWE: "SE", NOR: "NO", DNK: "DK", FIN: "FI", CHE: "CH", AUT: "AT",
+    PRT: "PT", CZE: "CZ", HUN: "HU", ROU: "RO", TUR: "TR", THA: "TH",
+    IDN: "ID", PHL: "PH", VNM: "VN", MYS: "MY", SGP: "SG", ZAF: "ZA",
+    ARG: "AR", COL: "CO", SAU: "SA", ARE: "AE", ISR: "IL", PAK: "PK",
+    NGA: "NG", EGY: "EG", CHN: "CN", TWN: "TW", HKG: "HK",
+  };
+
+  /**
+   * Fetch stats grouped by country.
+   * ExoClick dedicated endpoint: GET /statistics/a/country
+   * Response: { result: [{ country: "USA", impressions, clicks, cost, ... }] }
+   * Note: ExoClick uses ISO 3-letter codes → we convert to ISO-2 for the map.
+   */
   async getStatsByCountry(dateFrom: string, dateTo: string): Promise<{ countryCode: string; impressions: number; clicks: number; spent: number }[]> {
+    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
     const data = await this.apiFetch<{ result: unknown }>(
-      `/statistics/a/global`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          group_by: ["country"],
-          filter:   { date_from: dateFrom, date_to: dateTo },
-        }),
-      }
+      `/statistics/a/country?${params}`,
     );
 
     const raw = data?.result ?? [];
@@ -630,12 +680,11 @@ export class ExoClickAdapter {
 
     return list
       .map(row => {
-        const groupBy = (row.group_by ?? {}) as Record<string, unknown>;
-        const countryObj = (groupBy.country ?? {}) as Record<string, unknown>;
-        // ExoClick returns ISO 2-letter code in group_by.country.name or .code
-        const countryCode = String(
-          countryObj.name ?? countryObj.code ?? countryObj.id ?? row.country ?? ""
-        ).toUpperCase();
+        const iso3 = String(row.country ?? "").toUpperCase();
+        // Convert ISO-3 → ISO-2; if already 2-letter, keep as-is
+        const countryCode = iso3.length === 2
+          ? iso3
+          : (ExoClickAdapter.ISO3_TO_2[iso3] ?? "");
 
         return {
           countryCode,

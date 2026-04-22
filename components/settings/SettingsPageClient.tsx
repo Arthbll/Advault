@@ -14,7 +14,6 @@ import {
 import AutoSyncSettings    from "./AutoSyncSettings";
 import NotificationSettings from "./NotificationSettings";
 import NetworkCard          from "./NetworkCard";
-import KillSwitchSettings   from "./KillSwitchSettings";
 import { NetworkErrorCard, PostbackHealthCard } from "@/components/ui/SyncErrorCard";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -53,11 +52,11 @@ interface Props {
   connectedCount: number;
   accounts: AccountInfo[];
   ksSettings: KSConfig;
-  isDemo?: boolean;
   plan?: string;
-  isOwner?: boolean;
   teamMembers?: TeamMemberData[];
   pendingInvites?: PendingInviteData[];
+  timezone?: string;
+  currency?: string;
 }
 
 // ─── Network configs ────────────────────────────────────────────────────────────
@@ -81,7 +80,7 @@ const TONES = {
 type ToneKey = keyof typeof TONES;
 
 // ─── Navigation ─────────────────────────────────────────────────────────────────
-type Tab = "overview" | "connections" | "postbacks" | "engine" | "plan" | "team" | "security" | "demo";
+type Tab = "overview" | "connections" | "postbacks" | "plan" | "team" | "security" | "workspace";
 
 // ─── Security log types ──────────────────────────────────────────────────────────
 type SyncLogEntry = {
@@ -105,16 +104,12 @@ const NAV_ITEMS: { id: Tab; label: string }[] = [
   { id: "overview",    label: "Overview" },
   { id: "connections", label: "Connections" },
   { id: "postbacks",   label: "Postbacks" },
-  { id: "engine",      label: "Engine Defaults" },
   { id: "plan",        label: "Plan" },
   { id: "team",        label: "Team & Roles" },
+  { id: "workspace",   label: "Workspace" },
   { id: "security",    label: "Security" },
 ];
 
-// Admin-only nav item shown below a separator
-const NAV_ADMIN: { id: Tab; label: string }[] = [
-  { id: "demo", label: "Demo Mode" },
-];
 
 // ─── Shared micro-components ────────────────────────────────────────────────────
 function Badge({ tone, children }: { tone: ToneKey; children: React.ReactNode }) {
@@ -216,22 +211,20 @@ const SHELL_CONFIG: Record<Tab, { eyebrow: string; sub: string }> = {
   overview:    { eyebrow: "Settings hub",    sub: "Integration health, team access, and configuration." },
   connections: { eyebrow: "Ad Networks",     sub: "Connect your ad network accounts. Review API sync health and manage credentials." },
   postbacks:   { eyebrow: "Revenue Signal",  sub: "Affiliate sources, global postback URL, and revenue signal health." },
-  engine:      { eyebrow: "Automation",      sub: "Kill, watch, and scale rules — applied to all campaigns." },
   plan:        { eyebrow: "Subscription",    sub: "Your current plan and what comes with it. Upgrade or downgrade at any time." },
   team:        { eyebrow: "Access Control",  sub: "Invite teammates, assign roles, and manage workspace access." },
+  workspace:   { eyebrow: "Preferences",     sub: "Timezone, display currency, and data exports." },
   security:    { eyebrow: "Security",        sub: "Credentials, event logs, and workspace tools." },
-  demo:        { eyebrow: "Admin · Personal", sub: "Preview the interface with demo data, or inject and clear test data." },
 };
 
 const SHELL_TITLES: Record<Tab, string> = {
   overview:    "Settings",
   connections: "Connections",
   postbacks:   "Postbacks",
-  engine:      "Engine Defaults",
   plan:        "Plan",
   team:        "Team & Roles",
+  workspace:   "Workspace",
   security:    "Security",
-  demo:        "Demo Mode",
 };
 
 // ─── Main component ─────────────────────────────────────────────────────────────
@@ -239,20 +232,18 @@ export default function SettingsPageClient({
   connectedCount,
   accounts,
   ksSettings,
-  isDemo = false,
   plan = "Observer",
-  isOwner = false,
   teamMembers: initialTeamMembers = [],
   pendingInvites: initialPendingInvites = [],
+  timezone: initialTimezone = "UTC",
+  currency: initialCurrency = "USD",
 }: Props) {
   const searchParams = useSearchParams();
   const [tab, setTab]                     = useState<Tab>(() => {
     const t = searchParams?.get("tab");
-    const VALID_TABS: Tab[] = ["overview","connections","postbacks","engine","plan","team","security","demo"];
+    const VALID_TABS: Tab[] = ["overview","connections","postbacks","plan","team","workspace","security"];
     return (VALID_TABS.includes(t as Tab) ? t as Tab : "overview");
   });
-  const [demoEnabled, setDemoEnabled]     = useState(false);
-  const [demoLoading, setDemoLoading]     = useState(false);
   const [postbackUrl, setPostbackUrl]     = useState<string | null>(null);
   const [postbackToken, setPostbackToken] = useState<string | null>(null);
   const [postbackUid, setPostbackUid]     = useState<string | null>(null);
@@ -271,6 +262,13 @@ export default function SettingsPageClient({
   const [inviting, setInviting]             = useState(false);
   const [inviteResult, setInviteResult]     = useState<{ url?: string; error?: string } | null>(null);
   const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
+  const [inviteRole, setInviteRole]         = useState<"editor" | "viewer">("editor");
+
+  // Workspace settings state
+  const [wsTimezone, setWsTimezone]   = useState(initialTimezone);
+  const [wsCurrency, setWsCurrency]   = useState(initialCurrency);
+  const [wsSaving, setWsSaving]       = useState(false);
+  const [wsSaved, setWsSaved]         = useState(false);
 
   // Plan state
   const [currentPlan, setCurrentPlan]   = useState(plan);
@@ -280,12 +278,8 @@ export default function SettingsPageClient({
   // Security logs state
   const [secLogs,    setSecLogs]    = useState<SecurityLogsData | null>(null);
   const [secLoading, setSecLoading] = useState(false);
-  type SecView = null | "credentials" | "sync-logs" | "audit-trail" | "admin-tools";
+  type SecView = null | "credentials" | "sync-logs" | "audit-trail";
   const [secView, setSecView] = useState<SecView>(null);
-
-  useEffect(() => {
-    setDemoEnabled(document.cookie.split(";").some(c => c.trim().startsWith("profitdash_demo=1")));
-  }, []);
 
   useEffect(() => {
     if (tab !== "postbacks" || pbSourcesLoaded) return;
@@ -331,18 +325,6 @@ export default function SettingsPageClient({
     }).catch(() => {});
   }
 
-  async function toggleDemo(value: boolean) {
-    setDemoLoading(true);
-    try {
-      await fetch("/api/demo-mode", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: value }),
-      });
-      setDemoEnabled(value);
-      if (typeof window !== "undefined") window.location.href = "/dashboard";
-    } finally { setDemoLoading(false); }
-  }
-
   // ── Plan actions ──────────────────────────────────────────────────────────────
   async function handlePlanChange(newPlan: string) {
     setPlanLoading(newPlan);
@@ -375,7 +357,7 @@ export default function SettingsPageClient({
       const res = await fetch("/api/team/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail.trim().toLowerCase() }),
+        body: JSON.stringify({ email: inviteEmail.trim().toLowerCase(), role: inviteRole }),
       });
       const data = await res.json() as { ok?: boolean; inviteUrl?: string; error?: string; alreadyExists?: boolean };
       if (!res.ok || data.error) {
@@ -421,7 +403,6 @@ export default function SettingsPageClient({
     const navCards: { tone: ToneKey; id: Tab; desc: string }[] = [
       { tone: "amber",   id: "connections", desc: "Ad network APIs, credentials, sync health" },
       { tone: "emerald", id: "postbacks",   desc: "Affiliate sources, revenue signal, health" },
-      { tone: "violet",  id: "engine",      desc: "Kill, watch, and scale thresholds for all campaigns" },
       { tone: "rose",    id: "plan",        desc: "Current subscription, upgrade or downgrade" },
       { tone: "sky",     id: "team",        desc: "Invites, permissions, access levels" },
       { tone: "white",   id: "security",    desc: "Secrets, audit trail, maintenance" },
@@ -460,24 +441,32 @@ export default function SettingsPageClient({
               onClick={() => setTab(nc.id)}
             />
           ))}
-          {/* Workspace placeholder */}
-          <div style={{
-            borderRadius: 26, border: "1px solid rgba(255,255,255,0.06)",
-            background: "linear-gradient(180deg,rgba(17,18,25,0.70),rgba(12,13,19,0.70))",
-            padding: 20, minHeight: 190, opacity: 0.5,
-            display: "flex", flexDirection: "column", justifyContent: "space-between",
-          }}>
+          {/* Workspace card */}
+          <div
+            onClick={() => setTab("workspace")}
+            style={{
+              borderRadius: 26, border: "1px solid rgba(255,255,255,0.08)",
+              background: "linear-gradient(180deg,rgba(17,18,25,0.80),rgba(12,13,19,0.80))",
+              padding: 20, minHeight: 190, cursor: "pointer",
+              display: "flex", flexDirection: "column", justifyContent: "space-between",
+              transition: "border-color 0.2s",
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.18)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.08)"; }}
+          >
             <div>
               <Badge tone="white">Workspace</Badge>
               <div style={{ fontSize: 24, fontWeight: 200, letterSpacing: "-0.04em", marginTop: 18 }}>Workspace</div>
-              <div style={{ fontSize: 13, lineHeight: 1.75, color: "rgba(255,255,255,0.40)", marginTop: 10 }}>Timezone, currency, demo mode, exports</div>
+              <div style={{ fontSize: 13, lineHeight: 1.75, color: "rgba(255,255,255,0.40)", marginTop: 10 }}>Timezone, currency, exports</div>
             </div>
             <div style={{
-              borderRadius: 16, border: "1px solid rgba(255,255,255,0.06)",
-              background: "rgba(255,255,255,0.02)", height: 44, padding: "0 16px",
-              display: "flex", alignItems: "center", fontSize: 13, color: "rgba(255,255,255,0.30)",
+              borderRadius: 16, border: "1px solid rgba(255,255,255,0.09)",
+              background: "rgba(255,255,255,0.03)", height: 44, padding: "0 16px",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              fontSize: 13, color: "rgba(255,255,255,0.50)",
             }}>
-              Coming soon
+              <span>{wsTimezone} · {wsCurrency}</span>
+              <span style={{ fontSize: 11, opacity: 0.5 }}>Configure →</span>
             </div>
           </div>
         </div>
@@ -494,26 +483,7 @@ export default function SettingsPageClient({
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.24)" }}>Ad network APIs</div>
             <div style={{ fontSize: 28, fontWeight: 200, letterSpacing: "-0.04em", marginTop: 6 }}>Campaign data sources</div>
           </div>
-          {isDemo && <Badge tone="amber">Demo</Badge>}
         </div>
-
-        {isDemo && (
-          <div style={{
-            padding: "12px 16px", borderRadius: 12,
-            background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.14)",
-            display: "flex", alignItems: "flex-start", gap: 10,
-          }}>
-            <span style={{ fontSize: 14, marginTop: 1 }}>👁</span>
-            <div>
-              <p style={{ fontSize: 12, fontWeight: 500, color: "rgba(245,158,11,0.9)", margin: "0 0 2px" }}>
-                Demo mode — sample data
-              </p>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", margin: 0, lineHeight: 1.5 }}>
-                No real account connected. Connect your ExoClick API key to see your real campaigns.
-              </p>
-            </div>
-          </div>
-        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {NETWORK_CONFIGS.map((cfg, i) => {
@@ -741,10 +711,6 @@ export default function SettingsPageClient({
   }
 
   // ── Engine Defaults ───────────────────────────────────────────────────────────
-  function renderEngine() {
-    return <KillSwitchSettings />;
-  }
-
   // ── Team & Roles ──────────────────────────────────────────────────────────────
   // ── Plan ──────────────────────────────────────────────────────────────────────
   function renderPlan() {
@@ -953,6 +919,19 @@ export default function SettingsPageClient({
                 outline: "none",
               }}
             />
+            {/* Role selector */}
+            <select
+              value={inviteRole}
+              onChange={e => setInviteRole(e.target.value as "editor" | "viewer")}
+              style={{
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)",
+                borderRadius: 12, padding: "10px 14px", fontSize: 13, color: "rgba(255,255,255,0.70)",
+                outline: "none", cursor: "pointer", colorScheme: "dark",
+              }}
+            >
+              <option value="editor">Editor</option>
+              <option value="viewer">Viewer</option>
+            </select>
             <button
               disabled={!canInvite}
               onClick={handleInvite}
@@ -965,8 +944,13 @@ export default function SettingsPageClient({
                 whiteSpace: "nowrap", transition: "background 0.2s, color 0.2s",
               }}
             >
-              {inviting ? "Inviting…" : "+ Invite member"}
+              {inviting ? "Inviting…" : "+ Invite"}
             </button>
+          </div>
+          {/* Role explanation */}
+          <div style={{ display: "flex", gap: 16, fontSize: 11, color: "rgba(255,255,255,0.28)" }}>
+            <span><strong style={{ color: "rgba(255,255,255,0.45)" }}>Editor</strong> — can create & modify campaigns, rules, bids</span>
+            <span><strong style={{ color: "rgba(255,255,255,0.45)" }}>Viewer</strong> — read-only access to stats and campaigns</span>
           </div>
 
           {/* Invite result */}
@@ -1066,6 +1050,169 @@ export default function SettingsPageClient({
     );
   }
 
+  // ── Workspace ─────────────────────────────────────────────────────────────────
+  function renderWorkspace() {
+    const TIMEZONES = [
+      "UTC",
+      "Europe/Paris","Europe/London","Europe/Berlin","Europe/Madrid",
+      "Europe/Rome","Europe/Amsterdam","Europe/Brussels","Europe/Zurich",
+      "Europe/Warsaw","Europe/Lisbon","Europe/Stockholm","Europe/Helsinki",
+      "America/New_York","America/Chicago","America/Denver","America/Los_Angeles",
+      "America/Toronto","America/Sao_Paulo","America/Mexico_City","America/Bogota",
+      "Asia/Tokyo","Asia/Shanghai","Asia/Seoul","Asia/Singapore",
+      "Asia/Dubai","Asia/Kolkata","Australia/Sydney","Pacific/Auckland",
+    ];
+
+    const CURRENCIES = [
+      { code: "USD", label: "USD — US Dollar" },
+      { code: "EUR", label: "EUR — Euro" },
+      { code: "GBP", label: "GBP — British Pound" },
+      { code: "JPY", label: "JPY — Japanese Yen" },
+      { code: "CAD", label: "CAD — Canadian Dollar" },
+      { code: "AUD", label: "AUD — Australian Dollar" },
+      { code: "CHF", label: "CHF — Swiss Franc" },
+      { code: "SEK", label: "SEK — Swedish Krona" },
+      { code: "NOK", label: "NOK — Norwegian Krone" },
+      { code: "DKK", label: "DKK — Danish Krone" },
+      { code: "PLN", label: "PLN — Polish Zloty" },
+      { code: "BRL", label: "BRL — Brazilian Real" },
+      { code: "SGD", label: "SGD — Singapore Dollar" },
+      { code: "HKD", label: "HKD — Hong Kong Dollar" },
+    ];
+
+    const selectStyle: React.CSSProperties = {
+      width: "100%", background: "rgba(255,255,255,0.04)",
+      border: "1px solid rgba(255,255,255,0.09)", borderRadius: 12,
+      padding: "10px 14px", fontSize: 14, color: "rgba(255,255,255,0.80)",
+      outline: "none", cursor: "pointer", colorScheme: "dark",
+    };
+
+    async function handleSaveWorkspace() {
+      setWsSaving(true);
+      setWsSaved(false);
+      try {
+        await fetch("/api/workspace", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ timezone: wsTimezone, currency: wsCurrency }),
+        });
+        setWsSaved(true);
+        setTimeout(() => setWsSaved(false), 2500);
+      } finally {
+        setWsSaving(false);
+      }
+    }
+
+    async function handleExportCampaigns() {
+      const res = await fetch("/api/campaigns?limit=1000&format=csv").catch(() => null);
+      if (!res?.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "campaigns.csv"; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function handleExportConversions() {
+      const today = new Date().toISOString().slice(0, 10);
+      const from = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+      const res = await fetch(`/api/conversions?dateFrom=${from}&dateTo=${today}&limit=10000&format=csv`).catch(() => null);
+      if (!res?.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "conversions.csv"; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+        <div>
+          <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.22em", color: "rgba(255,255,255,0.24)" }}>Preferences</div>
+          <div style={{ fontSize: 28, fontWeight: 200, letterSpacing: "-0.04em", marginTop: 6 }}>Workspace settings</div>
+        </div>
+
+        {/* Timezone + Currency */}
+        <CardDark style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.18em", color: "rgba(255,255,255,0.28)", marginBottom: 10 }}>Timezone</div>
+            <select value={wsTimezone} onChange={e => setWsTimezone(e.target.value)} style={selectStyle}>
+              {TIMEZONES.map(tz => (
+                <option key={tz} value={tz}>{tz}</option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 6 }}>
+              Used for date displays, schedule windows, and exports
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.18em", color: "rgba(255,255,255,0.28)", marginBottom: 10 }}>Display currency</div>
+            <select value={wsCurrency} onChange={e => setWsCurrency(e.target.value)} style={selectStyle}>
+              {CURRENCIES.map(c => (
+                <option key={c.code} value={c.code}>{c.label}</option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginTop: 6 }}>
+              Affects how revenue and spend are displayed across the dashboard
+            </div>
+          </div>
+
+          <button
+            onClick={handleSaveWorkspace}
+            disabled={wsSaving}
+            style={{
+              alignSelf: "flex-start", height: 40, padding: "0 24px", borderRadius: 14,
+              border: "none", background: wsSaved ? "rgba(52,211,153,0.15)" : "#ffffff",
+              color: wsSaved ? "#34d399" : "#000000",
+              fontSize: 13, fontWeight: 600, cursor: wsSaving ? "default" : "pointer",
+              opacity: wsSaving ? 0.6 : 1, transition: "all 0.2s",
+            }}
+          >
+            {wsSaving ? "Saving…" : wsSaved ? "✓ Saved" : "Save preferences"}
+          </button>
+        </CardDark>
+
+        {/* Data exports */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.18em", color: "rgba(255,255,255,0.22)" }}>Data exports</div>
+
+          <CardDark style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "18px 22px" }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 400, color: "rgba(255,255,255,0.80)" }}>Campaigns</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.30)", marginTop: 3 }}>All campaigns with status, network, and current bid</div>
+            </div>
+            <button
+              onClick={handleExportCampaigns}
+              style={{
+                borderRadius: 12, border: "1px solid rgba(255,255,255,0.09)",
+                background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.60)",
+                padding: "8px 18px", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              Export CSV
+            </button>
+          </CardDark>
+
+          <CardDark style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, padding: "18px 22px" }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 400, color: "rgba(255,255,255,0.80)" }}>Conversions</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.30)", marginTop: 3 }}>Last 90 days of conversion events and revenue</div>
+            </div>
+            <button
+              onClick={handleExportConversions}
+              style={{
+                borderRadius: 12, border: "1px solid rgba(255,255,255,0.09)",
+                background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.60)",
+                padding: "8px 18px", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              Export CSV
+            </button>
+          </CardDark>
+        </div>
+      </div>
+    );
+  }
+
   // ── Security ──────────────────────────────────────────────────────────────────
   function renderSecurity() {
     const TONE: Record<string, { bg: string; text: string; border: string }> = {
@@ -1154,6 +1301,17 @@ export default function SettingsPageClient({
         >
           Manage API keys in Connections →
         </button>
+
+        {/* Session management */}
+        <div style={{ borderRadius: 20, border: "1px solid rgba(251,113,133,0.12)", background: "rgba(244,63,94,0.04)", padding: "18px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.70)" }}>Sign out all devices</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.30)", marginTop: 4 }}>
+              Immediately revoke access on every browser and device. Anyone logged in with your credentials will be forced to re-authenticate.
+            </div>
+          </div>
+          <SignOutAllButton />
+        </div>
       </div>
     );
 
@@ -1226,37 +1384,6 @@ export default function SettingsPageClient({
       </div>
     );
 
-    // ── Sub-view: Admin Tools ────────────────────────────────────────────────
-    if (secView === "admin-tools") return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        <BackBtn />
-        <div>
-          <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.14em", color: "rgba(255,255,255,0.28)", marginBottom: 6 }}>Owner only</div>
-          <div style={{ fontSize: 24, fontWeight: 200, letterSpacing: "-0.04em" }}>Admin tools</div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-          <CardSm>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 200, letterSpacing: "-0.03em" }}>Demo Mode</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 5, lineHeight: 1.6 }}>Show demo data across the dashboard to preview the interface.</div>
-              </div>
-              <button
-                onClick={() => !demoLoading && toggleDemo(!demoEnabled)}
-                disabled={demoLoading}
-                style={{ width: 44, height: 24, borderRadius: 12, border: "none", cursor: demoLoading ? "wait" : "pointer", background: demoEnabled ? "rgba(192,136,53,0.9)" : "rgba(255,255,255,0.1)", position: "relative", transition: "background 0.2s", flexShrink: 0 }}
-              >
-                <span style={{ position: "absolute", top: 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", left: demoEnabled ? 22 : 2, boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }} />
-              </button>
-            </div>
-            {demoEnabled && <div style={{ padding: "9px 12px", borderRadius: 9, background: "rgba(192,136,53,0.08)", border: "1px solid rgba(192,136,53,0.2)", fontSize: 11, color: "#c08835" }}>✦ Demo mode active</div>}
-          </CardSm>
-          {/* Test data tools removed for production */}
-        </div>
-        <NotificationSettings />
-      </div>
-    );
-
     // ── Hub (default) ────────────────────────────────────────────────────────
     const HUB_CARDS: Array<{
       view: SecView; eyebrow: string; title: string; icon: string;
@@ -1290,13 +1417,6 @@ export default function SettingsPageClient({
           ? <span style={{ fontSize: 11, color: "rgba(255,255,255,0.25)" }}>Loading…</span>
           : <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{secLogs?.auditTotal ?? 0} actions · last {auditEntries[0]?.time ?? "—"}</span>,
       },
-      ...(isOwner ? [{
-        view: "admin-tools" as SecView,
-        eyebrow: "Owner",
-        title: "Admin tools",
-        icon: "⚙️",
-        stat: <span style={{ fontSize: 11, color: demoEnabled ? "rgba(192,136,53,0.8)" : "rgba(255,255,255,0.35)" }}>{demoEnabled ? "Demo mode active" : "Demo mode off"}</span>,
-      }] : []),
     ];
 
     return (
@@ -1325,76 +1445,6 @@ export default function SettingsPageClient({
             <div style={{ fontSize: 14, color: "rgba(255,255,255,0.2)", flexShrink: 0 }}>›</div>
           </div>
         ))}
-      </div>
-    );
-  }
-
-  // ── Demo Mode ─────────────────────────────────────────────────────────────────
-  function renderDemo() {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        {/* Toggle card */}
-        <div style={{
-          borderRadius: 24, border: demoEnabled ? "1px solid rgba(192,136,53,0.20)" : "1px solid rgba(255,255,255,0.08)",
-          background: demoEnabled ? "rgba(192,136,53,0.06)" : "rgba(255,255,255,0.02)",
-          padding: "28px 28px", transition: "all 0.3s",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
-            <div>
-              <div style={{
-                display: "inline-flex", borderRadius: 9999,
-                border: "1px solid rgba(251,191,36,0.18)", background: "rgba(245,158,11,0.08)",
-                padding: "3px 12px", fontSize: 10, textTransform: "uppercase" as const,
-                letterSpacing: "0.22em", color: "rgba(253,230,138,1)", marginBottom: 14,
-              }}>
-                Personal toggle
-              </div>
-              <div style={{ fontSize: 28, fontWeight: 200, letterSpacing: "-0.04em", color: "rgba(255,255,255,0.92)" }}>
-                Demo Mode
-              </div>
-              <div style={{ fontSize: 14, color: "rgba(255,255,255,0.38)", marginTop: 8, lineHeight: 1.7, maxWidth: "52ch" }}>
-                Shows demo data across the whole dashboard. Disable to return to your real campaigns.
-              </div>
-            </div>
-
-            {/* Toggle switch */}
-            <button
-              onClick={() => !demoLoading && toggleDemo(!demoEnabled)}
-              disabled={demoLoading}
-              style={{
-                width: 56, height: 30, borderRadius: 15, border: "none",
-                cursor: demoLoading ? "wait" : "pointer",
-                background: demoEnabled ? "rgba(192,136,53,0.88)" : "rgba(255,255,255,0.10)",
-                position: "relative", transition: "background 0.25s", flexShrink: 0,
-                boxShadow: demoEnabled ? "0 0 20px rgba(192,136,53,0.30)" : "none",
-              }}
-            >
-              <span style={{
-                position: "absolute", top: 4, width: 22, height: 22, borderRadius: "50%",
-                background: "#fff", transition: "left 0.25s",
-                left: demoEnabled ? 30 : 4,
-                boxShadow: "0 1px 4px rgba(0,0,0,0.5)",
-              }} />
-            </button>
-          </div>
-
-          {demoEnabled && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                marginTop: 20, padding: "12px 16px", borderRadius: 14,
-                background: "rgba(192,136,53,0.10)", border: "1px solid rgba(192,136,53,0.22)",
-                fontSize: 13, color: "#c08835", lineHeight: 1.6,
-              }}
-            >
-              ✦ Demo mode active — the dashboard is showing demo data. Disable to return to your real data.
-            </motion.div>
-          )}
-        </div>
-
-        {/* Test data tools removed for production */}
-
       </div>
     );
   }
@@ -1447,36 +1497,6 @@ export default function SettingsPageClient({
               );
             })}
 
-            {/* Admin separator — owner only */}
-            {isOwner && <>
-            <div style={{
-              height: 1, background: "rgba(255,255,255,0.06)",
-              margin: "10px 0 14px",
-            }} />
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(251,191,36,0.40)", padding: "0 12px", marginBottom: 10 }}>
-              Admin
-            </div>
-            {NAV_ADMIN.map(item => {
-              const active = tab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setTab(item.id)}
-                  style={{
-                    display: "block", width: "100%", textAlign: "left",
-                    borderRadius: 16, padding: "14px 16px", marginBottom: 8, cursor: "pointer",
-                    fontSize: 14,
-                    border: active ? "1px solid rgba(251,191,36,0.22)" : "1px solid rgba(251,191,36,0.08)",
-                    background: active ? "rgba(245,158,11,0.08)" : "rgba(245,158,11,0.02)",
-                    color: active ? "rgba(253,230,138,1)" : "rgba(253,230,138,0.45)",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-            </>}
           </div>
         </aside>
 
@@ -1515,17 +1535,59 @@ export default function SettingsPageClient({
               {tab === "overview"    && renderOverview()}
               {tab === "connections" && renderConnections()}
               {tab === "postbacks"   && renderPostbacks()}
-              {tab === "engine"      && renderEngine()}
               {tab === "plan"        && renderPlan()}
               {tab === "team"        && renderTeam()}
+              {tab === "workspace"   && renderWorkspace()}
               {tab === "security"    && renderSecurity()}
-              {tab === "demo"        && renderDemo()}
             </motion.div>
           </div>
         </main>
 
       </div>
     </div>
+  );
+}
+
+// ─── SignOutAllButton ──────────────────────────────────────────────────────────
+function SignOutAllButton() {
+  const [state, setState] = React.useState<"idle" | "loading" | "done" | "error">("idle");
+
+  async function handleSignOutAll() {
+    if (!confirm("This will sign out every device logged into your account. Are you sure?")) return;
+    setState("loading");
+    try {
+      const res = await fetch("/api/auth/sign-out-all", { method: "POST" });
+      if (res.ok) {
+        setState("done");
+        // Redirect to login after short delay
+        setTimeout(() => { window.location.href = "/login"; }, 1200);
+      } else {
+        setState("error");
+        setTimeout(() => setState("idle"), 3000);
+      }
+    } catch {
+      setState("error");
+      setTimeout(() => setState("idle"), 3000);
+    }
+  }
+
+  const label = { idle: "Sign out all", loading: "Revoking…", done: "✓ Done", error: "Failed" }[state];
+  const bg    = { idle: "rgba(244,63,94,0.08)", loading: "rgba(244,63,94,0.08)", done: "rgba(52,211,153,0.10)", error: "rgba(244,63,94,0.14)" }[state];
+  const color = { idle: "rgba(252,165,165,0.80)", loading: "rgba(252,165,165,0.50)", done: "#34d399", error: "#f87171" }[state];
+
+  return (
+    <button
+      onClick={handleSignOutAll}
+      disabled={state === "loading" || state === "done"}
+      style={{
+        borderRadius: 12, border: "1px solid rgba(251,113,133,0.20)",
+        background: bg, color, padding: "9px 18px",
+        fontSize: 12, fontWeight: 500, cursor: state === "idle" ? "pointer" : "default",
+        whiteSpace: "nowrap", flexShrink: 0, transition: "all 0.2s",
+      }}
+    >
+      {label}
+    </button>
   );
 }
 

@@ -38,8 +38,10 @@ export async function POST(req: NextRequest) {
 
   // mode=backfill → sync last 90 days day by day (first-time setup)
   // mode=daily    → sync only today (default, called by cron/manual)
-  const body = await req.json().catch(() => ({})) as { mode?: string };
+  // network       → restrict sync to a single network (e.g. "ADSTERRA")
+  const body = await req.json().catch(() => ({})) as { mode?: string; network?: string };
   const isBackfill = body?.mode === "backfill";
+  const networkFilter = body?.network?.toUpperCase() ?? null;
 
   // Build list of days to sync
   const today = todayStr();
@@ -47,9 +49,13 @@ export async function POST(req: NextRequest) {
     ? Array.from({ length: 90 }, (_, i) => daysAgoStr(89 - i)) // oldest → newest
     : [today];
 
-  // 2. Load user's active accounts
+  // 2. Load user's active accounts (optionally filter to one network)
   const accounts = await prisma.account.findMany({
-    where: { userId: userId, isActive: true },
+    where: {
+      userId: userId,
+      isActive: true,
+      ...(networkFilter ? { network: networkFilter as Network } : {}),
+    },
   });
 
   if (accounts.length === 0) {
@@ -448,11 +454,11 @@ export async function POST(req: NextRequest) {
                   userId:      userId,
                   accountId:   account.id,
                   externalId:  extId,
-                  name:        campaign.title,
+                  name:        campaign.alias,
                   network:     Network.ADSTERRA,
-                  status:      Adsterra.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  status:      Adsterra.mapStatus(campaign.active) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
                   spend:       stat?.spent       ?? 0,
-                  revenue:     stat?.revenue     ?? 0,
+                  revenue:     0, // Adsterra stats API has no revenue field
                   impressions: stat?.impressions ?? 0,
                   clicks:      stat?.clicks      ?? 0,
                   conversions: stat?.conversions ?? 0,
@@ -461,10 +467,10 @@ export async function POST(req: NextRequest) {
                   syncedAt:    new Date(),
                 },
                 update: {
-                  name:        campaign.title,
-                  status:      Adsterra.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  name:        campaign.alias,
+                  status:      Adsterra.mapStatus(campaign.active) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
                   spend:       stat?.spent       ?? 0,
-                  revenue:     stat?.revenue     ?? 0,
+                  revenue:     0, // Adsterra stats API has no revenue field
                   impressions: stat?.impressions ?? 0,
                   clicks:      stat?.clicks      ?? 0,
                   conversions: stat?.conversions ?? 0,
@@ -532,14 +538,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const dateFrom = searchParams.get("dateFrom") ?? daysAgoStr(90);
   const dateTo   = searchParams.get("dateTo")   ?? todayStr();
-
-  // ── Mode démo activé manuellement ─────────────────────────────────────────
-  const cookieStore = await cookies();
-  const forceDemo   = cookieStore.get("profitdash_demo")?.value === "1";
-  if (forceDemo) {
-    const { getDemoSyncResponse } = await import("@/lib/demo-data");
-    return NextResponse.json(getDemoSyncResponse(dateFrom, dateTo));
-  }
 
   const userId = await resolveWorkspaceUserId(user.id);
 

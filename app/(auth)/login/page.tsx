@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, AlertCircle } from "lucide-react";
@@ -39,6 +40,14 @@ export default function LoginPage() {
   const [error, setError]           = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showPw, setShowPw]         = useState(false);
+  const [kickedBanner, setKickedBanner] = useState(false);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams?.get("reason") === "kicked") {
+      setKickedBanner(true);
+    }
+  }, [searchParams]);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -262,6 +271,30 @@ export default function LoginPage() {
               {showPw ? "Hide" : "Show"}
             </span>
           </div>
+
+          {/* Kicked banner — another device signed in with the same credentials */}
+          <AnimatePresence>
+            {kickedBanner && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                style={{
+                  padding: "14px 16px",
+                  borderRadius: 14,
+                  fontSize: 13,
+                  background: "rgba(245,158,11,0.08)",
+                  border: "1px solid rgba(251,191,36,0.20)",
+                  color: "rgba(253,230,138,0.95)",
+                  lineHeight: 1.65,
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Session terminated</div>
+                Your account was signed in from another device and your session has been revoked.
+                If this wasn't you, your credentials may have been shared. Consider enabling 2FA or upgrading to the Command plan for proper team access.
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Error */}
           <AnimatePresence>

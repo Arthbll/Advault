@@ -3,23 +3,39 @@
 /**
  * Decision Engine — full configuration page.
  *
- * Loads from   GET  /api/rules
- * Saves to     PUT  /api/rules
+ * Loads from   GET  /api/settings  (unified endpoint: UserSettings + DecisionRule)
+ * Saves to     PUT  /api/settings  (unified endpoint)
  * Emergency    POST /api/engine/emergency-stop
  * Run scan     POST /api/kill-switch/run
  * Activity log GET  /api/logs?limit=40
+ *
+ * Kill-switch trigger (UserSettings):
+ *   roiThreshold        — ROI % floor, ignored when spendOnlyMode=true
+ *   maxSpendPerCampaign — € cap per campaign, always active when set
+ *   spendOnlyMode       — if true, only the spend cap fires (good for Adsterra)
+ *   killSwitchEnabled   — master on/off
+ *
+ * Decision Engine thresholds (DecisionRule):
+ *   killRoi / watchLow / scaleRoi / scaleIncrement / safeguards
+ *   (killRoi is synced with roiThreshold on every save)
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, DollarSign } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-interface DecisionRule {
+interface FullConfig {
+  // ── UserSettings (actual kill triggers) ──
+  killSwitchEnabled:    boolean;
+  spendOnlyMode:        boolean;
+  roiThreshold:         number;       // what the engine actually reads for ROI kills
+  maxSpendPerCampaign:  number | null; // € cap — works for all networks
+  // ── DecisionRule (Decision Engine thresholds) ──
   preset:         string;
-  engineMode:     string; // "automatic" | "recommendation"
-  killRoi:        number;
+  engineMode:     string;
+  killRoi:        number;   // kept in sync with roiThreshold
   watchLow:       number;
   watchHigh:      number;
   scaleRoi:       number;
@@ -38,9 +54,9 @@ interface LogEntry { id: string; ts: string; msg: string; type: "kill" | "scale"
 
 // ── Presets ────────────────────────────────────────────────────────────────────
 
-const PRESETS: Record<string, Partial<DecisionRule>> = {
+const PRESETS: Record<string, Partial<FullConfig>> = {
   soft: {
-    killRoi: -60, watchLow: -30, watchHigh: 0,
+    roiThreshold: -60, killRoi: -60, watchLow: -30, watchHigh: 0,
     scaleRoi: 50, scaleIncrement: 5,
     minSpend: 50, minConversions: 5,
     killHoldMin: 60, scaleHoldMin: 120,
@@ -48,7 +64,7 @@ const PRESETS: Record<string, Partial<DecisionRule>> = {
     maxKillsDay: 3, maxScalesDay: 1,
   },
   balanced: {
-    killRoi: -30, watchLow: -15, watchHigh: 0,
+    roiThreshold: -30, killRoi: -30, watchLow: -15, watchHigh: 0,
     scaleRoi: 30, scaleIncrement: 10,
     minSpend: 20, minConversions: 3,
     killHoldMin: 30, scaleHoldMin: 60,
@@ -56,7 +72,7 @@ const PRESETS: Record<string, Partial<DecisionRule>> = {
     maxKillsDay: 5, maxScalesDay: 2,
   },
   aggressive: {
-    killRoi: -15, watchLow: -5, watchHigh: 0,
+    roiThreshold: -15, killRoi: -15, watchLow: -5, watchHigh: 0,
     scaleRoi: 15, scaleIncrement: 20,
     minSpend: 10, minConversions: 1,
     killHoldMin: 10, scaleHoldMin: 20,
@@ -69,10 +85,20 @@ const PRESET_LABELS: Record<string, string> = {
   soft: "Soft", balanced: "Balanced", aggressive: "Aggressive", custom: "Custom",
 };
 
-const DEFAULTS: DecisionRule = {
+const DEFAULTS: FullConfig = {
+  killSwitchEnabled: false,
+  spendOnlyMode: false,
+  roiThreshold: -30,
+  maxSpendPerCampaign: null,
   preset: "balanced", engineMode: "automatic",
-  ...PRESETS.balanced,
-} as DecisionRule;
+  killRoi: -30,
+  watchLow: -15, watchHigh: 0,
+  scaleRoi: 30, scaleIncrement: 10,
+  minSpend: 20, minConversions: 3,
+  killHoldMin: 30, scaleHoldMin: 60,
+  killCooldownH: 3, scaleCooldownH: 6,
+  maxKillsDay: 5, maxScalesDay: 2,
+};
 
 // ── Style tokens ───────────────────────────────────────────────────────────────
 
@@ -105,26 +131,37 @@ const INPUT_STYLE: React.CSSProperties = {
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function NumField({
-  label, value, onChange, min, max, step = 1, unit = "",
+  label, value, onChange, min, max, step = 1, unit = "", disabled = false,
 }: {
-  label: string; value: number; onChange: (v: number) => void;
-  min?: number; max?: number; step?: number; unit?: string;
+  label: string; value: number | null; onChange: (v: number | null) => void;
+  min?: number; max?: number; step?: number; unit?: string; disabled?: boolean;
 }) {
   return (
     <div>
-      <div style={LABEL_SM}>{label}</div>
+      <div style={{ ...LABEL_SM, opacity: disabled ? 0.4 : 1 }}>{label}</div>
       <div style={{ position: "relative" }}>
         <input
-          type="number" min={min} max={max} step={step} value={value}
-          onChange={e => onChange(Number(e.target.value))}
-          style={INPUT_STYLE}
-          onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; }}
+          type="number" min={min} max={max} step={step}
+          value={value ?? ""}
+          placeholder={value === null ? "Not set" : undefined}
+          disabled={disabled}
+          onChange={e => {
+            const v = e.target.value;
+            onChange(v === "" ? null : Number(v));
+          }}
+          style={{
+            ...INPUT_STYLE,
+            opacity: disabled ? 0.4 : 1,
+            cursor: disabled ? "not-allowed" : "text",
+          }}
+          onFocus={e => { if (!disabled) e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; }}
           onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
         />
         {unit && (
           <span style={{
             position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
             fontSize: 11, color: "rgba(255,255,255,0.30)", pointerEvents: "none",
+            opacity: disabled ? 0.4 : 1,
           }}>{unit}</span>
         )}
       </div>
@@ -132,11 +169,49 @@ function NumField({
   );
 }
 
-function ModeToggle({
-  mode, onChange,
+function Toggle({
+  value, onChange, label, description, color = "#4ade80",
 }: {
-  mode: string; onChange: (m: string) => void;
+  value: boolean; onChange: (v: boolean) => void;
+  label: string; description?: string; color?: string;
 }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.82)", marginBottom: description ? 2 : 0 }}>
+          {label}
+        </div>
+        {description && (
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.30)", lineHeight: 1.55 }}>
+            {description}
+          </div>
+        )}
+      </div>
+      <button
+        onClick={() => onChange(!value)}
+        style={{
+          flexShrink: 0, width: 40, height: 22, borderRadius: 99,
+          background: value ? color : "rgba(255,255,255,0.08)",
+          border: "none", cursor: "pointer", position: "relative",
+          transition: "background 0.22s",
+          marginTop: 1,
+        }}
+      >
+        <motion.div
+          animate={{ left: value ? 20 : 2 }}
+          transition={{ type: "spring", stiffness: 500, damping: 35 }}
+          style={{
+            position: "absolute", top: 2, width: 18, height: 18,
+            borderRadius: "50%", background: "#fff",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+          }}
+        />
+      </button>
+    </div>
+  );
+}
+
+function ModeToggle({ mode, onChange }: { mode: string; onChange: (m: string) => void }) {
   return (
     <div style={{
       display: "inline-flex",
@@ -185,7 +260,7 @@ function PresetPill({ preset, active, onClick }: { preset: string; active: boole
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function KillSwitchSettings() {
-  const [cfg, setCfg]           = useState<DecisionRule>(DEFAULTS);
+  const [cfg, setCfg]           = useState<FullConfig>(DEFAULTS);
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -196,25 +271,56 @@ export default function KillSwitchSettings() {
   const [preview, setPreview]   = useState<string[]>([]);
   const logsRef = useRef<HTMLDivElement>(null);
 
-  // ── Toast helper ─────────────────────────────────────────────────────────────
   function showToast(msg: string, ok: boolean) {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 4000);
   }
 
-  // ── Load engine config + logs ─────────────────────────────────────────────────
+  // ── Load ──────────────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [rulesRes, logsRes, statusRes] = await Promise.all([
-        fetch("/api/rules"),
+      const [settingsRes, logsRes, statusRes] = await Promise.all([
+        fetch("/api/settings"),
         fetch("/api/logs?limit=40"),
         fetch("/api/engine/emergency-stop"),
       ]);
 
-      if (rulesRes.ok) {
-        const data = await rulesRes.json() as DecisionRule;
-        setCfg(prev => ({ ...prev, ...data }));
+      if (settingsRes.ok) {
+        const data = await settingsRes.json() as {
+          settings: Partial<FullConfig>;
+          decision: Partial<FullConfig>;
+        };
+        // Merge both models into one flat config.
+        // roiThreshold (UserSettings) is the engine's actual kill threshold —
+        // prefer it over killRoi (DecisionRule) if they differ.
+        const s = data.settings ?? {};
+        const d = data.decision ?? {};
+        const roiThreshold = s.roiThreshold ?? d.killRoi ?? DEFAULTS.roiThreshold;
+        setCfg(prev => ({
+          ...prev,
+          // UserSettings
+          killSwitchEnabled:   s.killSwitchEnabled   ?? DEFAULTS.killSwitchEnabled,
+          spendOnlyMode:       s.spendOnlyMode        ?? DEFAULTS.spendOnlyMode,
+          roiThreshold,
+          maxSpendPerCampaign: s.maxSpendPerCampaign  ?? DEFAULTS.maxSpendPerCampaign,
+          // DecisionRule
+          preset:         d.preset         ?? DEFAULTS.preset,
+          engineMode:     d.engineMode     ?? DEFAULTS.engineMode,
+          killRoi:        roiThreshold,  // keep in sync
+          watchLow:       d.watchLow      ?? DEFAULTS.watchLow,
+          watchHigh:      d.watchHigh     ?? DEFAULTS.watchHigh,
+          scaleRoi:       d.scaleRoi      ?? DEFAULTS.scaleRoi,
+          scaleIncrement: d.scaleIncrement ?? DEFAULTS.scaleIncrement,
+          minSpend:       d.minSpend      ?? DEFAULTS.minSpend,
+          minConversions: d.minConversions ?? DEFAULTS.minConversions,
+          killHoldMin:    d.killHoldMin   ?? DEFAULTS.killHoldMin,
+          scaleHoldMin:   d.scaleHoldMin  ?? DEFAULTS.scaleHoldMin,
+          killCooldownH:  d.killCooldownH ?? DEFAULTS.killCooldownH,
+          scaleCooldownH: d.scaleCooldownH ?? DEFAULTS.scaleCooldownH,
+          maxKillsDay:    d.maxKillsDay   ?? DEFAULTS.maxKillsDay,
+          maxScalesDay:   d.maxScalesDay  ?? DEFAULTS.maxScalesDay,
+        }));
       }
 
       if (logsRes.ok) {
@@ -228,9 +334,7 @@ export default function KillSwitchSettings() {
           const isScale     = l.type === "CAMPAIGN_ACTION" && l.message.includes("Budget");
           const isRecommend = l.message.startsWith("[RECOMMEND]");
           return {
-            id:   l.id,
-            ts:   `${hh}:${mm}:${ss}`,
-            msg:  l.message,
+            id: l.id, ts: `${hh}:${mm}:${ss}`, msg: l.message,
             type: isRecommend ? "recommend" : isKill ? "kill" : isScale ? "scale" : "info",
           };
         });
@@ -247,7 +351,6 @@ export default function KillSwitchSettings() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Auto-scroll logs
   useEffect(() => {
     if (logsRef.current) logsRef.current.scrollTop = logsRef.current.scrollHeight;
   }, [logs]);
@@ -261,43 +364,78 @@ export default function KillSwitchSettings() {
   }
 
   // ── Field change → mark as custom ────────────────────────────────────────────
-  function update<K extends keyof DecisionRule>(key: K, value: DecisionRule[K]) {
-    setCfg(prev => ({ ...prev, [key]: value, preset: "custom" }));
+  function update<K extends keyof FullConfig>(key: K, value: FullConfig[K]) {
+    setCfg(prev => {
+      const next = { ...prev, [key]: value, preset: "custom" };
+      // Keep roiThreshold and killRoi in sync
+      if (key === "roiThreshold") (next as FullConfig).killRoi = value as number;
+      if (key === "killRoi")      (next as FullConfig).roiThreshold = value as number;
+      return next;
+    });
   }
 
   // ── Preview generator ─────────────────────────────────────────────────────────
   useEffect(() => {
     const lines: string[] = [];
     const verb = cfg.engineMode === "automatic" ? "will" : "would";
-    lines.push(
-      `Engine ${verb} kill campaigns with ROI < ${cfg.killRoi}% after holding for ${cfg.killHoldMin} min`,
-    );
-    lines.push(
-      `Engine ${verb} flag campaigns in watch zone: ${cfg.watchLow}% → ${cfg.watchHigh}%`,
-    );
-    lines.push(
-      `Engine ${verb} scale budget +${cfg.scaleIncrement}% when ROI > ${cfg.scaleRoi}% (after ${cfg.scaleHoldMin} min)`,
-    );
-    lines.push(
-      `Min spend: €${cfg.minSpend} · Min conversions: ${cfg.minConversions} before any decision`,
-    );
-    lines.push(
-      `Kill cooldown: ${cfg.killCooldownH}h · Scale cooldown: ${cfg.scaleCooldownH}h · Max kills/day: ${cfg.maxKillsDay}`,
-    );
+
+    if (!cfg.killSwitchEnabled) {
+      lines.push("Kill switch is OFF — no campaigns will be paused automatically");
+    } else if (cfg.spendOnlyMode) {
+      lines.push(`Engine ${verb} ignore ROI — spend-only mode is active`);
+      if (cfg.maxSpendPerCampaign != null) {
+        lines.push(`Engine ${verb} kill campaigns that spend more than €${cfg.maxSpendPerCampaign}`);
+      } else {
+        lines.push("⚠ No spend cap set — spend-only mode is on but no threshold defined");
+      }
+    } else {
+      lines.push(`Engine ${verb} kill campaigns with ROI < ${cfg.roiThreshold}% after ${cfg.killHoldMin} min`);
+      if (cfg.maxSpendPerCampaign != null) {
+        lines.push(`Engine ${verb} also kill campaigns that spend more than €${cfg.maxSpendPerCampaign}`);
+      }
+    }
+
+    lines.push(`Engine ${verb} flag campaigns in watch zone: ${cfg.watchLow}% → 0%`);
+    lines.push(`Engine ${verb} scale budget +${cfg.scaleIncrement}% when ROI > ${cfg.scaleRoi}% (after ${cfg.scaleHoldMin} min)`);
+    lines.push(`Min spend: €${cfg.minSpend} · Min conversions: ${cfg.minConversions} before any decision`);
+    lines.push(`Kill cooldown: ${cfg.killCooldownH}h · Scale cooldown: ${cfg.scaleCooldownH}h · Max kills/day: ${cfg.maxKillsDay}`);
+
     if (cfg.engineMode === "recommendation") {
       lines.push("⚠ Recommend mode — no real actions executed. Suggestions appear in Activity Log.");
     }
     setPreview(lines);
   }, [cfg]);
 
-  // ── Save ──────────────────────────────────────────────────────────────────────
+  // ── Save (unified /api/settings) ──────────────────────────────────────────────
   async function save() {
     setSaving(true);
     try {
-      const res = await fetch("/api/rules", {
+      const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cfg),
+        // Send all fields — /api/settings routes them to UserSettings and DecisionRule
+        body: JSON.stringify({
+          // UserSettings fields
+          killSwitchEnabled:   cfg.killSwitchEnabled,
+          spendOnlyMode:       cfg.spendOnlyMode,
+          roiThreshold:        cfg.roiThreshold,
+          maxSpendPerCampaign: cfg.maxSpendPerCampaign,
+          // DecisionRule fields
+          preset:         cfg.preset,
+          engineMode:     cfg.engineMode,
+          killRoi:        cfg.roiThreshold,  // always sync with roiThreshold
+          watchLow:       cfg.watchLow,
+          scaleRoi:       cfg.scaleRoi,
+          scaleIncrement: cfg.scaleIncrement,
+          minSpend:       cfg.minSpend,
+          minConversions: cfg.minConversions,
+          killHoldMin:    cfg.killHoldMin,
+          scaleHoldMin:   cfg.scaleHoldMin,
+          killCooldownH:  cfg.killCooldownH,
+          scaleCooldownH: cfg.scaleCooldownH,
+          maxKillsDay:    cfg.maxKillsDay,
+          maxScalesDay:   cfg.maxScalesDay,
+        }),
       });
       if (res.ok) {
         showToast("Engine configuration saved", true);
@@ -318,7 +456,7 @@ export default function KillSwitchSettings() {
       const res = await fetch("/api/kill-switch/run", { method: "POST" });
       const j   = await res.json() as { killed?: number; checked?: number; skipped?: boolean };
       if (j.skipped) {
-        showToast("Kill-switch is disabled — enable it in settings", false);
+        showToast("Kill-switch is disabled — enable it above", false);
       } else {
         const label = cfg.engineMode === "recommendation" ? "scan (Recommend mode)" : "scan";
         showToast(`${label}: ${j.checked ?? 0} campaigns checked, ${j.killed ?? 0} acted on`, true);
@@ -461,6 +599,22 @@ export default function KillSwitchSettings() {
         )}
       </AnimatePresence>
 
+      {/* ── Kill Switch master toggle ────────────────────────────────────────── */}
+      <div style={{
+        ...CARD,
+        borderColor: cfg.killSwitchEnabled ? "rgba(74,222,128,0.18)" : "rgba(255,255,255,0.07)",
+        background:  cfg.killSwitchEnabled ? "rgba(74,222,128,0.03)" : "rgba(255,255,255,0.02)",
+        transition: "border-color 0.25s, background 0.25s",
+      }}>
+        <Toggle
+          value={cfg.killSwitchEnabled}
+          onChange={v => setCfg(prev => ({ ...prev, killSwitchEnabled: v }))}
+          label="Kill Switch"
+          description="Enable automated campaign pausing. When off, the engine never touches your campaigns regardless of other settings."
+          color="#4ade80"
+        />
+      </div>
+
       {/* ── Preset selector ──────────────────────────────────────────────────── */}
       <div style={{ ...CARD }}>
         <div style={LABEL_SM}>Profile preset</div>
@@ -470,10 +624,10 @@ export default function KillSwitchSettings() {
           ))}
         </div>
         <div style={{ marginTop: 10, fontSize: 11, color: "rgba(255,255,255,0.22)" }}>
-          {cfg.preset === "soft" && "Conservative thresholds — protects campaigns, minimal intervention."}
-          {cfg.preset === "balanced" && "Balanced defaults — recommended for most media buyers."}
+          {cfg.preset === "soft"       && "Conservative thresholds — protects campaigns, minimal intervention."}
+          {cfg.preset === "balanced"   && "Balanced defaults — recommended for most media buyers."}
           {cfg.preset === "aggressive" && "Tight thresholds — maximum control, high intervention frequency."}
-          {cfg.preset === "custom" && "Custom configuration — thresholds set manually."}
+          {cfg.preset === "custom"     && "Custom configuration — thresholds set manually."}
         </div>
       </div>
 
@@ -485,27 +639,89 @@ export default function KillSwitchSettings() {
           ...CARD,
           borderColor: "rgba(201,98,98,0.20)",
           background: "rgba(201,98,98,0.04)",
+          gridColumn: "1 / 2",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#c96262", boxShadow: "0 0 7px rgba(201,98,98,0.5)" }} />
             <span style={{ fontSize: 12, fontWeight: 600, color: "#c96262", textTransform: "uppercase" as const, letterSpacing: "0.12em" }}>Kill</span>
           </div>
+
+          {/* Spend-only mode toggle */}
+          <div style={{
+            marginBottom: 14, padding: "10px 12px", borderRadius: 10,
+            background: cfg.spendOnlyMode ? "rgba(251,191,36,0.06)" : "rgba(255,255,255,0.02)",
+            border: `1px solid ${cfg.spendOnlyMode ? "rgba(251,191,36,0.16)" : "rgba(255,255,255,0.06)"}`,
+            transition: "all 0.2s",
+          }}>
+            <Toggle
+              value={cfg.spendOnlyMode}
+              onChange={v => update("spendOnlyMode", v)}
+              label="Spend-only mode"
+              description={cfg.spendOnlyMode
+                ? "ROI threshold ignored — only the spend cap fires. Use for networks without postbacks (e.g. Adsterra)."
+                : "Enable to skip ROI check and kill solely on budget cap."}
+              color="#fbbf24"
+            />
+          </div>
+
+          {/* ROI threshold — grayed out when spendOnlyMode */}
           <NumField
             label="ROI threshold (%)"
-            value={cfg.killRoi} onChange={v => update("killRoi", v)}
+            value={cfg.roiThreshold}
+            onChange={v => update("roiThreshold", v ?? -30)}
             min={-100} max={-1} unit="%"
+            disabled={cfg.spendOnlyMode}
           />
+
+          {/* Spend cap */}
+          <div style={{ marginTop: 10 }}>
+            <div style={LABEL_SM}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <DollarSign size={9} />
+                Max spend per campaign
+              </span>
+            </div>
+            <div style={{ position: "relative" }}>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={cfg.maxSpendPerCampaign ?? ""}
+                placeholder="No cap"
+                onChange={e => {
+                  const v = e.target.value;
+                  update("maxSpendPerCampaign", v === "" ? null : Number(v));
+                }}
+                style={INPUT_STYLE}
+                onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; }}
+                onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; }}
+              />
+              <span style={{
+                position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                fontSize: 11, color: "rgba(255,255,255,0.30)", pointerEvents: "none",
+              }}>€</span>
+            </div>
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.22)", marginTop: 4 }}>
+              Leave empty to disable. Essential for networks without postbacks.
+            </div>
+          </div>
+
           <div style={{ marginTop: 10 }}>
             <NumField
               label="Hold before kill (min)"
-              value={cfg.killHoldMin} onChange={v => update("killHoldMin", v)}
+              value={cfg.killHoldMin} onChange={v => update("killHoldMin", v ?? 30)}
               min={5} max={360} unit="min"
             />
           </div>
-          <p style={{ fontSize: 10, color: "rgba(201,98,98,0.6)", marginTop: 10 }}>
-            {cfg.engineMode === "automatic"
-              ? `Pauses campaign on network if ROI < ${cfg.killRoi}% for ${cfg.killHoldMin} min`
-              : `Would suggest killing if ROI < ${cfg.killRoi}% for ${cfg.killHoldMin} min`
+
+          <p style={{ fontSize: 10, color: "rgba(201,98,98,0.6)", marginTop: 10, lineHeight: 1.5 }}>
+            {cfg.spendOnlyMode
+              ? (cfg.maxSpendPerCampaign != null
+                ? `Pauses any campaign that spends more than €${cfg.maxSpendPerCampaign} (ROI ignored)`
+                : "⚠ No spend cap set — enable spend-only mode requires a cap")
+              : cfg.engineMode === "automatic"
+                ? `Pauses campaign if ROI < ${cfg.roiThreshold}% for ${cfg.killHoldMin} min${cfg.maxSpendPerCampaign != null ? ` or spend > €${cfg.maxSpendPerCampaign}` : ""}`
+                : `Would suggest killing if ROI < ${cfg.roiThreshold}% for ${cfg.killHoldMin} min`
             }
           </p>
         </div>
@@ -522,7 +738,7 @@ export default function KillSwitchSettings() {
           </div>
           <NumField
             label="Lower bound (%)"
-            value={cfg.watchLow} onChange={v => update("watchLow", v)}
+            value={cfg.watchLow} onChange={v => update("watchLow", v ?? -15)}
             min={-100} max={0} unit="%"
           />
           <div style={{ marginTop: 10 }}>
@@ -553,20 +769,29 @@ export default function KillSwitchSettings() {
           </div>
           <NumField
             label="ROI target (%)"
-            value={cfg.scaleRoi} onChange={v => update("scaleRoi", v)}
+            value={cfg.scaleRoi} onChange={v => update("scaleRoi", v ?? 30)}
             min={1} max={500} unit="%"
           />
           <div style={{ marginTop: 10 }}>
             <NumField
               label="Budget increment (%)"
-              value={cfg.scaleIncrement} onChange={v => update("scaleIncrement", v)}
+              value={cfg.scaleIncrement} onChange={v => update("scaleIncrement", v ?? 10)}
               min={1} max={200} unit="%"
             />
           </div>
+          <div style={{ marginTop: 10 }}>
+            <NumField
+              label="Hold before scale (min)"
+              value={cfg.scaleHoldMin} onChange={v => update("scaleHoldMin", v ?? 60)}
+              min={0} max={360} unit="min"
+            />
+          </div>
           <p style={{ fontSize: 10, color: "rgba(107,158,130,0.6)", marginTop: 10 }}>
-            {cfg.engineMode === "automatic"
-              ? `Scales budget +${cfg.scaleIncrement}% when ROI > ${cfg.scaleRoi}%`
-              : `Would suggest scaling +${cfg.scaleIncrement}% when ROI > ${cfg.scaleRoi}%`
+            {cfg.spendOnlyMode
+              ? "Scaling disabled in spend-only mode (no ROI data)"
+              : cfg.engineMode === "automatic"
+                ? `Scales budget +${cfg.scaleIncrement}% when ROI > ${cfg.scaleRoi}%`
+                : `Would suggest scaling +${cfg.scaleIncrement}% when ROI > ${cfg.scaleRoi}%`
             }
           </p>
         </div>
@@ -592,24 +817,26 @@ export default function KillSwitchSettings() {
             {[
               {
                 decision: "Kill",
-                trigger:  `ROI < ${cfg.killRoi}% for ${cfg.killHoldMin} min`,
-                action:   cfg.engineMode === "automatic" ? "Pause on network + KILLED in DB" : "Log suggestion only",
+                trigger: cfg.spendOnlyMode
+                  ? (cfg.maxSpendPerCampaign != null ? `Spend > €${cfg.maxSpendPerCampaign}` : "No trigger (set spend cap)")
+                  : `ROI < ${cfg.roiThreshold}% for ${cfg.killHoldMin} min${cfg.maxSpendPerCampaign != null ? ` or Spend > €${cfg.maxSpendPerCampaign}` : ""}`,
+                action: cfg.engineMode === "automatic" ? "Pause on network + KILLED in DB" : "Log suggestion only",
                 modeColor: cfg.engineMode === "automatic" ? "#c96262" : "rgba(167,139,250,0.85)",
                 modeTxt:   cfg.engineMode === "automatic" ? "Executes" : "Suggests",
               },
               {
                 decision: "Watch",
-                trigger:  `ROI in ${cfg.watchLow}% → 0%`,
-                action:   "Flag for review",
+                trigger: cfg.spendOnlyMode ? "N/A (spend-only mode)" : `ROI in ${cfg.watchLow}% → 0%`,
+                action: "Flag for review",
                 modeColor: "rgba(255,255,255,0.38)",
                 modeTxt:   "Always flags",
               },
               {
                 decision: "Scale",
-                trigger:  `ROI > ${cfg.scaleRoi}% for ${cfg.scaleHoldMin} min`,
-                action:   cfg.engineMode === "automatic" ? `Budget +${cfg.scaleIncrement}% on network` : "Log suggestion only",
-                modeColor: cfg.engineMode === "automatic" ? "#6b9e82" : "rgba(167,139,250,0.85)",
-                modeTxt:   cfg.engineMode === "automatic" ? "Executes" : "Suggests",
+                trigger: cfg.spendOnlyMode ? "N/A (spend-only mode)" : `ROI > ${cfg.scaleRoi}% for ${cfg.scaleHoldMin} min`,
+                action: cfg.spendOnlyMode ? "Disabled" : cfg.engineMode === "automatic" ? `Budget +${cfg.scaleIncrement}% on network` : "Log suggestion only",
+                modeColor: cfg.spendOnlyMode ? "rgba(255,255,255,0.20)" : cfg.engineMode === "automatic" ? "#6b9e82" : "rgba(167,139,250,0.85)",
+                modeTxt:   cfg.spendOnlyMode ? "Off" : cfg.engineMode === "automatic" ? "Executes" : "Suggests",
               },
             ].map((row, i) => (
               <tr key={i} style={{ borderBottom: i < 2 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
@@ -629,24 +856,30 @@ export default function KillSwitchSettings() {
       <div style={{ ...CARD }}>
         <div style={LABEL_SM}>Safeguards</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
-          <NumField label="Min spend before decision" value={cfg.minSpend} onChange={v => update("minSpend", v)} min={0} unit="€" />
-          <NumField label="Min conversions before scale" value={cfg.minConversions} onChange={v => update("minConversions", v)} min={0} />
-          <NumField label="Kill hold (min)" value={cfg.killHoldMin} onChange={v => update("killHoldMin", v)} min={0} unit="min" />
-          <NumField label="Scale hold (min)" value={cfg.scaleHoldMin} onChange={v => update("scaleHoldMin", v)} min={0} unit="min" />
-          <NumField label="Kill cooldown" value={cfg.killCooldownH} onChange={v => update("killCooldownH", v)} min={0} unit="h" />
-          <NumField label="Scale cooldown" value={cfg.scaleCooldownH} onChange={v => update("scaleCooldownH", v)} min={0} unit="h" />
-          <NumField label="Max kills / day" value={cfg.maxKillsDay} onChange={v => update("maxKillsDay", v)} min={1} />
-          <NumField label="Max scales / day" value={cfg.maxScalesDay} onChange={v => update("maxScalesDay", v)} min={1} />
+          <NumField label="Min spend before decision" value={cfg.minSpend} onChange={v => update("minSpend", v ?? 20)} min={0} unit="€" />
+          <NumField label="Min conversions before scale" value={cfg.minConversions} onChange={v => update("minConversions", v ?? 3)} min={0} />
+          <NumField label="Kill hold (min)" value={cfg.killHoldMin} onChange={v => update("killHoldMin", v ?? 30)} min={0} unit="min" />
+          <NumField label="Scale hold (min)" value={cfg.scaleHoldMin} onChange={v => update("scaleHoldMin", v ?? 60)} min={0} unit="min" />
+          <NumField label="Kill cooldown" value={cfg.killCooldownH} onChange={v => update("killCooldownH", v ?? 3)} min={0} unit="h" />
+          <NumField label="Scale cooldown" value={cfg.scaleCooldownH} onChange={v => update("scaleCooldownH", v ?? 6)} min={0} unit="h" />
+          <NumField label="Max kills / day" value={cfg.maxKillsDay} onChange={v => update("maxKillsDay", v ?? 5)} min={1} />
+          <NumField label="Max scales / day" value={cfg.maxScalesDay} onChange={v => update("maxScalesDay", v ?? 2)} min={1} />
         </div>
       </div>
 
       {/* ── Preview ──────────────────────────────────────────────────────────── */}
       <div style={{ ...CARD, borderColor: "rgba(255,255,255,0.06)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <div style={LABEL_SM}>
+          <div style={{ ...LABEL_SM, marginBottom: 0 }}>
             {cfg.engineMode === "automatic" ? "Will execute" : "Would suggest"}
           </div>
-          <div style={{ width: 5, height: 5, borderRadius: "50%", background: cfg.engineMode === "automatic" ? "#6b9e82" : "rgba(167,139,250,0.9)", marginBottom: 7 }} />
+          <div style={{
+            width: 5, height: 5, borderRadius: "50%",
+            background: cfg.killSwitchEnabled
+              ? (cfg.engineMode === "automatic" ? "#6b9e82" : "rgba(167,139,250,0.9)")
+              : "rgba(255,255,255,0.20)",
+            marginBottom: 7,
+          }} />
         </div>
         <div style={{
           background: "rgba(0,0,0,0.30)", borderRadius: 12, padding: "12px 14px",
@@ -656,10 +889,14 @@ export default function KillSwitchSettings() {
             <div key={i} style={{
               fontSize: 11, color: line.startsWith("⚠")
                 ? "rgba(253,230,138,0.75)"
-                : "rgba(255,255,255,0.52)",
+                : !cfg.killSwitchEnabled && i === 0
+                  ? "rgba(255,100,100,0.7)"
+                  : "rgba(255,255,255,0.52)",
               fontFamily: "monospace", lineHeight: 1.5,
             }}>
-              {!line.startsWith("⚠") && <span style={{ color: "rgba(107,158,130,0.6)", marginRight: 6 }}>›</span>}
+              {!line.startsWith("⚠") && (
+                <span style={{ color: cfg.killSwitchEnabled ? "rgba(107,158,130,0.6)" : "rgba(255,100,100,0.4)", marginRight: 6 }}>›</span>
+              )}
               {line}
             </div>
           ))}
@@ -670,7 +907,7 @@ export default function KillSwitchSettings() {
       <div style={{ ...CARD }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={LABEL_SM}>Activity log</div>
+            <div style={{ ...LABEL_SM, marginBottom: 0 }}>Activity log</div>
             <motion.div
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ duration: 1.2, repeat: Infinity }}
@@ -741,12 +978,8 @@ export default function KillSwitchSettings() {
             disabled={stopping}
             style={{
               padding: "8px 18px", borderRadius: 10, fontSize: 12, fontWeight: 500,
-              border: enginePaused
-                ? "1px solid rgba(251,191,36,0.30)"
-                : "1px solid rgba(160,80,80,0.28)",
-              background: enginePaused
-                ? "rgba(245,158,11,0.10)"
-                : "rgba(160,80,80,0.09)",
+              border: enginePaused ? "1px solid rgba(251,191,36,0.30)" : "1px solid rgba(160,80,80,0.28)",
+              background: enginePaused ? "rgba(245,158,11,0.10)" : "rgba(160,80,80,0.09)",
               color: enginePaused ? "rgba(253,230,138,0.90)" : "rgba(220,100,100,0.90)",
               cursor: stopping ? "not-allowed" : "pointer",
               opacity: stopping ? 0.6 : 1,

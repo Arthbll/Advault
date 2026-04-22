@@ -21,20 +21,6 @@ enum Network {
   BEMOB
 }
 
-enum RuleCondition {
-  ROI_BELOW
-  ROI_ABOVE
-  SPEND_ABOVE
-  REVENUE_BELOW
-  CPC_ABOVE
-}
-
-enum RuleAction {
-  PAUSE_CAMPAIGN
-  SCALE_BUDGET
-  NOTIFY
-}
-
 enum CampaignStatus {
   ACTIVE
   PAUSED
@@ -53,11 +39,13 @@ enum LogType {
   AUTH_ERROR
   API_ERROR
   BUDGET_ALERT
-  DECISION_KILL    // Decision Rules engine paused a campaign automatically
-  DECISION_WATCH   // Decision Rules engine flagged a campaign for review
-  DECISION_SCALE   // Decision Rules engine increased bid automatically
-  SECURITY_EVENT   // MFA enable/disable, recovery code generation/use
-  POSTBACK_OVERAGE // /api/track rate-limit dépassé — loggué pour monitoring
+  DECISION_KILL        // Decision Rules engine paused a campaign automatically
+  DECISION_WATCH       // Decision Rules engine flagged a campaign for review
+  DECISION_SCALE       // Decision Rules engine increased bid automatically
+  SECURITY_EVENT       // MFA enable/disable, recovery code generation/use
+  POSTBACK_OVERAGE     // /api/track rate-limit dépassé — loggué pour monitoring
+  KILL_BLOCKED_NO_DATA // Kill-switch bloqué — aucun postback reçu, période de grâce 48h active
+  SAFETY_DOWNGRADE     // Engine basculé en mode recommendation — aucun postback reçu après 48h
 }
 
 // ─── MODELS ───────────────────────────────────────────────────────────────────
@@ -75,7 +63,6 @@ model User {
   conversions     Conversion[]
   decisionRule    DecisionRule?
   recoveryCodes   RecoveryCode[]
-  automationRules AutomationRule[]
 
   // Team relations
   teamInvitesSent     TeamInvite[]  @relation("TeamInviteOwner")
@@ -155,9 +142,8 @@ model Campaign {
   clicks      Int      @default(0)
   conversions Int      @default(0)
 
-  // Decision Engine controls (Bloc 4)
+  // Decision Engine controls
   excludeFromEngine Boolean @default(false) // "Manual only" — excluded from all engine actions
-  automationPaused  Boolean @default(false) // "Auto paused" — engine won't act until manually re-enabled
 
   dateFrom    DateTime
   dateTo      DateTime
@@ -190,6 +176,13 @@ model UserSettings {
 
   // Decision Engine — Emergency stop (Bloc 6)
   enginePausedUntil     DateTime?                  // si non-null et dans le futur, toute automation est suspendue
+
+  // Workspace preferences
+  timezone              String    @default("UTC")  // IANA tz (e.g. "Europe/Paris")
+  currency              String    @default("USD")  // ISO 4217 (e.g. "EUR")
+
+  // Session tracking — last known login IP for concurrent-session detection
+  lastLoginIp           String?
 
   updatedAt             DateTime  @updatedAt
   createdAt             DateTime  @default(now())
@@ -252,6 +245,10 @@ model DecisionRule {
   maxKillsDay    Int   @default(5)    // max Kill actions per day
   maxScalesDay   Int   @default(2)    // max Scale actions per day
 
+  // Active hours — engine only runs within this UTC window (null = 24h)
+  timeWindowStart Int? // UTC hour 0-23
+  timeWindowEnd   Int? // UTC hour 0-23
+
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
 }
@@ -266,41 +263,6 @@ model RecoveryCode {
   usedAt    DateTime?
   createdAt DateTime  @default(now())
 
-  @@index([userId])
-}
-
-// User-defined automation rules — evaluated every 5 min by /api/automation/run
-model AutomationRule {
-  id      String @id @default(uuid())
-  userId  String
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  name    String
-  enabled Boolean @default(true)
-
-  // Scope: null = all networks, otherwise target one specific network
-  network Network?
-
-  // Condition
-  condition RuleCondition
-  threshold Float
-
-  // Action
-  action      RuleAction
-  actionValue Float?   // e.g. 1.3 for SCALE_BUDGET (+30%)
-
-  // Execution tracking
-  lastRunAt DateTime?
-
-  // Advanced (V1)
-  priority         Int  @default(0)  // higher = evaluated first within same user
-  timeWindowStart  Int? // UTC hour 0-23 — null = active 24h
-  timeWindowEnd    Int? // UTC hour 0-23 — null = active 24h
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId, enabled])
   @@index([userId])
 }
 

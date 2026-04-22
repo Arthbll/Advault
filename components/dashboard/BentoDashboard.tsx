@@ -7,6 +7,7 @@ import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import ProfitChart, { ChartPoint } from "./ProfitChart";
 import CampaignsPnL, { CampaignRow } from "./CampaignsPnL";
 import WorldMap from "./WorldMap";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
 
 // ─── Geo types ────────────────────────────────────────────────────────────────
 
@@ -470,11 +471,13 @@ export default function BentoDashboard(props: Props) {
   const [geoDots,       setGeoDots]       = useState<GeoDot[]>([]);
   const [tableFilter,   setTableFilter]   = useState<TableFilter>("All");
   const [activeNet,     setActiveNet]     = useState<string | undefined>(undefined);
+  const isMobile = useIsMobile();
 
   // ── Engine live feed ──────────────────────────────────────────────────────
   const [engineEvents,  setEngineEvents]  = useState<EngineEvent[]>(PLACEHOLDER_FEED);
   const [engineLoading, setEngineLoading] = useState(true);
   const [engineCounts,  setEngineCounts]  = useState({ killed: 0, watch: 0, scaled: 0, today: 0, rulesCount: 0, protectedAmount: 0, lastEventAt: null as string | null });
+  const [showAllEvents, setShowAllEvents] = useState(false);
   const realtimeRef = useRef<ReturnType<typeof createSupabaseClient> | null>(null);
 
   const fetchEngineActions = useCallback(async () => {
@@ -551,16 +554,15 @@ export default function BentoDashboard(props: Props) {
   }, [fetchEngineActions]);
 
   // ── Geo fetch ─────────────────────────────────────────────────────────────
-  const fetchGeo = useCallback(async (range: DateRange) => {
+  const fetchGeo = useCallback(async (range: DateRange, network?: string) => {
     try {
-      const res = await fetch(`/api/dashboard/geo?dateFrom=${range.from}&dateTo=${range.to}`);
+      const net = network ?? "ALL";
+      const res = await fetch(`/api/dashboard/geo?dateFrom=${range.from}&dateTo=${range.to}&network=${net}`);
       if (!res.ok) return;
       const json = await res.json();
-      if (json.dots?.length) {
-        setGeoDots(json.dots.map((d: GeoDot, i: number) => ({
-          ...d, delay: `${(i * 0.35).toFixed(1)}s`,
-        })));
-      }
+      setGeoDots((json.dots ?? []).map((d: GeoDot, i: number) => ({
+        ...d, delay: `${(i * 0.35).toFixed(1)}s`,
+      })));
     } catch { /* silently ignore */ }
   }, []);
 
@@ -570,15 +572,16 @@ export default function BentoDashboard(props: Props) {
     try {
       const [statsRes] = await Promise.all([
         fetch(`/api/dashboard/stats?dateFrom=${range.from}&dateTo=${range.to}`),
-        fetchGeo(range),
+        fetchGeo(range, activeNet),
       ]);
       if (statsRes.ok) setData(await statsRes.json());
     } finally {
       setLoading(false);
     }
-  }, [fetchGeo]);
+  }, [fetchGeo, activeNet]);
 
-  useEffect(() => { fetchGeo(dateRange); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Fetch geo on mount and whenever the network filter changes
+  useEffect(() => { fetchGeo(dateRange, activeNet); }, [activeNet]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleDateChange(range: DateRange) {
     setDateRange(range);
@@ -665,7 +668,7 @@ export default function BentoDashboard(props: Props) {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div style={{
-      padding: "22px 26px 72px",
+      padding: isMobile ? "14px 12px 80px" : "22px 26px 72px",
       display: "flex", flexDirection: "column", gap: 14,
       background: [
         "radial-gradient(ellipse at 15% 0%, rgba(37,99,235,0.09) 0%, transparent 40%)",
@@ -674,10 +677,47 @@ export default function BentoDashboard(props: Props) {
       ].join(", "),
     }}>
 
+      {/* ── Revenue signal warning ─────────────────────────────────────────── */}
+      {totals.totalRevenue === 0 && totals.totalSpend > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+          style={{
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "13px 18px",
+            borderRadius: 14,
+            border: "1px solid rgba(251,191,36,0.20)",
+            background: "rgba(245,158,11,0.05)",
+          }}
+        >
+          <div style={{
+            width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+            border: "1px solid rgba(251,191,36,0.22)",
+            background: "rgba(245,158,11,0.10)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 14,
+          }}>
+            ⚠
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(253,230,138,0.90)", marginBottom: 2 }}>
+              No revenue signal detected
+            </div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.38)", lineHeight: 1.5 }}>
+              Your spend is tracked but no revenue has been received. The Decision Engine is running in budget-protection mode only.{" "}
+              <a href="/dashboard/settings?tab=postbacks" style={{ color: "rgba(14,165,233,0.80)", textDecoration: "none", fontWeight: 600 }}>
+                Set up your postback →
+              </a>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* ═══════════════════════════════════════════════════════════════════
           HEADER — engine-first, no date picker
       ═══════════════════════════════════════════════════════════════════ */}
-      <motion.div {...s(0)} style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 4 }}>
+      <motion.div {...s(0)} style={{ display: "flex", alignItems: isMobile ? "flex-start" : "flex-end", flexWrap: "wrap", gap: isMobile ? 10 : 0, justifyContent: "space-between", marginBottom: 4 }}>
         <div>
           <p style={LABEL}>
             {activeCampaigns > 0 ? `${activeCampaigns} campaign${activeCampaigns > 1 ? "s" : ""} active` : "No active campaigns"}
@@ -707,7 +747,7 @@ export default function BentoDashboard(props: Props) {
       {/* ═══════════════════════════════════════════════════════════════════
           SECTION 1 — DECISION ENGINE (7fr) + ENGINE LIVE STREAM (5fr)
       ═══════════════════════════════════════════════════════════════════ */}
-      <div style={{ display: "grid", gridTemplateColumns: "7fr 5fr", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "7fr 5fr", gap: 14 }}>
 
         {/* ── Decision Engine — system module, not marketing ────────── */}
         <motion.div {...s(1)} style={{
@@ -758,7 +798,7 @@ export default function BentoDashboard(props: Props) {
           <div style={{ height: 1, background: "rgba(255,255,255,0.05)" }} />
 
           {/* ── State row: Kill / Watch / Scale ───────────────────── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 8 }}>
             <EngineStateCell
               label="Killed"
               value={killed}
@@ -787,7 +827,7 @@ export default function BentoDashboard(props: Props) {
             display: "flex", flexDirection: "column", gap: 10,
             borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 16,
           }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 8 : 0 }}>
               {[
                 { label: "Protected", value: engineCounts.protectedAmount > 0 ? fmtEuro(engineCounts.protectedAmount) : "—" },
                 { label: "Scanned",   value: activeCampaigns > 0 ? `${activeCampaigns} campaigns` : "—" },
@@ -867,7 +907,7 @@ export default function BentoDashboard(props: Props) {
           </div>
 
           {/* Event cards — left accent bar signals state, card is the unit */}
-          <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "8px 12px 12px", gap: 5 }}>
+          <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "8px 12px 8px", gap: 5 }}>
             {engineLoading && engineEvents === PLACEHOLDER_FEED && engineEvents.map((ev, i) => (
               <div key={ev.id} style={{
                 height: 62, borderRadius: 12,
@@ -889,7 +929,7 @@ export default function BentoDashboard(props: Props) {
                 </span>
               </div>
             )}
-            {!engineLoading && engineEvents.length > 0 && engineEvents.slice(0, 4).map((ev, i) => {
+            {!engineLoading && engineEvents.length > 0 && engineEvents.slice(0, showAllEvents ? 30 : 5).map((ev, i) => {
               const netKey = ev.network.toUpperCase().replace(/\s/g, "");
               const netColor = NET_META[netKey]?.color ?? "#52525b";
               const accentColor = toneText(ev.tone);
@@ -989,6 +1029,32 @@ export default function BentoDashboard(props: Props) {
                 </motion.div>
               );
             })}
+
+            {/* Bouton voir plus / réduire */}
+            {!engineLoading && engineEvents.length > 5 && (
+              <button
+                onClick={() => setShowAllEvents(v => !v)}
+                style={{
+                  marginTop: 4,
+                  width: "100%",
+                  padding: "8px 0",
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.10em",
+                  textTransform: "uppercase" as const,
+                  color: "rgba(255,255,255,0.28)",
+                  transition: "all 0.18s",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.14)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.55)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.28)"; }}
+              >
+                {showAllEvents ? "↑ Réduire" : `Voir les ${Math.min(engineEvents.length, 30)} derniers →`}
+              </button>
+            )}
           </div>
         </motion.div>
       </div>
@@ -1055,7 +1121,11 @@ export default function BentoDashboard(props: Props) {
         </div>
 
         {/* Campaign table — remount on filter change */}
-        <CampaignsPnL key={tableFilter} initialCampaigns={filteredCampaigns} />
+        <div style={{ overflowX: "auto" }}>
+          <div style={{ minWidth: isMobile ? 560 : "auto" }}>
+            <CampaignsPnL key={tableFilter} initialCampaigns={filteredCampaigns} />
+          </div>
+        </div>
       </motion.div>
 
       {/* ═══════════════════════════════════════════════════════════════════
@@ -1063,7 +1133,7 @@ export default function BentoDashboard(props: Props) {
       ═══════════════════════════════════════════════════════════════════ */}
 
       {/* ── Row 1: Chart (8fr) + Summary (4fr) ───────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "8fr 4fr", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "8fr 4fr", gap: 14 }}>
 
         {/* Chart */}
         <motion.div {...s(4)} style={{
@@ -1177,7 +1247,7 @@ export default function BentoDashboard(props: Props) {
       </div>
 
       {/* ── Row 2: Top connections (4fr) + Impression split (4fr) + World map (4fr) */}
-      <div style={{ display: "grid", gridTemplateColumns: "4fr 4fr 4fr", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "4fr 4fr 4fr", gap: 14 }}>
 
         {/* Top connections */}
         <motion.div {...s(6)} style={{ ...CARD, padding: "24px 24px", borderRadius: 28 }}>

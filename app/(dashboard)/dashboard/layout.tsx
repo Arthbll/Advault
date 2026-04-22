@@ -8,7 +8,8 @@ import {
   IconGauge, IconTarget, IconActivity, IconWallet, IconVault, IconSliders,
   IconBrain,
 } from "@/components/ui/Icons";
-import GettingStarted from "@/components/dashboard/GettingStarted";
+import { useIsMobile } from "@/lib/hooks/useIsMobile";
+import PostbackSafetyBanner from "@/components/dashboard/PostbackSafetyBanner";
 
 const NAV = [
   { href: "/dashboard",             label: "Performance",  icon: IconGauge    },
@@ -36,9 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [direction, setDirection] = useState(0);
   const [me, setMe] = useState<MeData>({ name: "", initials: "", plan: "", role: "" });
-  const [isDemo, setIsDemo] = useState(false);
-  const [demoBannerDismissed, setDemoBannerDismissed] = useState(false);
-
+  const isMobile = useIsMobile();
   const currentIdx = NAV_HREFS.findIndex(
     href => pathname === href || (href !== "/dashboard" && pathname.startsWith(href))
   );
@@ -52,9 +51,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
 
     fetchMe();
-
-    // Demo banner only shows when the owner has explicitly enabled demo mode
-    setIsDemo(document.cookie.split(";").some(c => c.trim().startsWith("profitdash_demo=1")));
 
     // Auto-sync every 15 min in background — keeps campaign statuses fresh
     // without requiring a manual "Sync now" click
@@ -95,7 +91,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
 
   return (
-    <div style={{ height: "100vh", background: "#0d0d10", display: "flex", flexDirection: "column" }}>
+    <div style={{ height: "100dvh", background: "#0d0d10", display: "flex", flexDirection: "column" }}>
 
       {/* ── Top Navigation Bar ─────────────────────────────────────────────── */}
       <motion.header
@@ -124,8 +120,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           ProfitDash
         </div>
 
-        {/* Center: Nav pill + dots */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7 }}>
+        {/* Center: Nav pill + dots (hidden on mobile) */}
+        <div style={{ display: isMobile ? "none" : "flex", flexDirection: "column", alignItems: "center", gap: 7 }}>
           <nav style={{
             display: "flex",
             alignItems: "center",
@@ -196,10 +192,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        {/* Right: Help + Account chip */}
+        {/* Right: Help + Account chip (help button hidden on mobile) */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
 
-          {/* Help button */}
+          {/* Help button — hidden on mobile */}
           <a
             href="mailto:hello@profitdash.io?subject=Support request"
             title="Get help"
@@ -207,7 +203,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               width: 32, height: 32, borderRadius: 10,
               border: "1px solid rgba(255,255,255,0.08)",
               background: "rgba(255,255,255,0.03)",
-              display: "flex", alignItems: "center", justifyContent: "center",
+              display: isMobile ? "none" : "flex", alignItems: "center", justifyContent: "center",
               color: "rgba(255,255,255,0.32)",
               fontSize: 13, fontWeight: 600, textDecoration: "none",
               transition: "color 0.15s, background 0.15s",
@@ -226,35 +222,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             ?
           </a>
 
-          {/* Account chip — direction C: name · plan · avatar */}
+          {/* Account chip — simplified on mobile (no subtitle) */}
           <Link href="/dashboard/profile" style={{ textDecoration: "none" }}>
             <div style={{
               borderRadius: 14,
               border: "1px solid rgba(255,255,255,0.09)",
               background: "rgba(255,255,255,0.03)",
-              padding: "7px 8px 7px 14px",
+              padding: isMobile ? "7px 10px" : "7px 8px 7px 14px",
               display: "flex", alignItems: "center",
               justifyContent: "space-between",
-              gap: 14,
+              gap: isMobile ? 10 : 14,
               cursor: "pointer",
               transition: "background 0.2s",
             }}>
-              <div>
-                <div style={{
-                  fontSize: 13, letterSpacing: "-0.02em", fontWeight: 500,
-                  color: "rgba(255,255,255,0.85)", lineHeight: 1.25,
-                  whiteSpace: "nowrap",
-                }}>
-                  {me.name || "—"}
+              {!isMobile && (
+                <div>
+                  <div style={{
+                    fontSize: 13, letterSpacing: "-0.02em", fontWeight: 500,
+                    color: "rgba(255,255,255,0.85)", lineHeight: 1.25,
+                    whiteSpace: "nowrap",
+                  }}>
+                    {me.name || "—"}
+                  </div>
+                  <div style={{
+                    marginTop: 2, fontSize: 11,
+                    color: "rgba(255,255,255,0.38)",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {me.role || "Operator"} · {me.plan || "…"}
+                  </div>
                 </div>
-                <div style={{
-                  marginTop: 2, fontSize: 11,
-                  color: "rgba(255,255,255,0.38)",
-                  whiteSpace: "nowrap",
-                }}>
-                  {me.role || "Operator"} · {me.plan || "…"}
-                </div>
-              </div>
+              )}
               <div style={{
                 height: 30, width: 30, borderRadius: 9, flexShrink: 0,
                 border: "1px solid rgba(255,255,255,0.10)",
@@ -272,69 +270,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </motion.header>
 
       {/* ── Page Content ───────────────────────────────────────────────────── */}
-      <main style={{ flex: 1, overflow: "auto", position: "relative" }}>
+      <main style={{
+        flex: 1,
+        overflow: "auto",
+        position: "relative",
+        paddingBottom: isMobile ? 72 : 0,
+      }}>
         {/* Ambient violet vignette at top */}
         <div className="page-vignette" style={{
           position: "absolute", top: 0, left: 0, right: 0, height: 300,
           pointerEvents: "none", zIndex: 0,
         }} />
 
-        {/* Demo mode banner */}
-        <AnimatePresence>
-          {isDemo && !demoBannerDismissed && (
-            <motion.div
-              key="demo-banner"
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.4, ease: EASE }}
-              style={{ padding: "10px 22px 0" }}
-            >
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                gap: 12, padding: "9px 16px 9px 18px",
-                borderRadius: 12,
-                background: "rgba(245,158,11,0.07)",
-                border: "1px solid rgba(251,191,36,0.18)",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{
-                    width: 6, height: 6, borderRadius: "50%",
-                    background: "#fbbf24", flexShrink: 0,
-                    boxShadow: "0 0 6px rgba(251,191,36,0.6)",
-                  }} />
-                  <span style={{ fontSize: 12, color: "rgba(253,230,138,0.85)", lineHeight: 1.5 }}>
-                    You are viewing demo data.{" "}
-                    <Link
-                      href="/dashboard/settings"
-                      style={{ color: "rgba(253,230,138,1)", textDecoration: "underline", textDecorationColor: "rgba(253,230,138,0.4)" }}
-                    >
-                      Connect your first ad network
-                    </Link>
-                    {" "}to see your real metrics.
-                  </span>
-                </div>
-                <button
-                  onClick={() => setDemoBannerDismissed(true)}
-                  style={{
-                    background: "none", border: "none", cursor: "pointer",
-                    color: "rgba(253,230,138,0.4)", fontSize: 16, lineHeight: 1,
-                    padding: "0 2px", flexShrink: 0,
-                    transition: "color 0.15s",
-                  }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "rgba(253,230,138,0.8)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(253,230,138,0.4)"; }}
-                >
-                  ×
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Getting Started */}
-        <div style={{ paddingTop: 14 }}>
-          <GettingStarted hasAccounts={false} hasCampaigns={false} />
+        {/* Bannière sécurité postback — persiste au travers des navigations.
+            S'affiche uniquement si grace period active ou downgrade récent. */}
+        <div style={{
+          position: "relative", zIndex: 2,
+          padding: isMobile ? "12px 16px 0" : "16px 28px 0",
+        }}>
+          <PostbackSafetyBanner />
         </div>
 
         <AnimatePresence mode="wait">
@@ -351,6 +305,65 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </AnimatePresence>
 
       </main>
+
+      {/* ── Mobile Bottom Tab Bar (mobile only) ───────────────────────────── */}
+      {isMobile && (
+        <nav style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100,
+          background: "rgba(13,13,16,0.95)",
+          backdropFilter: "blur(28px)",
+          WebkitBackdropFilter: "blur(28px)",
+          borderTop: "1px solid rgba(255,255,255,0.07)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-around",
+          height: 56,
+          paddingBottom: "env(safe-area-inset-bottom, 8px)",
+        }}>
+          {[
+            { href: "/dashboard", label: "Performance", icon: IconGauge },
+            { href: "/dashboard/campaigns", label: "Execution", icon: IconTarget },
+            { href: "/dashboard/statistics", label: "Analytics", icon: IconActivity },
+            { href: "/dashboard/rules", label: "Rules", icon: IconBrain },
+            { href: "/dashboard/settings", label: "Settings", icon: IconSliders },
+          ].map(({ href, label, icon: Icon }) => {
+            const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+            return (
+              <Link
+                key={href}
+                href={href}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 4,
+                  flex: 1,
+                  textDecoration: "none",
+                  padding: "8px 0",
+                  transition: "opacity 0.2s",
+                  opacity: active ? 1 : 0.7,
+                }}
+              >
+                <Icon size={14} strokeWidth={active ? 1.8 : 1.3} color={active ? "#ffffff" : "rgba(113,113,122,0.9)"} />
+                <span style={{
+                  fontSize: 9,
+                  fontWeight: active ? 500 : 400,
+                  color: active ? "#ffffff" : "rgba(113,113,122,0.9)",
+                  whiteSpace: "nowrap",
+                  lineHeight: 1.1,
+                }}>
+                  {label}
+                </span>
+              </Link>
+            );
+          })}
+        </nav>
+      )}
     </div>
   );
 }

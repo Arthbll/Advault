@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { Decimal } from "@prisma/client/runtime/library";
-import { cookies } from "next/headers";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
 
 function toNum(d: Decimal | number | null | undefined): number {
@@ -36,14 +35,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const dateFrom = searchParams.get("dateFrom") ?? new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
   const dateTo   = searchParams.get("dateTo")   ?? new Date().toISOString().slice(0, 10);
-
-  // ── Mode aperçu activé manuellement ──────────────────────────────────────
-  const cookieStore = await cookies();
-  const forceDemo   = cookieStore.get("profitdash_demo")?.value === "1";
-  if (forceDemo) {
-    const { getDemoDashboardStatsResponse } = await import("@/lib/demo-data");
-    return NextResponse.json(getDemoDashboardStatsResponse(dateFrom, dateTo));
-  }
 
   // ── Vérifier si des comptes sont connectés ────────────────────────────────
   let accountCount = 0;

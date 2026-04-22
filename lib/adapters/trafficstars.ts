@@ -37,6 +37,7 @@ export interface TrafficStarsCreateParams {
   devices?:      number[]; // intentionally unused — see createCampaign() note
   traffic_type?: string;   // ron | prime | members_area
   active?:       boolean;  // start paused by default if omitted
+  timeSlots?:    number[]; // active hours 0-23; empty/undefined = 24/7 delivery
   // Creative / banner fields (optional — attached via POST /v1.1/banners after campaign creation)
   url?:          string;   // destination / redirect URL (required for Popunder & image banners)
 }
@@ -270,7 +271,15 @@ export class TrafficStarsAdapter {
       pricing_model:   params.pricing_model,
       price:           params.price,
       max_daily:       params.max_daily,
-      hours_targeting: "111111111111111111111111", // 24h all active
+      // hours_targeting: 24-char bitmask where position = hour (0=midnight).
+      // "1" = ad can serve that hour, "0" = blocked.
+      // Empty timeSlots (undefined or []) = deliver 24/7 = all "1"s.
+      hours_targeting: (() => {
+        if (!params.timeSlots || params.timeSlots.length === 0) return "111111111111111111111111";
+        return Array.from({ length: 24 }, (_, h) =>
+          params.timeSlots!.includes(h) ? "1" : "0"
+        ).join("");
+      })(),
       type:            params.type ?? typeForFormat(params.format_id),
       traffic_type:    params.traffic_type ?? "ron",
       ...(params.countries ? { countries: params.countries } : {}),
@@ -323,6 +332,33 @@ export class TrafficStarsAdapter {
   }
 
   /**
+   * GET /v1.1/advertiser/custom/report/by-country
+   * Query params: date_from=YYYY-MM-DD, date_to=YYYY-MM-DD
+   * Response: array [ { country, amount, impressions, clicks, leads, ... } ]
+   * Same field naming as by-campaign but grouped by country ISO-2 code.
+   */
+  async getStatsByCountry(dateFrom: string, dateTo: string): Promise<{ countryCode: string; impressions: number; clicks: number; spent: number }[]> {
+    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo });
+
+    const data = await this.fetch<RawCountryRow[] | { response: RawCountryRow[] }>(
+      `${BASE}/advertiser/custom/report/by-country?${params}`,
+    );
+
+    const rows = Array.isArray(data)
+      ? data
+      : (data as { response: RawCountryRow[] }).response ?? [];
+
+    return rows
+      .map(row => ({
+        countryCode: String(row.country ?? row.country_code ?? row.geo ?? "").toUpperCase(),
+        impressions: Number(row.impressions) || 0,
+        clicks:      Number(row.clicks)      || 0,
+        spent:       parseFloat(String(row.amount ?? row.spent ?? 0)) || 0,
+      }))
+      .filter(r => r.countryCode.length === 2);
+  }
+
+  /**
    * GET /v1.1/advertiser/custom/report/by-campaign
    * Query params: date_from=YYYY-MM-DD, date_to=YYYY-MM-DD
    * Response: direct array [ { campaign_id, name, amount, impressions, clicks, leads, ... } ]
@@ -370,5 +406,16 @@ interface RawStatRow {
   clicks:       number | string;
   leads:        number | string; // conversions
   amount:       number | string; // spent
+  [key: string]: unknown;
+}
+
+interface RawCountryRow {
+  country?:      string;
+  country_code?: string;
+  geo?:          string;
+  impressions:   number | string;
+  clicks:        number | string;
+  amount?:       number | string; // spent
+  spent?:        number | string;
   [key: string]: unknown;
 }

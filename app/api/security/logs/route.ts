@@ -6,7 +6,6 @@
  *   auditTrail — all action entries (engine + manual user actions)
  */
 import { NextRequest, NextResponse } from "next/server";
-import { cookies }                   from "next/headers";
 import { createClient }              from "@/lib/supabase/server";
 import { prisma }                    from "@/lib/prisma";
 import { resolveWorkspaceUserId }    from "@/lib/workspace";
@@ -24,13 +23,6 @@ function fmtDate(date: Date): string {
 }
 
 export async function GET(req: NextRequest) {
-  // ── Demo mode ────────────────────────────────────────────────────────────
-  const cookieStore = await cookies();
-  if (cookieStore.get("profitdash_demo")?.value === "1") {
-    const { getDemoSecurityLogs } = await import("@/lib/demo-data");
-    return NextResponse.json(getDemoSecurityLogs());
-  }
-
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -79,7 +71,8 @@ export async function GET(req: NextRequest) {
          AND  l."type"   IN (
            'KILL_SWITCH_TRIGGERED','KILL_SWITCH_PAUSED','KILL_SWITCH_RESTORED',
            'CAMPAIGN_ACTION','BUDGET_ALERT',
-           'DECISION_KILL','DECISION_WATCH','DECISION_SCALE'
+           'DECISION_KILL','DECISION_WATCH','DECISION_SCALE',
+           'SECURITY_EVENT'
          )
        ORDER BY l."createdAt" DESC
        LIMIT  $2 OFFSET $3`,
@@ -138,6 +131,7 @@ export async function GET(req: NextRequest) {
 
     let action = "";
     let tone: "rose" | "amber" | "emerald" | "blue" | "white" = "white";
+    const secEvent = typeof meta.event === "string" ? meta.event : null;
     switch (row.type) {
       case "KILL_SWITCH_TRIGGERED": action = isRecommend ? "Suggest pause" : "Kill"; tone = "rose"; break;
       case "KILL_SWITCH_PAUSED":    action = "Paused";   tone = "amber";   break;
@@ -147,11 +141,23 @@ export async function GET(req: NextRequest) {
       case "DECISION_KILL":         action = isRecommend ? "Suggest pause" : "Engine kill"; tone = "rose"; break;
       case "DECISION_WATCH":        action = "Watch";    tone = "amber";   break;
       case "DECISION_SCALE":        action = isRecommend ? "Suggest scale" : "Engine scale"; tone = "emerald"; break;
+      case "SECURITY_EVENT":
+        if (secEvent === "new_ip_login") { action = "New IP login"; tone = "rose"; }
+        else if (secEvent === "sign_in") { action = "Sign-in";      tone = "white"; }
+        else                             { action = "Security";      tone = "amber"; }
+        break;
     }
 
     let detail = "";
-    if (roi !== null) detail = `ROI ${roi >= 0 ? "+" : ""}${Number(roi).toFixed(1)}%`;
-    if (scalePct !== null) detail += (detail ? " · " : "") + `+${scalePct}%`;
+    if (row.type === "SECURITY_EVENT") {
+      const ip = typeof meta.ip === "string" ? meta.ip : "";
+      const prevIp = typeof meta.previousIp === "string" ? meta.previousIp : null;
+      detail = ip;
+      if (prevIp) detail = `${ip} (was ${prevIp})`;
+    } else {
+      if (roi !== null) detail = `ROI ${roi >= 0 ? "+" : ""}${Number(roi).toFixed(1)}%`;
+      if (scalePct !== null) detail += (detail ? " · " : "") + `+${scalePct}%`;
+    }
 
     return {
       id:        row.id,

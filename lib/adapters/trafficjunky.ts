@@ -98,7 +98,7 @@ export class TrafficJunkyAdapter {
    *   PUT  /api/campaigns/{campaignId}.json?dailyBudget=N  → updates daily budget
    *   All params are query params, NOT request body.
    */
-  async scaleDailyBudget(campaignId: string, multiplier: number): Promise<void> {
+  async scaleDailyBudget(campaignId: string, multiplier: number): Promise<{ oldBudget: number; newBudget: number }> {
     // 1. Fetch current campaign to read dailyBudget
     const raw = await this.apiFetch<Record<string, unknown>>(
       `/campaigns/${campaignId}.json`
@@ -126,6 +126,8 @@ export class TrafficJunkyAdapter {
     await this.apiFetch(`/campaigns/${campaignId}.json?dailyBudget=${newBudget}`, {
       method: "PUT",
     });
+
+    return { oldBudget: currentBudget, newBudget };
   }
 
   /**
@@ -139,50 +141,80 @@ export class TrafficJunkyAdapter {
   }
 
   /**
-   * Scale bid by a multiplier (e.g. 1.10 = +10%).
-   * Reads current cpm/cpc from GET /api/campaigns/{id}.json, then PUTs the new value.
+   * Scale all active bids by a multiplier (e.g. 1.25 = +25%).
+   *
+   * TJ V1 Swagger confirmed endpoints:
+   *   GET  /api/bids/{campaignId}/active.json  → [{ bid_id, bid, is_paused, is_active }, ...]
+   *   PUT  /api/bids/{bidId}/set.json?bid={amount}  → update one bid
+   *
+   * Processed in small batches with delay to respect TJ rate limits.
+   * Returns the max bid before/after for reference.
    */
   async scaleBid(campaignId: string, multiplier: number): Promise<{ oldBid: number; newBid: number }> {
-    const raw  = await this.apiFetch<Record<string, unknown>>(`/campaigns/${campaignId}.json`);
-    const camp = ((raw as Record<string, unknown>).campaign ?? raw) as Record<string, unknown>;
+    const bids = await this.apiFetch<Array<{ bid_id: string; bid: string; is_active: boolean }>>(
+      `/bids/${campaignId}/active.json`
+    );
 
-    // Detect bid type: CPM or CPC.
-    // TJ V1 confirmed fields: campaign_cpm, campaign_cpc, cpm, cpc, bid, max_bid.
-    // We check CPM first; if it's > 0 the campaign is CPM-billed.
-    // If CPM is zero or absent but CPC is present, it's CPC-billed.
-    const rawCpm = parseFloat(String(camp.campaign_cpm ?? camp.cpm ?? 0)) || 0;
-    const rawCpc = parseFloat(String(camp.campaign_cpc ?? camp.cpc ?? 0)) || 0;
-
-    const isCpc     = rawCpm === 0 && rawCpc > 0;
-    const currentBid = isCpc ? rawCpc : rawCpm;
-
-    if (currentBid <= 0) {
-      // Last resort: try generic bid fields
-      const fallback = parseFloat(String(camp.bid ?? camp.max_bid ?? 1)) || 1;
-      const newFallback = parseFloat((fallback * multiplier).toFixed(4));
-      // Default to CPM if we can't determine the type
-      await this.apiFetch(`/campaigns/${campaignId}.json?cpm=${newFallback}`, { method: "PUT" });
-      return { oldBid: fallback, newBid: newFallback };
+    if (!Array.isArray(bids) || bids.length === 0) {
+      return { oldBid: 0, newBid: 0 };
     }
 
-    const newBid    = parseFloat((currentBid * multiplier).toFixed(4));
-    const bidParam  = isCpc ? "cpc" : "cpm";
+    // Process in batches of 5 with 300ms between batches to avoid 429
+    const BATCH = 5;
+    for (let i = 0; i < bids.length; i += BATCH) {
+      const chunk = bids.slice(i, i + BATCH);
+      await Promise.all(
+        chunk.map(async (b) => {
+          const oldAmount = parseFloat(String(b.bid)) || 0;
+          if (oldAmount <= 0) return;
+          const newAmount = parseFloat((oldAmount * multiplier).toFixed(4));
+          await this.apiFetch(`/bids/${b.bid_id}/set.json?bid=${newAmount}`, { method: "PUT" });
+        })
+      );
+      if (i + BATCH < bids.length) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
 
-    await this.apiFetch(`/campaigns/${campaignId}.json?${bidParam}=${newBid}`, { method: "PUT" });
-    return { oldBid: currentBid, newBid };
+    // Return max bid before/after for summary
+    const amounts = bids.map(b => parseFloat(String(b.bid)) || 0);
+    const oldMax  = Math.max(...amounts);
+    const newMax  = parseFloat((oldMax * multiplier).toFixed(4));
+    return { oldBid: oldMax, newBid: newMax };
   }
 
   /**
-   * Set bid to a fixed € amount.
-   * Detects bid type (CPM vs CPC) from the current campaign before updating.
+   * Set all active bids proportionally so the max bid becomes `amount`.
+   * Uses GET /api/bids/{campaignId}/active.json + PUT /api/bids/{bidId}/set.json?bid={amount}
+   * Batched to respect TJ rate limits.
    */
   async setBid(campaignId: string, amount: number): Promise<void> {
-    const raw  = await this.apiFetch<Record<string, unknown>>(`/campaigns/${campaignId}.json`);
-    const camp = ((raw as Record<string, unknown>).campaign ?? raw) as Record<string, unknown>;
-    const rawCpm   = parseFloat(String(camp.campaign_cpm ?? camp.cpm ?? 0)) || 0;
-    const rawCpc   = parseFloat(String(camp.campaign_cpc ?? camp.cpc ?? 0)) || 0;
-    const bidParam = (rawCpm === 0 && rawCpc > 0) ? "cpc" : "cpm";
-    await this.apiFetch(`/campaigns/${campaignId}.json?${bidParam}=${amount}`, { method: "PUT" });
+    const bids = await this.apiFetch<Array<{ bid_id: string; bid: string; is_active: boolean }>>(
+      `/bids/${campaignId}/active.json`
+    );
+
+    if (!Array.isArray(bids) || bids.length === 0) return;
+
+    const amounts    = bids.map(b => parseFloat(String(b.bid)) || 0);
+    const currentMax = Math.max(...amounts);
+    if (currentMax <= 0) return;
+
+    const multiplier = amount / currentMax;
+    const BATCH = 5;
+    for (let i = 0; i < bids.length; i += BATCH) {
+      const chunk = bids.slice(i, i + BATCH);
+      await Promise.all(
+        chunk.map(async (b) => {
+          const oldAmount = parseFloat(String(b.bid)) || 0;
+          if (oldAmount <= 0) return;
+          const newAmount = parseFloat((oldAmount * multiplier).toFixed(4));
+          await this.apiFetch(`/bids/${b.bid_id}/set.json?bid=${newAmount}`, { method: "PUT" });
+        })
+      );
+      if (i + BATCH < bids.length) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
   }
 
   /**

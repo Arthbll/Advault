@@ -49,35 +49,6 @@ const LABEL: React.CSSProperties = {
   textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(255,255,255,0.28)",
 };
 
-// ─── Demo data ────────────────────────────────────────────────────────────────
-const DEMO_MEDIA: MediaAsset[] = [
-  { id: "m1",  name: "banner_728x90.jpg",    url: "https://picsum.photos/seed/adv1/400/160",  type: "image", size: "42 KB"  },
-  { id: "m2",  name: "square_300x250.jpg",   url: "https://picsum.photos/seed/adv2/300/250",  type: "image", size: "28 KB"  },
-  { id: "m3",  name: "interstitial.png",     url: "https://picsum.photos/seed/adv3/320/480",  type: "image", size: "95 KB"  },
-  { id: "m4",  name: "halfpage_300x600.jpg", url: "https://picsum.photos/seed/adv9/250/400",  type: "image", size: "52 KB"  },
-  { id: "m5",  name: "leaderboard.jpg",      url: "https://picsum.photos/seed/adv6/400/100",  type: "image", size: "38 KB"  },
-  { id: "m6",  name: "animated_300x250.gif", url: "https://picsum.photos/seed/adv5/300/250",  type: "gif",   size: "1.1 MB" },
-  { id: "m7",  name: "mobile_320x50.gif",    url: "https://picsum.photos/seed/adv8/320/160",  type: "gif",   size: "640 KB" },
-  { id: "m8",  name: "banner_gif_320.gif",   url: "https://picsum.photos/seed/adv11/300/250", type: "gif",   size: "820 KB" },
-  { id: "m9",  name: "promo_video_15s.mp4",  url: "",                                         type: "video", size: "2.4 MB" },
-  { id: "m10", name: "video_30s.mp4",        url: "",                                         type: "video", size: "8.2 MB" },
-  { id: "m11", name: "teaser_10s.mp4",       url: "",                                         type: "video", size: "1.8 MB" },
-];
-
-const DEMO_VARIATIONS: Variation[] = [
-  { id: "d1",  url: "https://www.nutaku.net/games/",        status: "active",   statusLabel: "Active"  },
-  { id: "d2",  url: "https://www.crakrevenue.com/offers/",  status: "active",   statusLabel: "Active"  },
-  { id: "d3",  url: "https://www.maxbounty.com/",           status: "pending",  statusLabel: "Pending" },
-  { id: "d4",  url: "https://www.adultfriendfinder.com/",   status: "active",   statusLabel: "Active"  },
-  { id: "d5",  url: "https://www.cpagrip.com/offers.php",   status: "paused",   statusLabel: "Paused"  },
-  { id: "d6",  url: "https://www.clickbank.com/",           status: "active",   statusLabel: "Active"  },
-  { id: "d7",  url: "https://www.digistore24.com/",         status: "rejected", statusLabel: "Rejected" },
-  { id: "d8",  url: "https://www.shareasale.com/",          status: "active",   statusLabel: "Active"  },
-  { id: "d9",  url: "https://www.panthera.com/",            status: "pending",  statusLabel: "Pending" },
-  { id: "d10", url: "https://www.affiliaxe.com/offers/",    status: "active",   statusLabel: "Active"  },
-  { id: "d11", url: "https://www.impact.com/",              status: "paused",   statusLabel: "Paused"  },
-  { id: "d12", url: "https://www.jvzoo.com/",               status: "active",   statusLabel: "Active"  },
-];
 
 const PAGE = 25;
 
@@ -513,8 +484,7 @@ export default function VaultClient({ campaigns, hasExoClick }: { campaigns: Cam
   const [selectedId,   setSelectedId]   = useState<string | null>(campaigns[0]?.externalId ?? null);
   const [search,       setSearch]       = useState("");
   const [showDrop,     setShowDrop]     = useState(false);
-  const [variations,   setVariations]   = useState<Variation[]>(DEMO_VARIATIONS);
-  const [isDemo,       setIsDemo]       = useState(true);
+  const [variations,   setVariations]   = useState<Variation[]>([]);
   const [loadingVar,   setLoadingVar]   = useState(false);
   const [urls,         setUrls]         = useState("");
   const [injecting,    setInjecting]    = useState(false);
@@ -523,7 +493,7 @@ export default function VaultClient({ campaigns, hasExoClick }: { campaigns: Cam
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
   // ── Media state ──
-  const [mediaAssets,   setMediaAssets]   = useState<MediaAsset[]>(DEMO_MEDIA);
+  const [mediaAssets,   setMediaAssets]   = useState<MediaAsset[]>([]);
   const [lightboxAsset, setLightboxAsset] = useState<MediaAsset | null>(null);
   const [addUrl,        setAddUrl]        = useState("");
   const [addName,       setAddName]       = useState("");
@@ -584,9 +554,8 @@ export default function VaultClient({ campaigns, hasExoClick }: { campaigns: Cam
       const res = await fetch(`/api/vault?campaignId=${extId}`);
       const data = await res.json();
       const real = data.variations ?? [];
-      setVariations(real.length > 0 ? real : DEMO_VARIATIONS);
-      setIsDemo(real.length === 0);
-    } catch { setVariations(DEMO_VARIATIONS); setIsDemo(true); }
+      setVariations(real);
+    } catch { setVariations([]); }
     finally { setLoadingVar(false); setRefreshing(false); }
   }, []);
 
@@ -606,7 +575,7 @@ export default function VaultClient({ campaigns, hasExoClick }: { campaigns: Cam
       const data = await res.json();
       if (data.ok) {
         showToast(`${data.success} URL${data.success > 1 ? "s" : ""} injected`, true);
-        setUrls(""); setIsDemo(false); await fetchVariations(selectedId, true);
+        setUrls(""); await fetchVariations(selectedId, true);
       } else showToast(data.error ?? "Error", false);
     } catch { showToast("Network error", false); }
     setInjecting(false);
@@ -929,9 +898,6 @@ export default function VaultClient({ campaigns, hasExoClick }: { campaigns: Cam
                 </div>
                 <h2 style={{ fontSize: 30, letterSpacing: "-0.04em", fontWeight: 300, margin: 0, color: "rgba(255,255,255,0.92)" }}>
                   Vault
-                  {isDemo && (
-                    <span style={{ marginLeft: 12, fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", padding: "3px 9px", borderRadius: 99, background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.2)", color: "#a78bfa", verticalAlign: "middle" }}>DEMO</span>
-                  )}
                 </h2>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

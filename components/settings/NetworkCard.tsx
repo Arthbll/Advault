@@ -177,7 +177,7 @@ export default function NetworkCard({
         fetch("/api/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "daily" }),
+          body: JSON.stringify({ mode: "daily", network }),
         })
           .then(r => r.json())
           .then((data: { synced?: number }) => {
@@ -186,8 +186,8 @@ export default function NetworkCard({
             setFeedback({
               type: "success",
               msg: count > 0
-                ? `${count} campaign(s) imported — all set.`
-                : "Connected — your campaigns will appear after the next sync.",
+                ? `${count} campaign(s) synced — all set.`
+                : "Connected — no active campaigns found for today.",
               synced: true,
             });
             router.refresh();

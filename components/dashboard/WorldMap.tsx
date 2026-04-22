@@ -16,7 +16,6 @@ const NET_SOURCES = [
   { id: "ALL",          label: "All"  },
   { id: "EXOCLICK",     label: "Exo"  },
   { id: "TRAFFICSTARS", label: "TS"   },
-  { id: "TRAFFICJUNKY", label: "TJ"   },
   { id: "PROPELLERADS", label: "PA"   },
   { id: "ADSTERRA",     label: "ADT"  },
 ];
@@ -24,7 +23,6 @@ const NET_SOURCES = [
 const NET_LABELS: Record<string, string> = {
   EXOCLICK:     "ExoClick",
   TRAFFICSTARS: "TrafficStars",
-  TRAFFICJUNKY: "TrafficJunky",
   PROPELLERADS: "PropellerAds",
   ADSTERRA:     "Adsterra",
 };
@@ -35,16 +33,6 @@ interface Props {
   onNetworkChange?: (n: string) => void;
 }
 
-// ─── Fallback dots ────────────────────────────────────────────────────────────
-
-const FALLBACK: GlowDot[] = [
-  { label: "USA",       countryCode: "US", x: 210, y: 165, impressions: "—", clicks: "—", spent: "—", size: 5,   delay: "0s"   },
-  { label: "France",    countryCode: "FR", x: 490, y: 155, impressions: "—", clicks: "—", spent: "—", size: 4,   delay: "0.4s" },
-  { label: "Brazil",    countryCode: "BR", x: 293, y: 318, impressions: "—", clicks: "—", spent: "—", size: 4.5, delay: "0.8s" },
-  { label: "India",     countryCode: "IN", x: 722, y: 240, impressions: "—", clicks: "—", spent: "—", size: 4,   delay: "1.2s" },
-  { label: "Japan",     countryCode: "JP", x: 895, y: 170, impressions: "—", clicks: "—", spent: "—", size: 3.5, delay: "1.6s" },
-  { label: "Australia", countryCode: "AU", x: 882, y: 348, impressions: "—", clicks: "—", spent: "—", size: 3.5, delay: "2.0s" },
-];
 
 // ─── Topojson → SVG path (minimal decoder, no dependencies) ──────────────────
 
@@ -102,8 +90,8 @@ function geometryToPath(geo: TopoGeometry, arcs: [number, number][][]): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function WorldMap({ dots, activeNetwork = "ALL", onNetworkChange }: Props) {
-  const activeDots  = dots && dots.length > 0 ? dots : FALLBACK;
-  const hasRealData = dots && dots.length > 0;
+  const activeDots  = dots ?? [];
+  const hasRealData = activeDots.length > 0;
 
   const [paths,   setPaths]   = useState<string[]>([]);
   const [mapReady, setMapReady] = useState(false);
@@ -222,6 +210,15 @@ export default function WorldMap({ dots, activeNetwork = "ALL", onNetworkChange 
 
         {/* Vignette overlay */}
         <rect width={W} height={H} fill="url(#vignette)" />
+
+        {/* ── Empty state ── */}
+        {hasRealData === false && mapReady && (
+          <text x={W / 2} y={H / 2} textAnchor="middle"
+            fontSize="11" fill="rgba(255,255,255,0.15)"
+            fontFamily="Inter, system-ui, sans-serif">
+            No data for this period
+          </text>
+        )}
 
         {/* ── Glow Dots ── */}
         {activeDots.map((dot) => (

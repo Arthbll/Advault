@@ -1,8 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
+
+// Critical for mobile — without this Safari renders at 980px and scales everything down
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover", // respects iPhone notch / home indicator
+};
 
 export const metadata: Metadata = {
   title: "ProfitDash — Campaign Decision Engine",

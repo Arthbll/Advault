@@ -1,6 +1,6 @@
 /**
  * POST /api/team/invite
- * Body: { email: string }
+ * Body: { email: string; role?: "viewer" | "editor" }
  *
  * Creates a TeamInvite record for the authenticated Command-plan owner.
  * Returns { inviteUrl } — the owner copies and shares this link.
@@ -26,11 +26,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Command plan required" }, { status: 403 });
   }
 
-  const body = await req.json().catch(() => ({})) as { email?: string };
+  const body = await req.json().catch(() => ({})) as { email?: string; role?: string };
   const email = (body.email ?? "").trim().toLowerCase();
   if (!email || !email.includes("@")) {
     return NextResponse.json({ error: "Valid email required" }, { status: 400 });
   }
+  const role = body.role === "viewer" ? "viewer" : "editor";
 
   const origin = req.headers.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? "";
 
@@ -61,8 +62,8 @@ export async function POST(req: NextRequest) {
   let created: InviteRow[];
   try {
     created = await prisma.$queryRaw<InviteRow[]>`
-      INSERT INTO "TeamInvite" (id, "ownerId", email, token, "expiresAt")
-      VALUES (gen_random_uuid(), ${user.id}, ${email}, gen_random_uuid(), ${expiresAt}::timestamptz)
+      INSERT INTO "TeamInvite" (id, "ownerId", email, token, role, "expiresAt")
+      VALUES (gen_random_uuid(), ${user.id}, ${email}, gen_random_uuid(), ${role}, ${expiresAt}::timestamptz)
       RETURNING id, token
     `;
   } catch (e) {

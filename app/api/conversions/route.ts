@@ -7,7 +7,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { prisma }                    from "@/lib/prisma";
-import { cookies }                   from "next/headers";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
 
 export async function GET(req: NextRequest) {
@@ -16,19 +15,6 @@ export async function GET(req: NextRequest) {
   if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = await resolveWorkspaceUserId(user.id);
-
-  // ── Mode aperçu ────────────────────────────────────────────────────────────
-  const cookieStore = await cookies();
-  const forceDemo   = cookieStore.get("profitdash_demo")?.value === "1";
-  if (forceDemo) {
-    const { getDemoConversionsResponse } = await import("@/lib/demo-data");
-    const sp    = new URL(req.url).searchParams;
-    const dFrom = sp.get("dateFrom") ?? new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
-    const dTo   = sp.get("dateTo")   ?? new Date().toISOString().slice(0, 10);
-    const page  = Math.max(0,   parseInt(sp.get("page")  ?? "0",  10));
-    const limit = Math.min(100, parseInt(sp.get("limit") ?? "50", 10));
-    return NextResponse.json(getDemoConversionsResponse(dFrom, dTo, page, limit));
-  }
 
   const { searchParams } = new URL(req.url);
   const dateFrom = searchParams.get("dateFrom") ?? new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);

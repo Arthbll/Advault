@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
-import { ExoClickAdapter } from "@/lib/adapters/exoclick";
+import { ExoClickAdapter }    from "@/lib/adapters/exoclick";
 import { TrafficStarsAdapter } from "@/lib/adapters/trafficstars";
+import { TrafficJunkyAdapter } from "@/lib/adapters/trafficjunky";
+import * as PropellerAds       from "@/lib/adapters/propellerads";
+import * as Adsterra           from "@/lib/adapters/adsterra";
 import { Network } from "@prisma/client";
-import { getDemoStatsResponse } from "@/lib/demo-data";
-import { cookies } from "next/headers";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
@@ -25,12 +26,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const dateFrom = searchParams.get("dateFrom") ?? daysAgoStr(90);
   const dateTo   = searchParams.get("dateTo")   ?? todayStr();
-
-  // ── Mode démo activé manuellement ────────────────────────────────────────
-  const cookieStore = await cookies();
-  if (cookieStore.get("profitdash_demo")?.value === "1") {
-    return NextResponse.json(getDemoStatsResponse(dateFrom, dateTo));
-  }
 
   const accounts = await prisma.account.findMany({
     where: { userId: userId, isActive: true },
@@ -102,6 +97,79 @@ export async function GET(req: NextRequest) {
             campaignId:  String(c.id),
             name:        c.name,
             network:     "TRAFFICSTARS",
+            status:      c.status === "active" ? "ACTIVE" : "PAUSED",
+            spend:       s?.spent       ?? 0,
+            revenue:     0,
+            impressions: s?.impressions ?? 0,
+            clicks:      s?.clicks      ?? 0,
+            conversions: s?.conversions ?? 0,
+          });
+        }
+      }
+
+      if (account.network === Network.ADSTERRA) {
+        const [campaigns, stats] = await Promise.all([
+          Adsterra.getCampaigns(apiKey),
+          Adsterra.getCampaignStats(apiKey, dateFrom, dateTo),
+        ]);
+        const statsMap: Record<string, typeof stats[0]> = {};
+        for (const s of stats) statsMap[String(s.campaign_id)] = s;
+
+        for (const c of campaigns) {
+          const s = statsMap[String(c.id)];
+          rows.push({
+            campaignId:  String(c.id),
+            name:        c.alias,
+            network:     "ADSTERRA",
+            status:      Adsterra.mapStatus(c.active),
+            spend:       s?.spent       ?? 0,
+            revenue:     0, // Adsterra n'expose pas le revenue côté annonceur
+            impressions: s?.impressions ?? 0,
+            clicks:      s?.clicks      ?? 0,
+            conversions: s?.conversions ?? 0,
+          });
+        }
+      }
+
+      if (account.network === Network.PROPELLERADS) {
+        const [campaigns, stats] = await Promise.all([
+          PropellerAds.getCampaigns(apiKey),
+          PropellerAds.getCampaignStats(apiKey, dateFrom, dateTo),
+        ]);
+        const statsMap: Record<string, typeof stats[0]> = {};
+        for (const s of stats) statsMap[String(s.campaign_id)] = s;
+
+        for (const c of campaigns) {
+          const s = statsMap[String(c.id)];
+          rows.push({
+            campaignId:  String(c.id),
+            name:        c.title,
+            network:     "PROPELLERADS",
+            status:      PropellerAds.mapStatus(c.status),
+            spend:       s?.spent       ?? 0,
+            revenue:     0, // PropellerAds n'expose pas le revenue côté annonceur
+            impressions: s?.impressions ?? 0,
+            clicks:      s?.clicks      ?? 0,
+            conversions: s?.conversions ?? 0,
+          });
+        }
+      }
+
+      if (account.network === Network.TRAFFICJUNKY) {
+        const adapter = new TrafficJunkyAdapter(apiKey);
+        const [campaigns, stats] = await Promise.all([
+          adapter.getCampaigns(),
+          adapter.getStats(dateFrom, dateTo),
+        ]);
+        const statsMap: Record<string, typeof stats[0]> = {};
+        for (const s of stats) statsMap[String(s.campaignId)] = s;
+
+        for (const c of campaigns) {
+          const s = statsMap[String(c.campaign_id)];
+          rows.push({
+            campaignId:  String(c.campaign_id),
+            name:        c.campaign_name,
+            network:     "TRAFFICJUNKY",
             status:      c.status === "active" ? "ACTIVE" : "PAUSED",
             spend:       s?.spent       ?? 0,
             revenue:     0,

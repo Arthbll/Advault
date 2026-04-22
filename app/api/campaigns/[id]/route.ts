@@ -16,17 +16,6 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  // ── Demo mode: ID starts with "demo:" — bypass auth ───────────────────────
-  if (id.startsWith("demo:")) {
-    const { getDemoCampaignDetail } = await import("@/lib/demo-data");
-    const sp     = new URL(req.url).searchParams;
-    const dFrom  = sp.get("dateFrom") ?? undefined;
-    const dTo    = sp.get("dateTo")   ?? undefined;
-    const detail = getDemoCampaignDetail(id, dFrom, dTo);
-    if (!detail) return NextResponse.json({ error: "Demo campaign not found" }, { status: 404 });
-    return NextResponse.json(detail);
-  }
-
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

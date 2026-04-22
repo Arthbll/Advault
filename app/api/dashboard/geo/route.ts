@@ -3,8 +3,19 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
 import { Network } from "@prisma/client";
-import { cookies } from "next/headers";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
+import { ExoClickAdapter }     from "@/lib/adapters/exoclick";
+import { TrafficStarsAdapter } from "@/lib/adapters/trafficstars";
+import * as PropellerAds        from "@/lib/adapters/propellerads";
+import * as Adsterra            from "@/lib/adapters/adsterra";
+
+// ─── In-memory cache (5 min TTL) ─────────────────────────────────────────────
+const GEO_CACHE     = new Map<string, { data: unknown; expiresAt: number }>();
+const GEO_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Short-lived userId cache to skip repeated Supabase+Prisma lookups on cached hits
+const USER_CACHE     = new Map<string, { userId: string; expiresAt: number }>();
+const USER_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 // ─── Country coordinates (SVG viewBox 0 0 1000 500) ──────────────────────────
 const COUNTRY_COORDS: Record<string, { x: number; y: number; label: string }> = {
@@ -32,212 +43,190 @@ const COUNTRY_COORDS: Record<string, { x: number; y: number; label: string }> = 
   CH: { x: 502, y: 150, label: "Switzerland" },
 };
 
-// ExoClick numeric country ID → ISO 2-letter code
-// (from their API: US=840, FR=250, etc. — ISO 3166-1 numeric)
-const NUMERIC_TO_ISO: Record<number, string> = {
-  840: "US", 826: "GB", 276: "DE", 250: "FR", 724: "ES", 380: "IT",
-  124: "CA",  36: "AU",  76: "BR", 484: "MX", 356: "IN", 392: "JP",
-  410: "KR", 643: "RU", 804: "UA", 616: "PL", 528: "NL",  56: "BE",
-  752: "SE", 578: "NO", 208: "DK", 246: "FI", 756: "CH",  40: "AT",
-  620: "PT", 203: "CZ", 348: "HU", 642: "RO", 792: "TR", 764: "TH",
-  360: "ID", 608: "PH", 704: "VN", 458: "MY", 702: "SG", 710: "ZA",
-   32: "AR", 170: "CO", 566: "NG", 818: "EG", 682: "SA", 784: "AE",
-  376: "IL", 586: "PK", 156: "CN", 300: "GR",
-};
+// ─── Per-network stats fetchers (real country-level data) ─────────────────────
 
-const BASE = "https://api.exoclick.com/v2";
+type CountryStat = { countryCode: string; impressions: number; clicks: number; spent: number };
 
-async function getSessionToken(apiToken: string): Promise<string> {
-  const res = await fetch(`${BASE}/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-    },
-    body: JSON.stringify({ api_token: apiToken }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!res.ok) throw new Error(`ExoClick login ${res.status}`);
-  const data = await res.json();
-  const token = data.token ?? data.access_token;
-  if (!token) throw new Error("No token in ExoClick login response");
-  return token;
-}
-
-// Hardcoded targeting for fake seed campaigns (bypasses ExoClick API)
-const FAKE_TARGETING: Record<string, string[]> = {
-  "fake-001": ["US"],
-  "fake-002": ["BR", "MX"],
-  "fake-003": ["DE", "FR"],
-  "fake-004": ["IN", "PH"],
-  "fake-005": ["US", "CA", "GB"],
-};
-
-async function getCampaignCountries(
-  campaignId: string,
-  bearer: string
-): Promise<string[]> {
-  if (FAKE_TARGETING[campaignId]) return FAKE_TARGETING[campaignId];
+async function getExoClickStatsByCountry(
+  apiKey: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<CountryStat[]> {
   try {
-    const res = await fetch(`${BASE}/campaigns/${campaignId}`, {
-      headers: {
-        Authorization: `Bearer ${bearer}`,
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-      },
-      cache: "no-store",
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-
-    // Structure: { result: { countries: { targeted: [{id: 840, regions:[...]}, ...] } } }
-    const targeted: { id?: number }[] =
-      data?.result?.countries?.targeted ?? [];
-
-    return targeted
-      .map(c => (c.id ? NUMERIC_TO_ISO[c.id] : undefined))
-      .filter((code): code is string => !!code);
+    const adapter = new ExoClickAdapter(apiKey);
+    return await adapter.getStatsByCountry(dateFrom, dateTo);
   } catch {
     return [];
   }
 }
 
-export async function GET(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+async function getPropellerAdsStatsByCountry(
+  apiToken: string,
+  dateFrom: string,
+  dateTo:   string
+): Promise<CountryStat[]> {
+  try {
+    const rows = await PropellerAds.getStatsByCountry(apiToken, dateFrom, dateTo);
+    return rows.map(r => ({
+      countryCode: r.country_id.toUpperCase(),
+      impressions: r.impressions,
+      clicks:      r.clicks,
+      spent:       r.spent,
+    }));
+  } catch {
+    return [];
+  }
+}
 
-  const userId = await resolveWorkspaceUserId(user.id);
+async function getAdsterraStatsByCountry(
+  apiKey:   string,
+  dateFrom: string,
+  dateTo:   string
+): Promise<CountryStat[]> {
+  try {
+    const rows = await Adsterra.getStatsByCountry(apiKey, dateFrom, dateTo);
+    return rows.map(r => ({
+      countryCode: r.country_id.toUpperCase(),
+      impressions: r.impressions,
+      clicks:      r.clicks,
+      spent:       r.spent,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function getTrafficStarsStatsByCountry(
+  apiKey:   string,
+  dateFrom: string,
+  dateTo:   string
+): Promise<CountryStat[]> {
+  try {
+    const adapter = new TrafficStarsAdapter(apiKey);
+    return await adapter.getStatsByCountry(dateFrom, dateTo);
+  } catch {
+    return [];
+  }
+}
+
+// TrafficJunky: no country-level stats API available.
+
+export async function GET(req: NextRequest) {
+  // getSession() reads the JWT from the cookie locally — no Supabase network call.
+  // Safe for this read-only endpoint; write endpoints should use getUser() instead.
+  const supabase = await createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // ── Resolve userId (cached to skip repeated Prisma lookups) ──────────────
+  let userId: string;
+  const userCached = USER_CACHE.get(session.user.id);
+  if (userCached && userCached.expiresAt > Date.now()) {
+    userId = userCached.userId;
+  } else {
+    userId = await resolveWorkspaceUserId(session.user.id);
+    USER_CACHE.set(session.user.id, { userId, expiresAt: Date.now() + USER_CACHE_TTL });
+  }
 
   const { searchParams } = new URL(req.url);
-  const dateFrom    = searchParams.get("dateFrom") ?? new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-  const dateTo      = searchParams.get("dateTo")   ?? new Date().toISOString().slice(0, 10);
-  const networkParam = searchParams.get("network") ?? "ALL"; // "ALL" | "EXOCLICK" | "TRAFFICSTARS"
+  const dateFrom     = searchParams.get("dateFrom") ?? new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+  const dateTo       = searchParams.get("dateTo")   ?? new Date().toISOString().slice(0, 10);
+  const networkParam = searchParams.get("network")  ?? "ALL";
 
-  // ── Mode démo ─────────────────────────────────────────────────────────────
-  const cookieStore = await cookies();
-  if (cookieStore.get("profitdash_demo")?.value === "1") {
-    const demoDots = [
-      { countryCode: "US", label: "USA",         x: 210, y: 165, impr: 1_240_000, spend: 4200 },
-      { countryCode: "DE", label: "Germany",     x: 503, y: 138, impr:   980_000, spend: 3100 },
-      { countryCode: "FR", label: "France",      x: 487, y: 148, impr:   740_000, spend: 2400 },
-      { countryCode: "GB", label: "UK",          x: 468, y: 132, impr:   620_000, spend: 1900 },
-      { countryCode: "BR", label: "Brazil",      x: 355, y: 300, impr:   510_000, spend: 1400 },
-      { countryCode: "AU", label: "Australia",   x: 882, y: 355, impr:   380_000, spend: 980  },
-      { countryCode: "JP", label: "Japan",       x: 895, y: 170, impr:   310_000, spend: 870  },
-      { countryCode: "ES", label: "Spain",       x: 475, y: 165, impr:   270_000, spend: 720  },
-    ];
-    const maxImpr = Math.max(...demoDots.map(d => d.impr));
-    return NextResponse.json({
-      dots: demoDots.map(d => ({
-        countryCode: d.countryCode,
-        label:       d.label,
-        x:           d.x,
-        y:           d.y,
-        impressions: d.impr.toLocaleString("en-GB"),
-        clicks:      "—",
-        spent:       d.spend.toFixed(2),
-        size:        3 + (d.impr / maxImpr) * 3,
-      })),
+  // ── Cache check ───────────────────────────────────────────────────────────
+  const cacheKey = `${userId}:${networkParam}:${dateFrom}:${dateTo}`;
+  const cached = GEO_CACHE.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json(cached.data, {
+      headers: { "X-Cache": "HIT" },
     });
   }
 
-  // Get synced campaigns from DB for the date range
-  const allRows = await prisma.campaign.findMany({
-    where: {
-      userId:   userId,
-      ...(networkParam !== "ALL" ? { network: networkParam as Network } : {}),
-      dateFrom: { gte: new Date(dateFrom) },
-      dateTo:   { lte: new Date(dateTo + "T23:59:59Z") },
-    },
-  });
+  // ── Fetch active accounts for requested network(s) ────────────────────────
+  const accountsWhere = {
+    userId,
+    isActive: true,
+    ...(networkParam !== "ALL" ? { network: networkParam as Network } : {}),
+  };
+  const accounts = await prisma.account.findMany({ where: accountsWhere });
 
-  // Sum impressions + spend per externalId across all days in the range
-  const campaignTotals = new Map<string, { impressions: number; spend: number; name: string }>();
-  for (const row of allRows) {
-    const existing = campaignTotals.get(row.externalId);
-    if (existing) {
-      existing.impressions += row.impressions;
-      existing.spend       += Number(row.spend);
-    } else {
-      campaignTotals.set(row.externalId, {
-        impressions: row.impressions,
-        spend:       Number(row.spend),
-        name:        row.name,
-      });
-    }
-  }
+  if (accounts.length === 0) return NextResponse.json({ dots: [] });
 
-  const campaigns = Array.from(campaignTotals.entries()).map(([externalId, data]) => ({
-    externalId,
-    impressions: data.impressions,
-    spend:       data.spend,
-  }));
+  // ── Aggregate country stats across all connected networks ─────────────────
+  const countryMap = new Map<string, CountryStat>();
 
-  if (campaigns.length === 0) return NextResponse.json({ dots: [] });
-
-  // Find ExoClick account to get bearer token
-  const account = await prisma.account.findFirst({
-    where: { userId: userId, network: Network.EXOCLICK, isActive: true },
-  });
-  // Bearer token needed only for real campaigns — fake campaigns use FAKE_TARGETING
-  let bearer = "";
-  try {
-    if (account) bearer = await getSessionToken(decrypt(account.apiKeyEnc));
-  } catch {
-    // Login failed (e.g. network blocked) — fake campaigns still work without bearer
-  }
-
-  // Fetch targeting for top 10 campaigns by impressions (limit API calls)
-  const topCampaigns = [...campaigns]
-    .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 10);
-
-  // Aggregate impressions per country
-  const countryImpressions = new Map<string, number>();
-  const countrySpend       = new Map<string, number>();
-
-  await Promise.all(
-    topCampaigns.map(async (c: { externalId: string; impressions: number; spend: number }) => {
-      const codes = await getCampaignCountries(c.externalId, bearer);
-      if (codes.length === 0) return;
-
-      // Distribute impressions equally across targeted countries
-      const share = c.impressions / codes.length;
-      const spendShare = Number(c.spend) / codes.length;
-
-      for (const code of codes) {
-        countryImpressions.set(code, (countryImpressions.get(code) ?? 0) + share);
-        countrySpend.set(code, (countrySpend.get(code) ?? 0) + spendShare);
+  const merge = (stats: CountryStat[]) => {
+    for (const s of stats) {
+      const existing = countryMap.get(s.countryCode);
+      if (existing) {
+        existing.impressions += s.impressions;
+        existing.clicks      += s.clicks;
+        existing.spent       += s.spent;
+      } else {
+        countryMap.set(s.countryCode, { ...s });
       }
-    })
+    }
+  };
+
+  // 8s global timeout — return partial data if a network is too slow
+  const withTimeout = <T>(p: Promise<T>, fallback: T, ms = 8000): Promise<T> =>
+    Promise.race([p, new Promise<T>(res => setTimeout(() => res(fallback), ms))]);
+
+  await withTimeout(
+    Promise.all(
+      accounts.map(async (account) => {
+        const apiKey = decrypt(account.apiKeyEnc);
+
+        if (account.network === Network.EXOCLICK) {
+          merge(await getExoClickStatsByCountry(apiKey, dateFrom, dateTo));
+        } else if (account.network === Network.TRAFFICSTARS) {
+          merge(await getTrafficStarsStatsByCountry(apiKey, dateFrom, dateTo));
+        } else if (account.network === Network.PROPELLERADS) {
+          merge(await getPropellerAdsStatsByCountry(apiKey, dateFrom, dateTo));
+        } else if (account.network === Network.ADSTERRA) {
+          merge(await getAdsterraStatsByCountry(apiKey, dateFrom, dateTo));
+        }
+        // TrafficJunky: no country-level stats API available
+      })
+    ),
+    []
   );
 
-  if (countryImpressions.size === 0) return NextResponse.json({ dots: [] });
+  // No real stats → cache + show nothing
+  if (countryMap.size === 0) {
+    GEO_CACHE.set(cacheKey, { data: { dots: [] }, expiresAt: Date.now() + GEO_CACHE_TTL });
+    return NextResponse.json({ dots: [] });
+  }
 
-  const maxImpressions = Math.max(...Array.from(countryImpressions.values()), 1);
+  const allStats = Array.from(countryMap.values())
+    .filter(s => s.impressions > 0 && COUNTRY_COORDS[s.countryCode]);
 
-  const dots = Array.from(countryImpressions.entries())
-    .filter(([code]) => COUNTRY_COORDS[code])
-    .sort(([, a], [, b]) => b - a)
+  if (allStats.length === 0) {
+    GEO_CACHE.set(cacheKey, { data: { dots: [] }, expiresAt: Date.now() + GEO_CACHE_TTL });
+    return NextResponse.json({ dots: [] });
+  }
+
+  const maxImpressions = Math.max(...allStats.map(s => s.impressions), 1);
+
+  const dots = allStats
+    .sort((a, b) => b.impressions - a.impressions)
     .slice(0, 8)
-    .map(([code, imps]) => {
-      const coords = COUNTRY_COORDS[code];
-      const ratio  = imps / maxImpressions;
-      const size   = 3 + ratio * 3;
+    .map(s => {
+      const coords = COUNTRY_COORDS[s.countryCode];
+      const ratio  = s.impressions / maxImpressions;
       return {
         label:       coords.label,
-        countryCode: code,
+        countryCode: s.countryCode,
         x:           coords.x,
         y:           coords.y,
-        impressions: Math.round(imps).toLocaleString("en-GB"),
-        clicks:      "—",
-        spent:       (countrySpend.get(code) ?? 0).toFixed(2),
-        size,
+        impressions: s.impressions.toLocaleString("en-GB"),
+        clicks:      s.clicks.toLocaleString("en-GB"),
+        spent:       s.spent.toFixed(2),
+        size:        3 + ratio * 3,
       };
     });
 
-  return NextResponse.json({ dots, dateFrom, dateTo });
+  const payload = { dots, dateFrom, dateTo };
+  GEO_CACHE.set(cacheKey, { data: payload, expiresAt: Date.now() + GEO_CACHE_TTL });
+  return NextResponse.json(payload);
 }

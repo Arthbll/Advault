@@ -14,11 +14,15 @@ import * as PropellerAds       from "@/lib/adapters/propellerads";
 import * as Adsterra           from "@/lib/adapters/adsterra";
 import { Network, CampaignStatus } from "@prisma/client";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
+import { assertCanMutate } from "@/lib/team-role";
 
 export async function POST() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const viewerBlock = await assertCanMutate(user.id);
+  if (viewerBlock) return viewerBlock;
 
   const userId = await resolveWorkspaceUserId(user.id);
 

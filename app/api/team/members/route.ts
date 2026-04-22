@@ -19,6 +19,12 @@ export async function GET() {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Only Command-plan owners can read their team roster
+  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+  if ((meta.plan as string) !== "Command") {
+    return NextResponse.json({ error: "Command plan required" }, { status: 403 });
+  }
+
   const members = await prisma.$queryRaw<MemberRow[]>`
     SELECT tm.id, tm."memberId", u.email, tm.role, tm."createdAt"
     FROM "TeamMember" tm

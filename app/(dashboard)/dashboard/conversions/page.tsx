@@ -99,8 +99,6 @@ export default function ConversionsPage() {
   const [page,     setPage]     = useState(0);
   const [data,     setData]     = useState<ConvData | null>(null);
   const [loading,  setLoading]  = useState(true);
-  const [isDemo,   setIsDemo]   = useState(false); // true only when profitdash_demo cookie is set
-
   // ── Filter state ────────────────────────────────────────────────────────────
   const [filterCampaign, setFilterCampaign] = useState("");
   const [filterSource,   setFilterSource]   = useState("All");
@@ -119,11 +117,6 @@ export default function ConversionsPage() {
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [openDrop]);
-
-  // Read demo cookie once on mount
-  useEffect(() => {
-    setIsDemo(document.cookie.split(";").some(c => c.trim().startsWith("profitdash_demo=1")));
-  }, []);
 
   const load = useCallback(async (df: string, dt: string, p: number) => {
     setLoading(true);
@@ -204,7 +197,6 @@ export default function ConversionsPage() {
             </Link>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(134,239,172,0.8)", marginBottom: 12 }}>
               Revenue signal
-              {isDemo && <span style={{ marginLeft: 12, color: "rgba(167,139,250,0.8)", letterSpacing: "0.18em" }}>— DEMO</span>}
             </div>
             <h1 style={{ fontSize: 44, lineHeight: 0.96, letterSpacing: "-0.05em", fontWeight: 300, maxWidth: 900, margin: 0 }}>
               Transactions

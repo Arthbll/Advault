@@ -9,6 +9,7 @@ import * as PropellerAds       from "@/lib/adapters/propellerads";
 import * as Adsterra           from "@/lib/adapters/adsterra";
 import { Network, CampaignStatus } from "@prisma/client";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
+import { assertCanMutate } from "@/lib/team-role";
 
 export async function POST(
   req: NextRequest,
@@ -17,6 +18,9 @@ export async function POST(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const viewerBlock = await assertCanMutate(user.id);
+  if (viewerBlock) return viewerBlock;
 
   const userId = await resolveWorkspaceUserId(user.id);
 
@@ -33,17 +37,6 @@ export async function POST(
   const forceDbOnly = body.force === true;
   const scaleMultiplier = body.multiplier ?? 1.25; // default +25% budget scale
 
-  // ── Demo mode fast-path ───────────────────────────────────────────────────
-  if (id.startsWith("demo:")) {
-    const demoStatus =
-      action === "kill"    ? "KILLED"   :
-      action === "pause"   ? "PAUSED"   :
-      action === "resume"  ? "ACTIVE"   :
-      action === "archive" ? "ARCHIVED" :
-      undefined; // scale: no status change
-    return NextResponse.json({ ok: true, demo: true, status: demoStatus ?? "ACTIVE" });
-  }
-
   const campaign = await prisma.campaign.findFirst({
     where: { id, userId: userId },
     include: { account: true },
@@ -52,7 +45,10 @@ export async function POST(
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
   try {
-    const apiKey = decrypt(campaign.account.apiKeyEnc);
+    const apiKey        = decrypt(campaign.account.apiKeyEnc);
+    const sessionCookie = campaign.account.apiSecretEnc
+      ? decrypt(campaign.account.apiSecretEnc)
+      : undefined;
 
     // ── Call network API (skipped if force=true) ──────────────────────────────
     if (!forceDbOnly && (action === "pause" || action === "kill")) {
@@ -86,43 +82,43 @@ export async function POST(
         await Adsterra.resumeCampaign(apiKey, campaign.externalId);
       }
     } else if (!forceDbOnly && action === "scale") {
+      // Scale = augmentation du bid CPM/CPC par défaut.
+      // bidMultiplier explicite > multiplier générique > 1.25 par défaut.
+      const bidMult = body.bidMultiplier ?? scaleMultiplier;
       if (campaign.network === Network.EXOCLICK) {
         const adapter = new ExoClickAdapter(apiKey);
-        // Budget
-        if (body.budgetAmount != null) {
-          await adapter.setDailyBudget(campaign.externalId, body.budgetAmount);
-        } else {
-          await adapter.scaleDailyBudget(campaign.externalId, scaleMultiplier);
-        }
-        // Bid (optional)
         if (body.bidAmount != null) {
           await adapter.setBid(campaign.externalId, body.bidAmount);
-        } else if (body.bidMultiplier != null) {
-          await adapter.scaleBid(campaign.externalId, body.bidMultiplier);
+        } else {
+          await adapter.scaleBid(campaign.externalId, bidMult);
         }
       } else if (campaign.network === Network.TRAFFICSTARS) {
         const adapter = new TrafficStarsAdapter(apiKey);
-        if (body.budgetAmount != null) {
-          await adapter.setDailyBudget(campaign.externalId, body.budgetAmount);
-        } else {
-          await adapter.scaleDailyBudget(campaign.externalId, scaleMultiplier);
-        }
         if (body.bidAmount != null) {
           await adapter.setBid(campaign.externalId, body.bidAmount);
-        } else if (body.bidMultiplier != null) {
-          await adapter.scaleBid(campaign.externalId, body.bidMultiplier);
+        } else {
+          await adapter.scaleBid(campaign.externalId, bidMult);
         }
       } else if (campaign.network === Network.TRAFFICJUNKY) {
         const adapter = new TrafficJunkyAdapter(apiKey);
-        if (body.budgetAmount != null) {
-          await adapter.setDailyBudget(campaign.externalId, body.budgetAmount);
-        } else {
-          await adapter.scaleDailyBudget(campaign.externalId, scaleMultiplier);
-        }
         if (body.bidAmount != null) {
           await adapter.setBid(campaign.externalId, body.bidAmount);
-        } else if (body.bidMultiplier != null) {
-          await adapter.scaleBid(campaign.externalId, body.bidMultiplier);
+        } else {
+          await adapter.scaleBid(campaign.externalId, bidMult);
+        }
+      } else if (campaign.network === Network.PROPELLERADS) {
+        if (body.bidAmount != null) {
+          await PropellerAds.setBid(apiKey, campaign.externalId, body.bidAmount);
+        } else {
+          await PropellerAds.scaleBid(apiKey, campaign.externalId, bidMult);
+        }
+      } else if (campaign.network === Network.ADSTERRA) {
+        // Bid updates via internal web-panel API (requires rst4-uid session cookie
+        // stored in account.apiSecretEnc). Throws if cookie not set.
+        if (body.bidAmount != null) {
+          await Adsterra.setBid(apiKey, campaign.externalId, body.bidAmount, sessionCookie);
+        } else {
+          await Adsterra.scaleBid(apiKey, campaign.externalId, bidMult, sessionCookie);
         }
       }
     }

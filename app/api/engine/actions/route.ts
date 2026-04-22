@@ -14,7 +14,6 @@
  *   protectedAmount  — somme du spend sauvé par les KILL aujourd'hui (€)
  */
 import { NextRequest, NextResponse } from "next/server";
-import { cookies }                  from "next/headers";
 import { createClient }             from "@/lib/supabase/server";
 import { prisma }                   from "@/lib/prisma";
 import { resolveWorkspaceUserId }   from "@/lib/workspace";
@@ -23,8 +22,7 @@ type Tone = "rose" | "amber" | "emerald";
 
 function logTypeToEvent(type: string, message: string): { state: string; tone: Tone; isRecommend: boolean } {
   const isRecommend = message.startsWith("[RECOMMEND]");
-  // CAMPAIGN_ACTION with [RECOMMEND] or [AUTOMATION] prefix = scale event
-  if (type === "CAMPAIGN_ACTION" || type === "DECISION_SCALE")
+  if (type === "DECISION_SCALE")
     return { state: "SCALE", tone: "emerald", isRecommend };
   if (type === "DECISION_WATCH")
     return { state: "WATCH", tone: "amber", isRecommend };
@@ -41,13 +39,6 @@ function timeAgo(date: Date): string {
 }
 
 export async function GET(_req: NextRequest) {
-  // ── Demo mode ─────────────────────────────────────────────────────────────
-  const cookieStore = await cookies();
-  if (cookieStore.get("profitdash_demo")?.value === "1") {
-    const { getDemoEngineActions } = await import("@/lib/demo-data");
-    return NextResponse.json(getDemoEngineActions());
-  }
-
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -75,8 +66,7 @@ export async function GET(_req: NextRequest) {
            'KILL_SWITCH_TRIGGERED',
            'DECISION_KILL',
            'DECISION_WATCH',
-           'DECISION_SCALE',
-           'CAMPAIGN_ACTION'
+           'DECISION_SCALE'
          )
        ORDER BY l."createdAt" DESC
        LIMIT  30`,
@@ -116,14 +106,14 @@ export async function GET(_req: NextRequest) {
   ).length;
   const watchToday     = todayRows.filter(r => r.type === "DECISION_WATCH").length;
   const scaledToday    = todayRows.filter(r =>
-    (r.type === "DECISION_SCALE" || r.type === "CAMPAIGN_ACTION")
+    r.type === "DECISION_SCALE"
     && !r.message?.startsWith("[RECOMMEND]")
   ).length;
   const suggestPause   = todayRows.filter(r =>
     r.message?.startsWith("[RECOMMEND]") && (r.type === "KILL_SWITCH_TRIGGERED" || r.type === "DECISION_KILL")
   ).length;
   const suggestScale   = todayRows.filter(r =>
-    r.message?.startsWith("[RECOMMEND]") && (r.type === "CAMPAIGN_ACTION" || r.type === "DECISION_SCALE")
+    r.message?.startsWith("[RECOMMEND]") && r.type === "DECISION_SCALE"
   ).length;
   const suggestTotal   = suggestPause + suggestScale;
 
