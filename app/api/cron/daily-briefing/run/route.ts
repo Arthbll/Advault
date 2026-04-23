@@ -54,7 +54,14 @@ export async function GET(req: NextRequest) {
       const seed = await seedDemoWorkspace();
 
       // 2. Simule 24h de trafic → stats évoluent, conversions arrivent, engine décide
-      const tick = await simulateOneDay();
+      // Isolé dans un try-catch : si le simulateur plante (DB lente, timeout…),
+      // le briefing part quand même avec les stats du dernier seed — pas d'email perdu.
+      let tick: Awaited<ReturnType<typeof simulateOneDay>> | null = null;
+      try {
+        tick = await simulateOneDay();
+      } catch (simErr) {
+        console.error("[Daily Briefing Cron — DEMO] Simulator failed, continuing with seed stats:", simErr);
+      }
 
       // 3. Lit les données réelles du user démo et construit le BriefingData
       const data = await buildDemoBriefingData();
@@ -84,13 +91,13 @@ export async function GET(req: NextRequest) {
       }
 
       return NextResponse.json({
-        ok:        true,
-        path:      "demo",
-        timestamp: new Date().toISOString(),
-        resendId:  result.data?.id ?? "unknown",
-        sentTo:    adminEmail,
+        ok:           true,
+        path:         "demo",
+        timestamp:    new Date().toISOString(),
+        resendId:     result.data?.id ?? "unknown",
+        sentTo:       adminEmail,
         seed,
-        tick,
+        tick:         tick ?? { campaignsTouched: 0, conversionsAdded: 0, killsTriggered: 0, scalesTriggered: 0, simulatorSkipped: true },
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

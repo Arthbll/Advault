@@ -84,7 +84,7 @@ export async function updateSession(request: NextRequest) {
   // Only active on /dashboard/* and when session_nonces are present in user_metadata
   // (which requires SUPABASE_SERVICE_ROLE_KEY to have been set at login time).
   if (user && pathname.startsWith("/dashboard")) {
-    const meta = user.user_metadata as Record<string, unknown>;
+    const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
     const validNonces: string[] = Array.isArray(meta?.session_nonces)
       ? (meta.session_nonces as string[])
       : [];

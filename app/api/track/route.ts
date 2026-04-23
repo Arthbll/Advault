@@ -131,22 +131,29 @@ export async function GET(req: NextRequest) {
   const { limited, count } = checkRateLimit(uid);
 
   if (limited) {
-    // Log en base — visible dans le dashboard et persisté (pas juste console)
-    prisma.log.create({
+    // Log en base — visible dans le dashboard.
+    // Fire-and-forget intentionnel : le sender reçoit 200 OK immédiatement,
+    // on ne le fait pas attendre pour un log secondaire.
+    // Si la DB est indisponible, la perte du log est acceptable — la conversion
+    // est déjà comptabilisée dans le bucket in-process (rateLimitMap).
+    void prisma.log.create({
       data: {
         userId:  uid,
         type:    "POSTBACK_OVERAGE" as never,
         message: `Rate limit dépassé — ${count} postbacks/min (seuil: ${RATE_LIMIT_PER_MINUTE})`,
         metadata: {
           count,
-          limit:    RATE_LIMIT_PER_MINUTE,
-          windowMs: WINDOW_MS,
-          src:      src ?? "unknown",
-          cid:      cid ?? null,
+          limit:      RATE_LIMIT_PER_MINUTE,
+          windowMs:   WINDOW_MS,
+          src:        src ?? "unknown",
+          cid:        cid ?? null,
           hasClickId: !!clickId,
         },
       },
-    }).catch(e => console.error("[/api/track] Impossible de logguer l'overage:", e));
+    }).catch((e: unknown) => {
+      // On logue uniquement côté serveur — pas de crash, pas de retry.
+      console.error("[/api/track] Impossible de logguer l'overage:", e instanceof Error ? e.message : e);
+    });
 
     // 200 OK intentionnel : le sender ne doit pas retrier agressivement
     return NextResponse.json({ ok: true, limited: true });

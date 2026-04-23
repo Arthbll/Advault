@@ -13,6 +13,22 @@ const VALID_CURRENCIES = [
   "PLN","CZK","HUF","RON","BGN","BRL","MXN","SGD","HKD",
 ];
 
+/**
+ * Valide un timezone contre la base IANA du runtime Node.js.
+ * Intl.DateTimeFormat lève une RangeError si la zone est inconnue.
+ * C'est la seule source de vérité fiable — pas besoin de maintenir
+ * une liste statique de 600+ zones.
+ */
+function isValidIANATimezone(tz: string): boolean {
+  if (!tz || typeof tz !== "string" || tz.length > 64) return false;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 interface WsRow { timezone: string; currency: string; }
 
 export async function GET() {
@@ -43,8 +59,8 @@ export async function PATCH(req: NextRequest) {
     currency?: string;
   };
 
-  if (body.timezone !== undefined && (typeof body.timezone !== "string" || body.timezone.length > 64)) {
-    return NextResponse.json({ error: "Invalid timezone" }, { status: 400 });
+  if (body.timezone !== undefined && !isValidIANATimezone(body.timezone)) {
+    return NextResponse.json({ error: "Invalid timezone — must be a valid IANA timezone (e.g. 'Europe/Paris', 'UTC')" }, { status: 400 });
   }
   if (body.currency !== undefined && !VALID_CURRENCIES.includes(body.currency)) {
     return NextResponse.json({ error: "Invalid currency" }, { status: 400 });

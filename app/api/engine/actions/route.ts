@@ -49,47 +49,44 @@ export async function GET(_req: NextRequest) {
   const todayMidnight = new Date();
   todayMidnight.setHours(0, 0, 0, 0);
 
+  // $queryRaw (template literal) — paramètres automatiquement échappés par Prisma.
   const [rows, decisionRuleRows, protectedRows] = await Promise.all([
-    // Engine events (last 20)
-    prisma.$queryRawUnsafe<Array<{
+    // Engine events (last 30)
+    prisma.$queryRaw<Array<{
       id: string; type: string; message: string;
       metadata: unknown; createdAt: Date;
       campaignName: string | null; network: string | null;
-    }>>(
-      `SELECT l."id", l."type", l."message", l."metadata", l."createdAt",
-              c."name"    AS "campaignName",
-              c."network" AS "network"
-       FROM   "Log"      l
-       LEFT JOIN "Campaign" c ON c."id" = l."campaignId"
-       WHERE  l."userId" = $1
-         AND  l."type"   IN (
-           'KILL_SWITCH_TRIGGERED',
-           'DECISION_KILL',
-           'DECISION_WATCH',
-           'DECISION_SCALE'
-         )
-       ORDER BY l."createdAt" DESC
-       LIMIT  30`,
-      userId
-    ),
+    }>>`
+      SELECT l."id", l."type", l."message", l."metadata", l."createdAt",
+             c."name"    AS "campaignName",
+             c."network" AS "network"
+      FROM   "Log"      l
+      LEFT JOIN "Campaign" c ON c."id" = l."campaignId"
+      WHERE  l."userId" = ${userId}
+        AND  l."type"   IN (
+          'KILL_SWITCH_TRIGGERED',
+          'DECISION_KILL',
+          'DECISION_WATCH',
+          'DECISION_SCALE'
+        )
+      ORDER BY l."createdAt" DESC
+      LIMIT  30
+    `,
 
     // Rules count — 1 DecisionRule record = 3 active rules (kill + watch + scale)
-    prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
-      `SELECT COUNT(*) AS count FROM "DecisionRule" WHERE "userId" = $1`,
-      userId
-    ).catch(() => [{ count: BigInt(0) }]),
+    prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*) AS count FROM "DecisionRule" WHERE "userId" = ${userId}
+    `.catch(() => [{ count: BigInt(0) }]),
 
     // Protected amount — sum of spend from KILL events today
-    prisma.$queryRawUnsafe<Array<{ total: number | null }>>(
-      `SELECT COALESCE(SUM((metadata->>'spend')::float), 0) AS total
-       FROM   "Log"
-       WHERE  "userId" = $1
-         AND  "type"   IN ('KILL_SWITCH_TRIGGERED', 'DECISION_KILL')
-         AND  "createdAt" >= $2
-         AND  metadata->>'spend' IS NOT NULL`,
-      userId,
-      todayMidnight
-    ).catch(() => [{ total: 0 }]),
+    prisma.$queryRaw<Array<{ total: number | null }>>`
+      SELECT COALESCE(SUM((metadata->>'spend')::float), 0) AS total
+      FROM   "Log"
+      WHERE  "userId" = ${userId}
+        AND  "type"   IN ('KILL_SWITCH_TRIGGERED', 'DECISION_KILL')
+        AND  "createdAt" >= ${todayMidnight}
+        AND  metadata->>'spend' IS NOT NULL
+    `.catch(() => [{ total: 0 }]),
   ]);
 
   // ── Calculs jour courant ───────────────────────────────────────────────────

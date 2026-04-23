@@ -40,44 +40,46 @@ export async function GET(req: NextRequest) {
     "DECISION_KILL", "DECISION_WATCH", "DECISION_SCALE",
   ];
 
+  // $queryRaw (template literal) utilisé à la place de $queryRawUnsafe :
+  // Prisma paramétrise automatiquement toutes les valeurs interpolées,
+  // ce qui garantit que userId/limit/offset ne peuvent jamais être interprétés
+  // comme du SQL même si leur valeur venait à changer de source à l'avenir.
   const [syncRows, auditRows] = await Promise.all([
-    prisma.$queryRawUnsafe<Array<{
+    prisma.$queryRaw<Array<{
       id: string; type: string; message: string;
       metadata: unknown; createdAt: Date;
       campaignName: string | null; network: string | null;
-    }>>(
-      `SELECT l."id", l."type", l."message", l."metadata", l."createdAt",
-              c."name"    AS "campaignName",
-              c."network" AS "network"
-       FROM   "Log"   l
-       LEFT JOIN "Campaign" c ON c."id" = l."campaignId"
-       WHERE  l."userId" = $1
-         AND  l."type"   IN ('SYNC','API_ERROR','AUTH_ERROR')
-       ORDER BY l."createdAt" DESC
-       LIMIT  $2 OFFSET $3`,
-      userId, limit, offset
-    ),
-    prisma.$queryRawUnsafe<Array<{
+    }>>`
+      SELECT l."id", l."type", l."message", l."metadata", l."createdAt",
+             c."name"    AS "campaignName",
+             c."network" AS "network"
+      FROM   "Log"   l
+      LEFT JOIN "Campaign" c ON c."id" = l."campaignId"
+      WHERE  l."userId" = ${userId}
+        AND  l."type"   IN ('SYNC','API_ERROR','AUTH_ERROR')
+      ORDER BY l."createdAt" DESC
+      LIMIT  ${limit} OFFSET ${offset}
+    `,
+    prisma.$queryRaw<Array<{
       id: string; type: string; message: string;
       metadata: unknown; createdAt: Date;
       campaignName: string | null; network: string | null;
-    }>>(
-      `SELECT l."id", l."type", l."message", l."metadata", l."createdAt",
-              c."name"    AS "campaignName",
-              c."network" AS "network"
-       FROM   "Log"   l
-       LEFT JOIN "Campaign" c ON c."id" = l."campaignId"
-       WHERE  l."userId" = $1
-         AND  l."type"   IN (
-           'KILL_SWITCH_TRIGGERED','KILL_SWITCH_PAUSED','KILL_SWITCH_RESTORED',
-           'CAMPAIGN_ACTION','BUDGET_ALERT',
-           'DECISION_KILL','DECISION_WATCH','DECISION_SCALE',
-           'SECURITY_EVENT'
-         )
-       ORDER BY l."createdAt" DESC
-       LIMIT  $2 OFFSET $3`,
-      userId, limit, offset
-    ),
+    }>>`
+      SELECT l."id", l."type", l."message", l."metadata", l."createdAt",
+             c."name"    AS "campaignName",
+             c."network" AS "network"
+      FROM   "Log"   l
+      LEFT JOIN "Campaign" c ON c."id" = l."campaignId"
+      WHERE  l."userId" = ${userId}
+        AND  l."type"   IN (
+          'KILL_SWITCH_TRIGGERED','KILL_SWITCH_PAUSED','KILL_SWITCH_RESTORED',
+          'CAMPAIGN_ACTION','BUDGET_ALERT',
+          'DECISION_KILL','DECISION_WATCH','DECISION_SCALE',
+          'SECURITY_EVENT'
+        )
+      ORDER BY l."createdAt" DESC
+      LIMIT  ${limit} OFFSET ${offset}
+    `,
   ]);
 
   function formatSyncRow(row: typeof syncRows[0]) {

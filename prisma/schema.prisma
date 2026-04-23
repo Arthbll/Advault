@@ -100,6 +100,9 @@ model TeamInvite {
 
   owner User @relation("TeamInviteOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
+  // Empêche d'envoyer deux invitations pending au même email depuis le même workspace.
+  // Pour re-inviter quelqu'un, l'ancienne invite doit d'abord être revoked/accepted.
+  @@unique([ownerId, email, status], name: "team_invite_no_duplicate_pending")
   @@index([token])
   @@index([ownerId])
   @@index([email])
