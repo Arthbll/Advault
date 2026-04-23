@@ -50,6 +50,10 @@ interface EngineRule {
   minConversions:  number;   // conversions minimum avant de scaler (défaut 3)
   killCooldownH:   number;   // heures entre deux kills sur la même campagne (défaut 6)
   scaleCooldownH:  number;   // heures entre deux scales sur la même campagne (défaut 6)
+  killHoldMin:     number;   // minutes condition must hold before Kill fires (défaut 30)
+  scaleHoldMin:    number;   // minutes condition must hold before Scale fires (défaut 60)
+  maxKillsDay:     number;   // max Kill actions per day, 0 = illimité (défaut 5)
+  maxScalesDay:    number;   // max Scale actions per day, 0 = illimité (défaut 2)
   engineMode:      string;   // "automatic" | "recommendation"
 }
 
@@ -85,6 +89,10 @@ async function evaluateCampaigns(
   const campaigns = activeCampaigns.filter(c => {
     if (seen.has(c.externalId)) return false;
     seen.add(c.externalId);
+    // excludeFromEngine : l'utilisateur a mis cette campagne en "Manuel uniquement"
+    if (c.excludeFromEngine) return false;
+    // automationPaused : pause temporaire de l'automation sur cette campagne
+    if (c.automationPaused) return false;
     return true;
   });
 
@@ -188,13 +196,12 @@ async function evaluateCampaigns(
         && campaignConversions >= minConversions;
 
       if (inScaleZone) {
-        // Cooldown : pas de DECISION_SCALE sur cette campagne dans les X dernières heures.
-        // On cherche par metadata->externalId (pas campaignId) car le UUID interne change
-        // à chaque sync — l'externalId est la vraie clé stable côté réseau publicitaire.
+        // Cooldown : pas de DECISION_SCALE (réel, pas holdPending) dans les X dernières heures.
         const recentScaleRows = await prisma.$queryRaw<{ id: string }[]>`
           SELECT id FROM "Log"
           WHERE "userId"    = ${userId}
             AND "type"      = 'DECISION_SCALE'
+            AND (metadata->>'holdPending') IS NULL
             AND "createdAt" >= ${new Date(Date.now() - scaleCooldownH * 60 * 60_000)}
             AND metadata->>'externalId' = ${campaign.externalId}
           LIMIT 1
@@ -202,6 +209,56 @@ async function evaluateCampaigns(
         const recentScale = recentScaleRows.length > 0 ? recentScaleRows[0] : null;
 
         if (!recentScale) {
+          // ── maxScalesDay : limite journalière ──────────────────────────────
+          const maxScalesDay = engineRule?.maxScalesDay ?? 2;
+          if (maxScalesDay > 0) {
+            const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+            const scalesTodayRows = await prisma.$queryRaw<{ count: bigint }[]>`
+              SELECT COUNT(*) AS count FROM "Log"
+              WHERE "userId"    = ${userId}
+                AND "type"      = 'DECISION_SCALE'
+                AND (metadata->>'holdPending') IS NULL
+                AND "createdAt" >= ${todayMidnight}
+            `;
+            if (Number(scalesTodayRows[0]?.count ?? 0) >= maxScalesDay) { continue; }
+          }
+
+          // ── scaleHoldMin : condition doit tenir X minutes avant de scaler ─
+          const scaleHoldMin = engineRule?.scaleHoldMin ?? 0;
+          if (scaleHoldMin > 0) {
+            const holdRows = await prisma.$queryRaw<{ id: string; createdAt: Date }[]>`
+              SELECT id, "createdAt" FROM "Log"
+              WHERE "userId"    = ${userId}
+                AND "type"      = 'DECISION_SCALE'
+                AND metadata->>'holdPending' = 'true'
+                AND metadata->>'externalId'  = ${campaign.externalId}
+              ORDER BY "createdAt" DESC
+              LIMIT 1
+            `;
+            if (holdRows.length === 0) {
+              await prisma.log.create({
+                data: {
+                  userId,
+                  campaignId: campaign.id,
+                  type:       "DECISION_SCALE" as LogType,
+                  message:    `[HOLD] Decision Engine — "${campaign.name}" : scale en attente (${scaleHoldMin}min). ROI ${roi.toFixed(1)}%`,
+                  metadata: {
+                    network:     networkLabel,
+                    externalId:  campaign.externalId,
+                    campaignName: campaign.name,
+                    spend:       freshSpend,
+                    roi:         parseFloat(roi.toFixed(2)),
+                    holdPending: true,
+                    holdMinutes: scaleHoldMin,
+                    holdUntil:   new Date(Date.now() + scaleHoldMin * 60_000).toISOString(),
+                  },
+                },
+              });
+              continue;
+            }
+            const ageMin = (Date.now() - new Date(holdRows[0].createdAt).getTime()) / 60_000;
+            if (ageMin < scaleHoldMin) { continue; }
+          }
           const multiplier = 1 + scaleIncrement / 100;
           let oldBid = 0;
           let newBid = 0;
@@ -299,24 +356,77 @@ async function evaluateCampaigns(
       : `Spend ${freshSpend.toFixed(2)}€ > max ${maxSpendPerCampaign}€`;
 
     // ── Kill cooldown check ──────────────────────────────────────────────────
-    // Ne pas re-killer une campagne si une action DECISION_KILL a déjà eu lieu
-    // dans la fenêtre de cooldown configurable (défaut 6h).
+    // Ne pas re-killer une campagne si une action DECISION_KILL (réelle, pas holdPending)
+    // a déjà eu lieu dans la fenêtre de cooldown configurable (défaut 6h).
     const killCooldownH = engineRule?.killCooldownH ?? 6;
     if (killCooldownH > 0) {
-      // Même logique que le scale cooldown : on cherche par externalId dans metadata,
-      // pas par campaignId interne qui change à chaque nouvelle sync.
       const recentKillRows = await prisma.$queryRaw<{ id: string }[]>`
         SELECT id FROM "Log"
         WHERE "userId"    = ${userId}
           AND "type"      = 'DECISION_KILL'
+          AND (metadata->>'holdPending') IS NULL
           AND "createdAt" >= ${new Date(Date.now() - killCooldownH * 60 * 60_000)}
           AND metadata->>'externalId' = ${campaign.externalId}
         LIMIT 1
       `;
-      if (recentKillRows.length > 0) {
-        // Cooldown actif — on ne re-kill pas, on passe silencieusement
+      if (recentKillRows.length > 0) { continue; }
+    }
+
+    // ── maxKillsDay : limite journalière de kills ─────────────────────────────
+    const maxKillsDay = engineRule?.maxKillsDay ?? 5;
+    if (maxKillsDay > 0) {
+      const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+      const killsTodayRows = await prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) AS count FROM "Log"
+        WHERE "userId"    = ${userId}
+          AND "type"      = 'DECISION_KILL'
+          AND (metadata->>'holdPending') IS NULL
+          AND "createdAt" >= ${todayMidnight}
+      `;
+      if (Number(killsTodayRows[0]?.count ?? 0) >= maxKillsDay) { continue; }
+    }
+
+    // ── killHoldMin : condition doit tenir X minutes avant de tuer ────────────
+    // Principe : la 1ère fois qu'on détecte la condition, on log un "hold pending"
+    // sans tuer. Aux runs suivants, si la condition tient toujours et que X minutes
+    // se sont écoulées depuis le 1er log, on tue pour de vrai.
+    const killHoldMin = engineRule?.killHoldMin ?? 0;
+    if (killHoldMin > 0) {
+      const holdRows = await prisma.$queryRaw<{ id: string; createdAt: Date }[]>`
+        SELECT id, "createdAt" FROM "Log"
+        WHERE "userId"    = ${userId}
+          AND "type"      = 'DECISION_KILL'
+          AND metadata->>'holdPending' = 'true'
+          AND metadata->>'externalId'  = ${campaign.externalId}
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      `;
+      if (holdRows.length === 0) {
+        // Première détection — on logue le hold pending et on attend
+        await prisma.log.create({
+          data: {
+            userId,
+            campaignId: campaign.id,
+            type:       "DECISION_KILL" as LogType,
+            message:    `[HOLD] Decision Engine — "${campaign.name}" : kill en attente (${killHoldMin}min). ${reason}`,
+            metadata: {
+              network:      networkLabel,
+              externalId:   campaign.externalId,
+              campaignName: campaign.name,
+              spend:        freshSpend,
+              roi:          parseFloat(roi.toFixed(2)),
+              holdPending:  true,
+              holdMinutes:  killHoldMin,
+              holdUntil:    new Date(Date.now() + killHoldMin * 60_000).toISOString(),
+              reason,
+            },
+          },
+        });
         continue;
       }
+      const ageMin = (Date.now() - new Date(holdRows[0].createdAt).getTime()) / 60_000;
+      if (ageMin < killHoldMin) { continue; } // pas encore assez longtemps
+      // Condition tenue assez longtemps → on continue vers le kill réel
     }
 
     if (isAutomatic) {
@@ -372,11 +482,39 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
     prisma.decisionRule.findUnique({
       where:  { userId },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      select: { scaleRoi: true, scaleIncrement: true, minSpend: true, minConversions: true, killCooldownH: true, scaleCooldownH: true, engineMode: true, timeWindowStart: true, timeWindowEnd: true } as any,
+      select: { scaleRoi: true, scaleIncrement: true, minSpend: true, minConversions: true, killCooldownH: true, scaleCooldownH: true, killHoldMin: true, scaleHoldMin: true, maxKillsDay: true, maxScalesDay: true, engineMode: true, timeWindowStart: true, timeWindowEnd: true } as any,
     }).catch(() => null),
   ]);
 
   if (!settings?.killSwitchEnabled) { result.skipped = 1; return result; }
+
+  // ── Bloc 6 : Emergency Stop ───────────────────────────────────────────────────
+  // Si enginePausedUntil est dans le futur, l'automation est suspendue globalement.
+  if (settings.enginePausedUntil && settings.enginePausedUntil > new Date()) {
+    result.skipped = 1;
+    return result;
+  }
+
+  // ── checkIntervalMinutes : fréquence configurable ─────────────────────────────
+  // Quand le cron tourne toutes les minutes, on ne veut pas re-évaluer chaque user
+  // à chaque minute — seulement toutes les X minutes selon leur config.
+  // On utilise un log SYNC (source: decision-engine) comme marqueur de dernier run.
+  const checkInterval = settings.checkIntervalMinutes ?? 30;
+  if (checkInterval > 0) {
+    const lastSync = await prisma.log.findFirst({
+      where: {
+        userId,
+        type:     "SYNC" as LogType,
+        metadata: { path: ["source"], equals: "decision-engine" },
+      },
+      orderBy: { createdAt: "desc" },
+      select:  { createdAt: true },
+    });
+    if (lastSync) {
+      const minsSinceSync = (Date.now() - lastSync.createdAt.getTime()) / 60_000;
+      if (minsSinceSync < checkInterval) { result.skipped = 1; return result; }
+    }
+  }
 
   // ── Vérification plage horaire (UTC) ─────────────────────────────────────────
   const twStart = (decisionRule as { timeWindowStart?: number | null } | null)?.timeWindowStart ?? null;
@@ -401,6 +539,10 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
         minConversions: decisionRule.minConversions,
         killCooldownH:  decisionRule.killCooldownH,
         scaleCooldownH: decisionRule.scaleCooldownH,
+        killHoldMin:    (decisionRule as { killHoldMin?: number }).killHoldMin  ?? 30,
+        scaleHoldMin:   (decisionRule as { scaleHoldMin?: number }).scaleHoldMin ?? 60,
+        maxKillsDay:    (decisionRule as { maxKillsDay?: number }).maxKillsDay  ?? 5,
+        maxScalesDay:   (decisionRule as { maxScalesDay?: number }).maxScalesDay ?? 2,
         engineMode:     decisionRule.engineMode,
       }
     : null;
@@ -588,6 +730,54 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
         engineRule, inGracePeriod);
     }
   }
+
+  // ── budgetAlertEnabled : alerte si spend journalier dépasse la limite ─────────
+  // Loggué une seule fois par jour pour éviter le spam.
+  if (settings.budgetAlertEnabled && settings.dailyBudgetLimit) {
+    try {
+      const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+      const spendRows = await prisma.$queryRaw<{ total: number }[]>`
+        SELECT COALESCE(SUM(spend), 0) AS total
+        FROM "Campaign"
+        WHERE "userId"   = ${userId}
+          AND "dateFrom" >= ${todayMidnight}
+      `;
+      const todaySpend = Number(spendRows[0]?.total ?? 0);
+      if (todaySpend > settings.dailyBudgetLimit) {
+        const alreadyAlerted = await prisma.log.findFirst({
+          where: { userId, type: "BUDGET_ALERT" as LogType, createdAt: { gte: todayMidnight } },
+        });
+        if (!alreadyAlerted) {
+          await prisma.log.create({
+            data: {
+              userId,
+              type:    "BUDGET_ALERT" as LogType,
+              message: `Alerte budget — dépense journalière $${todaySpend.toFixed(2)} dépasse la limite $${settings.dailyBudgetLimit.toFixed(2)}`,
+              metadata: {
+                todaySpend,
+                dailyBudgetLimit: settings.dailyBudgetLimit,
+                excess:           parseFloat((todaySpend - settings.dailyBudgetLimit).toFixed(2)),
+              },
+            },
+          });
+        }
+      }
+    } catch (err) {
+      result.errors.push(`budget-alert(${userId}): ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // ── Log SYNC — marqueur de dernier run (utilisé par checkIntervalMinutes) ─────
+  try {
+    await prisma.log.create({
+      data: {
+        userId,
+        type:    "SYNC" as LogType,
+        message: `Decision Engine — scan terminé. ${result.checked} campagnes évaluées, ${result.killed} kills, ${result.scaled} scales.`,
+        metadata: { source: "decision-engine", checked: result.checked, killed: result.killed, scaled: result.scaled },
+      },
+    });
+  } catch { /* non-bloquant */ }
 
   return result;
 }
