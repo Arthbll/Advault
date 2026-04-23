@@ -76,6 +76,32 @@ export async function simulateTick(): Promise<TickResult> {
   let killsTriggered   = 0;
   let scalesTriggered  = 0;
 
+  // Revive aléatoire : chaque tick, une campagne KILLED a 25% de chance d'être
+  // "relancée" comme nouvelle campagne (simule un buyer qui teste de nouvelles créas).
+  // Sans ça, après quelques runs il ne reste que des gagnants → 0 kill, que des scales.
+  const killedCampaigns = await prisma.campaign.findMany({
+    where: { userId: user.id, status: { in: ["KILLED", "PAUSED"] } },
+    take: 5,
+  });
+  await Promise.all(
+    killedCampaigns
+      .filter(() => Math.random() < 0.25)
+      .map(c =>
+        prisma.campaign.update({
+          where: { id: c.id },
+          data: {
+            status:      "WATCH",
+            spend:       randInt(15, 40),
+            revenue:     randInt(8, 30),
+            impressions: randInt(5000, 20000),
+            clicks:      randInt(80, 400),
+            conversions: randInt(1, 5),
+            syncedAt:    new Date(),
+          },
+        })
+      )
+  );
+
   // Traitement en parallèle — toutes les campagnes en même temps au lieu de l'une après l'autre.
   // Sur 15 campagnes, ça divise le temps par ~10 comparé à la boucle séquentielle.
   const results = await Promise.all(campaigns.map(async (c) => {
@@ -135,8 +161,9 @@ export async function simulateTick(): Promise<TickResult> {
     ];
     localConversions += conversionDelta;
 
-    // Decision Engine simulé
+    // Decision Engine simulé — même logique que le vrai engine en prod
     if (newRoi < -30 && newSpend > 20 && c.status === "WATCH") {
+      // WATCH → KILLED : ROI trop bas, on coupe
       writes.push(
         prisma.campaign.update({ where: { id: c.id }, data: { status: "KILLED" } }),
         prisma.log.create({
@@ -150,7 +177,22 @@ export async function simulateTick(): Promise<TickResult> {
         }),
       );
       localKills++;
+    } else if (newRoi < -10 && newSpend > 15 && c.status === "ACTIVE") {
+      // ACTIVE → WATCH : ROI en dégradation, on surveille
+      writes.push(
+        prisma.campaign.update({ where: { id: c.id }, data: { status: "WATCH" } }),
+        prisma.log.create({
+          data: {
+            userId:     user.id,
+            campaignId: c.id,
+            type:       "DECISION_WATCH",
+            message:    `Flagging — ROI ${newRoi.toFixed(1)}% en zone de surveillance sur ${c.name}`,
+            metadata:   { roi: newRoi, watchLow: -15, watchHigh: 0 },
+          },
+        }),
+      );
     } else if (newRoi > 30 && c.conversions > 10 && c.status === "ACTIVE") {
+      // ACTIVE avec bon ROI → Scale
       writes.push(
         prisma.log.create({
           data: {
