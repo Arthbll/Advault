@@ -174,3 +174,69 @@ Ces règles sont **non-négociables** — elles viennent du `CLAUDE.md` et sont 
 ---
 
 *Document généré le 22 avril 2026. À mettre à jour au fur et à mesure.*
+
+---
+
+## Session du 23 avril 2026 — Pivot positioning + infrastructure démo
+
+### Ce qui a changé côté produit
+
+- **Pivot de positioning** après recherche compétitive (Voluum Automizer, TheOptimizer, etc.) :
+  - le Decision Engine pur est déjà commoditisé sur le marché mainstream
+  - on se différencie par **3 axes** :
+    1. le briefing quotidien personnalisé (feature sous-exploitée chez les concurrents)
+    2. les **templates par verticale** (Dating d'abord, puis Cam/VOD/Adult E-com) — pas de "one-size-fits-all" pour les adult buyers
+    3. le **solo tier < 100$/mois** — Voluum commence à 375$, TheOptimizer à 199$ — personne n'adresse correctement le media buyer solo
+- **Verticale de lancement confirmée : Dating.** Plus gros volume sur ExoClick/TrafficJunky, le plus mature en workflow, le meilleur match pour valider les templates.
+
+### Infrastructure email
+
+- **Resend** branché : client singleton dans `lib/email/resend-client.ts`, template FR dans `lib/email/daily-briefing.ts`.
+- **Premier mail de test reçu et validé** sur Gmail mobile — rendu propre, table-based, light theme.
+- **Cron quotidien** : route `/api/cron/daily-briefing/run`, schedule `0 7 * * *` dans `vercel.json` (= 9h00 Paris en heure d'été). Auth par `CRON_SECRET`.
+
+### Mode démo — architecture anti-résidu
+
+Règles non-négociables pour éviter que le démo laisse des traces dans le codebase métier :
+
+1. **Un seul user fictif** : `demo@profitdash.internal`. Toutes les données démo sont scopées à son `userId`. Supprimer ce user → cascade Prisma nettoie tout (campagnes, conversions, logs, settings).
+2. **Zéro code démo dans les composants métier.** Pas de `if (isDemo)` dans `app/` ou dans les adaptateurs — tout vit dans `lib/demo/`.
+3. **Un seul flag / un seul dossier.** Flag = `DEMO_MODE_ENABLED` env var. Dossier = `lib/demo/`. Si demain on retire le démo : `git rm -rf lib/demo app/api/demo` + passer le flag à `false`, point.
+4. **Reset documenté et réversible.** Endpoint `POST /api/demo/reset` supprime le user démo. L'appeler avant un rollback.
+
+### Fichiers créés
+
+| Fichier | Rôle |
+|---|---|
+| `lib/demo/config.ts` | Constantes (email démo, flag `isDemoModeEnabled()`) |
+| `lib/demo/campaigns.ts` | Catalogue des 15 campagnes Dating (FR, DE, IT, US, UK, CA, ES) |
+| `lib/demo/seed.ts` | Seed idempotent : user + account fictif + 15 campagnes |
+| `lib/demo/reset.ts` | Cleanup complet via `prisma.user.delete` |
+| `lib/demo/simulator.ts` | Tick d'évolution des stats (impressions, clics, conversions, ROI) + trigger Decision Engine simulé |
+| `lib/demo/briefing-data.ts` | Construit `BriefingData` depuis les vraies données démo Prisma |
+| `app/api/cron/daily-briefing/run/route.ts` | Cron 9h — si `DEMO_MODE_ENABLED` : seed + simulateOneDay + mail démo |
+| `app/api/demo/seed/route.ts` | POST admin — déclenche un seed manuel |
+| `app/api/demo/reset/route.ts` | POST admin — supprime le workspace démo |
+| `app/api/demo/simulate-tick/route.ts` | POST admin — déclenche un tick (ou 24h) à la demande |
+| `app/api/dev/send-test-briefing/route.ts` | POST admin — envoie un briefing test hardcodé |
+
+### Env vars ajoutées
+
+- `.env.local` : `RESEND_API_KEY`, `EMAIL_FROM`, `ADMIN_EMAIL`, `CRON_SECRET`, `DEMO_MODE_ENABLED=true`
+- `.env.example` : documentation de `DEMO_MODE_ENABLED` ajoutée
+- **Vercel** : les 5 variables ci-dessus sont configurées en Production + Preview (fait via Chrome)
+
+### Point d'attention plan Vercel
+
+Le projet est sur **Hobby plan**. Ça impose :
+- **2 crons max par projet** (daily-briefing + kill-switch = on est à 2, plus de place pour un simulator séparé)
+- **Fréquence daily** (1x/jour max) → le kill-switch cron `* * * * *` ne tourne pas vraiment sur Hobby, il sera exécuté 1x/jour au mieux
+
+**Workaround** : le simulator est appelé **inline depuis le cron daily-briefing** (24 ticks d'un coup avant l'envoi du mail). Les stats du workspace démo évoluent donc 1x par jour. Pour un démo vivant toutes les 15 min → upgrade Pro ($20/mois).
+
+### Check-list avant push (demain matin ou ce soir)
+
+1. `git add . && git commit -m "feat: demo workspace + daily briefing cron" && git push`
+2. Vercel redéploie automatiquement — vérifier logs
+3. À 9h00 Paris le lendemain : le mail démo arrive sur arthur.bonelli67@gmail.com
+4. Si besoin de reset le démo : `POST /api/demo/reset` authentifié via session admin
