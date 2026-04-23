@@ -36,7 +36,10 @@ export async function updateSession(request: NextRequest) {
                        || pathname.startsWith("/forgot-password") || pathname.startsWith("/reset-password");
   const isMFAChallenge = pathname.startsWith("/mfa-challenge");
   // Public routes — accessible without authentication
-  const isPublicRoute  = pathname === "/" || pathname.startsWith("/api/waitlist");
+  const isPublicRoute  = pathname === "/"
+                       || pathname.startsWith("/api/waitlist")
+                       || pathname.startsWith("/privacy")
+                       || pathname.startsWith("/terms");
 
   // Redirect unauthenticated users away from protected routes
   if (!user && !isAuthRoute && !isMFAChallenge && !isPublicRoute) {

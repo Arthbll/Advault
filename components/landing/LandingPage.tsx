@@ -7,6 +7,7 @@ import {
   useScroll,
   useTransform,
   useMotionValueEvent,
+  useInView,
 } from "framer-motion";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,6 +50,46 @@ function Pill({ children, color = "#fb7185" }: { children: React.ReactNode; colo
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HOOK — COUNT-UP (for animated stat numbers)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function useCountUp(target: number, inView: boolean, duration = 1500): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!inView || target === 0) return;
+    let startTime: number | null = null;
+    const tick = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out cubic — fast at first, slows as it approaches target
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(target * eased));
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [inView, target, duration]);
+  return count;
+}
+
+// Logo SVG — violet gradient square with chart line (matches legal pages)
+function LogoIcon({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <defs>
+        <linearGradient id="logo-grad-main" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#a78bfa" />
+          <stop offset="100%" stopColor="#7c3aed" />
+        </linearGradient>
+      </defs>
+      <rect x="1" y="1" width="22" height="22" rx="6" fill="url(#logo-grad-main)" />
+      <path d="M6 15L10 11L13 13L18 7" stroke="#0a0c10" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="18" cy="7" r="1.6" fill="#0a0c10" />
+    </svg>
+  );
+}
 
 function SignalLine({ id = "sig" }: { id?: string }) {
   return (
@@ -102,6 +143,10 @@ function HeroSection() {
   const [actionFlash, setActionFlash] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [submitState, setSubmitState] = useState<"idle" | "loading" | "done" | "already">("idle");
+
+  // Parallax — card drifts down slightly as user scrolls past hero
+  const { scrollY } = useScroll();
+  const heroCardY = useTransform(scrollY, [0, 700], [0, 38]);
 
   const handleWaitlist = async () => {
     if (!email.trim() || submitState === "loading" || submitState === "done") return;
@@ -300,6 +345,18 @@ function HeroSection() {
               <span>✓ No credit card</span>
               <span>✓ 2-minute setup</span>
             </motion.div>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1, delay: 0.40 }}
+              style={{ marginTop: 12, fontSize: 11, color: "rgba(255,255,255,0.18)" }}
+            >
+              By joining, you agree to our{" "}
+              <a href="/terms" style={{ color: "rgba(255,255,255,0.32)", textDecoration: "underline", textDecorationColor: "rgba(255,255,255,0.14)" }}>Terms of Service</a>
+              {" "}and{" "}
+              <a href="/privacy" style={{ color: "rgba(255,255,255,0.32)", textDecoration: "underline", textDecorationColor: "rgba(255,255,255,0.14)" }}>Privacy Policy</a>.
+            </motion.p>
           </div>
 
           {/* ── Right visual ── */}
@@ -315,12 +372,12 @@ function HeroSection() {
               <SignalLine id="hero-sig" />
             </div>
 
-            {/* Command center card */}
+            {/* Command center card — parallax wrapper + entrance animation */}
             <motion.div
               initial={{ opacity: 0, y: 36 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1.1, delay: 0.24, ease: [0.16, 1, 0.3, 1] }}
-              style={{ position: "relative", zIndex: 10, marginTop: 240, width: "100%", maxWidth: 740 }}
+              style={{ position: "relative", zIndex: 10, marginTop: 240, width: "100%", maxWidth: 740, y: heroCardY }}
             >
               <motion.div
                 animate={{ y: [0, -6, 0] }}
@@ -1355,13 +1412,60 @@ function ProductPeekSection() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ENGINE_STATS = [
-  { value: "< 60s",  label: "Kill latency",        desc: "From detection to campaign pause. Budget stops draining in under a minute.",                   col: KILL_COL  },
-  { value: "24 / 7", label: "Engine uptime",        desc: "Automation runs server-side. The engine works even when the dashboard is closed.",             col: VIOLET    },
-  { value: "+34%",   label: "Avg ROI lift on scale",desc: "Average performance improvement on campaigns flagged and scaled by the engine.",               col: SCALE_COL },
-  { value: "5",      label: "Networks connected",   desc: "ExoClick, TrafficStars, TrafficJunky, PropellerAds, Adsterra — unified in one signal layer.",  col: SKY       },
-  { value: "€0",     label: "Cost to start",        desc: "Observer plan is free forever. See real profit and detect leaks before committing a cent.",    col: "rgba(255,255,255,0.55)" },
-  { value: "3",      label: "Decision states",      desc: "Kill, Watch, Scale — every campaign is continuously evaluated and assigned a state.",          col: TRACK_COL },
+  { animTarget: 60,  animFormat: (v: number) => `< ${v}s`, label: "Kill latency",        desc: "From detection to campaign pause. Budget stops draining in under a minute.",                   col: KILL_COL  },
+  { animTarget: 24,  animFormat: (v: number) => `${v} / 7`,label: "Engine uptime",        desc: "Automation runs server-side. The engine works even when the dashboard is closed.",             col: VIOLET    },
+  { animTarget: 34,  animFormat: (v: number) => `+${v}%`,  label: "Avg ROI lift on scale",desc: "Average performance improvement on campaigns flagged and scaled by the engine.",               col: SCALE_COL },
+  { animTarget: 5,   animFormat: (v: number) => `${v}`,    label: "Networks connected",   desc: "ExoClick, TrafficStars, TrafficJunky, PropellerAds, Adsterra — unified in one signal layer.",  col: SKY       },
+  { animTarget: 0,   animFormat: () => `€0`,               label: "Cost to start",        desc: "Observer plan is free forever. See real profit and detect leaks before committing a cent.",    col: "rgba(255,255,255,0.55)" },
+  { animTarget: 3,   animFormat: (v: number) => `${v}`,    label: "Decision states",      desc: "Kill, Watch, Scale — every campaign is continuously evaluated and assigned a state.",          col: TRACK_COL },
 ];
+
+// Individual stat cell with count-up on first viewport entry
+function StatCell({ animTarget, animFormat, label, desc, col, borderRight, borderBottom }: {
+  animTarget: number; animFormat: (v: number) => string;
+  label: string; desc: string; col: string;
+  borderRight?: boolean; borderBottom?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-8%" });
+  const count = useCountUp(animTarget, inView, 1400);
+  const displayValue = animTarget === 0 ? animFormat(0) : animFormat(count);
+
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 10 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      style={{
+        padding: "52px 44px",
+        borderRight: borderRight ? `1px solid ${BORDER_FAINT}` : undefined,
+        borderBottom: borderBottom ? `1px solid ${BORDER_FAINT}` : undefined,
+        background: "rgba(255,255,255,0.01)",
+        position: "relative", overflow: "hidden",
+      }}
+    >
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+        background: `radial-gradient(circle at 20% 30%, ${col}09, transparent 55%)`,
+        pointerEvents: "none",
+      }} />
+      <div style={{
+        fontSize: 76, fontWeight: 200, letterSpacing: "-0.065em",
+        color: col, lineHeight: 1, fontVariantNumeric: "tabular-nums",
+        position: "relative",
+      }}>{displayValue}</div>
+      <div style={{
+        marginTop: 14, fontSize: 10, textTransform: "uppercase",
+        letterSpacing: "0.22em", color: "rgba(255,255,255,0.44)",
+      }}>{label}</div>
+      <div style={{
+        marginTop: 10, fontSize: 14, lineHeight: "24px",
+        color: T_DIM, maxWidth: "28ch", position: "relative",
+      }}>{desc}</div>
+    </motion.div>
+  );
+}
 
 function StatsSection() {
   return (
@@ -1380,41 +1484,17 @@ function StatsSection() {
           display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
           border: `1px solid ${BORDER_FAINT}`, borderRadius: 28, overflow: "hidden",
         }}>
-          {ENGINE_STATS.map(({ value, label, desc, col }, i) => (
-            <motion.div
+          {ENGINE_STATS.map(({ animTarget, animFormat, label, desc, col }, i) => (
+            <StatCell
               key={label}
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.08, duration: 0.7 }}
-              style={{
-                padding: "52px 44px",
-                borderRight: (i % 3 !== 2) ? `1px solid ${BORDER_FAINT}` : undefined,
-                borderBottom: i < 3 ? `1px solid ${BORDER_FAINT}` : undefined,
-                background: "rgba(255,255,255,0.01)",
-                position: "relative", overflow: "hidden",
-              }}
-            >
-              {/* Soft color wash behind the number */}
-              <div style={{
-                position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-                background: `radial-gradient(circle at 20% 30%, ${col}09, transparent 55%)`,
-                pointerEvents: "none",
-              }} />
-              <div style={{
-                fontSize: 76, fontWeight: 200, letterSpacing: "-0.065em",
-                color: col, lineHeight: 1, fontVariantNumeric: "tabular-nums",
-                position: "relative",
-              }}>{value}</div>
-              <div style={{
-                marginTop: 14, fontSize: 10, textTransform: "uppercase",
-                letterSpacing: "0.22em", color: "rgba(255,255,255,0.44)",
-              }}>{label}</div>
-              <div style={{
-                marginTop: 10, fontSize: 14, lineHeight: "24px",
-                color: T_DIM, maxWidth: "28ch", position: "relative",
-              }}>{desc}</div>
-            </motion.div>
+              animTarget={animTarget}
+              animFormat={animFormat}
+              label={label}
+              desc={desc}
+              col={col}
+              borderRight={i % 3 !== 2}
+              borderBottom={i < 3}
+            />
           ))}
         </div>
       </div>
@@ -1555,6 +1635,12 @@ function PricingSection() {
             <div style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: T_DIM, fontStyle: "italic" }}>
               For solo operators validating the setup
             </div>
+            <p style={{ marginTop: 12, fontSize: 10, color: "rgba(255,255,255,0.16)", textAlign: "center", lineHeight: "16px" }}>
+              By creating an account, you agree to our{" "}
+              <a href="/terms" style={{ color: "rgba(255,255,255,0.26)", textDecoration: "underline" }}>Terms</a>
+              {" "}&amp;{" "}
+              <a href="/privacy" style={{ color: "rgba(255,255,255,0.26)", textDecoration: "underline" }}>Privacy Policy</a>.
+            </p>
           </motion.div>
 
           {/* ── Operator — dominant, violet ── */}
@@ -1606,6 +1692,12 @@ function PricingSection() {
             <div style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: "rgba(196,181,253,0.50)", fontStyle: "italic" }}>
               The clearest choice once campaigns are live
             </div>
+            <p style={{ marginTop: 12, fontSize: 10, color: "rgba(196,181,253,0.22)", textAlign: "center", lineHeight: "16px" }}>
+              By creating an account, you agree to our{" "}
+              <a href="/terms" style={{ color: "rgba(196,181,253,0.38)", textDecoration: "underline" }}>Terms</a>
+              {" "}&amp;{" "}
+              <a href="/privacy" style={{ color: "rgba(196,181,253,0.38)", textDecoration: "underline" }}>Privacy Policy</a>.
+            </p>
           </motion.div>
 
           {/* ── Dominion ── */}
@@ -1658,6 +1750,12 @@ function PricingSection() {
             <div style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: "#64748b", fontStyle: "italic" }}>
               For operators ready to let the engine run
             </div>
+            <p style={{ marginTop: 12, fontSize: 10, color: "rgba(100,116,139,0.50)", textAlign: "center", lineHeight: "16px" }}>
+              By creating an account, you agree to our{" "}
+              <a href="/terms" style={{ color: "rgba(148,163,184,0.55)", textDecoration: "underline" }}>Terms</a>
+              {" "}&amp;{" "}
+              <a href="/privacy" style={{ color: "rgba(148,163,184,0.55)", textDecoration: "underline" }}>Privacy Policy</a>.
+            </p>
           </motion.div>
 
         </div>
@@ -1857,7 +1955,313 @@ function FAQSection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION 10 — FINAL CTA / BRAND CLOSURE
+// SECTION 10 — RECOMMEND VS AUTOMATIC
+// ─────────────────────────────────────────────────────────────────────────────
+
+function RecommendVsAutoSection() {
+  const CARD: React.CSSProperties = {
+    flex: 1,
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "linear-gradient(180deg,rgba(14,15,22,0.95),rgba(9,10,16,0.98))",
+    padding: "36px 32px",
+    boxShadow: "0 16px 52px rgba(0,0,0,0.30)",
+  };
+
+  const ROW = ({
+    label, value, color = T_PRIMARY,
+  }: { label: string; value: string; color?: string }) => (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "12px 0", borderBottom: `1px solid ${BORDER_FAINT}`,
+    }}>
+      <span style={{ fontSize: 13, color: "rgba(255,255,255,0.40)" }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 500, color }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <section style={{
+      ...SEC,
+      background: [
+        "radial-gradient(ellipse at 20% 50%, rgba(139,92,246,0.05), transparent 30%)",
+        "radial-gradient(ellipse at 80% 50%, rgba(74,222,128,0.04), transparent 30%)",
+      ].join(","),
+    }}>
+      <div style={{ margin: "0 auto", maxWidth: 1100 }}>
+        <div style={{ textAlign: "center", marginBottom: 56 }}>
+          <Pill color={VIOLET}>Two modes</Pill>
+          <h2 style={{
+            marginTop: 24, fontSize: 56, fontWeight: 600, lineHeight: 0.95,
+            letterSpacing: "-0.06em", color: T_PRIMARY,
+          }}>
+            Your engine, your rules.
+          </h2>
+          <p style={{ marginTop: 18, maxWidth: "38ch", margin: "18px auto 0", fontSize: 17, lineHeight: "30px", color: T_MUTED }}>
+            Choose how much you trust the engine — per campaign, not globally.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: 18, alignItems: "stretch" }}>
+
+          {/* Recommendation mode */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            style={CARD}
+          >
+            <div style={{ marginBottom: 8 }}>
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 7,
+                borderRadius: 8, border: "1px solid rgba(251,191,36,0.24)",
+                background: "rgba(251,191,36,0.07)", padding: "4px 12px",
+                fontSize: 9, textTransform: "uppercase", letterSpacing: "0.20em", color: "#fde68a",
+                marginBottom: 20,
+              }}>⬡ Recommendation mode</div>
+            </div>
+            <h3 style={{
+              fontSize: 28, fontWeight: 500, letterSpacing: "-0.04em",
+              color: T_PRIMARY, lineHeight: 1.1, marginBottom: 14,
+            }}>The engine advises.<br />You decide.</h3>
+            <p style={{ fontSize: 14, lineHeight: "26px", color: "rgba(255,255,255,0.40)", marginBottom: 28, maxWidth: "32ch" }}>
+              ProfitDash logs every action it would have taken. You review, approve, or dismiss — at your own pace.
+            </p>
+
+            {/* Mock recommendation card — rows stagger in */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-5%" }}
+              variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.10, delayChildren: 0.15 } } }}
+              style={{
+                borderRadius: 16, border: "1px solid rgba(251,191,36,0.16)",
+                background: "rgba(251,191,36,0.05)", padding: "20px 20px",
+              }}
+            >
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(251,191,36,0.70)", marginBottom: 14 }}>Engine recommendation</div>
+              {([
+                { label: "Campaign",        value: "VPN_FR_02",      color: T_PRIMARY  },
+                { label: "Current ROI",     value: "−31%",           color: KILL_COL   },
+                { label: "Suggested action",value: "Kill",           color: "#fde68a"  },
+                { label: "Reason",          value: "Below −25% for 3h", color: T_PRIMARY },
+              ] as const).map(({ label, value, color }) => (
+                <motion.div
+                  key={label}
+                  variants={{ hidden: { opacity: 0, y: 6 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16,1,0.3,1] } } }}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: `1px solid ${BORDER_FAINT}` }}
+                >
+                  <span style={{ fontSize: 13, color: "rgba(255,255,255,0.40)" }}>{label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500, color }}>{value}</span>
+                </motion.div>
+              ))}
+              <motion.div
+                variants={{ hidden: { opacity: 0, y: 6 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16,1,0.3,1] } } }}
+                style={{ marginTop: 16, display: "flex", gap: 8 }}
+              >
+                <button style={{
+                  flex: 1, height: 36, borderRadius: 8,
+                  background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.22)",
+                  fontSize: 12, fontWeight: 600, color: "#fca5a5", cursor: "pointer",
+                }}>Approve kill</button>
+                <button style={{
+                  flex: 1, height: 36, borderRadius: 8,
+                  background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
+                  fontSize: 12, color: "rgba(255,255,255,0.30)", cursor: "pointer",
+                }}>Dismiss</button>
+              </motion.div>
+            </motion.div>
+          </motion.div>
+
+          {/* Divider */}
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center",
+            justifyContent: "center", gap: 12, flexShrink: 0, padding: "0 8px",
+          }}>
+            <div style={{ width: 1, flex: 1, background: BORDER_FAINT }} />
+            <div style={{
+              width: 36, height: 36, borderRadius: "50%",
+              border: `1px solid ${BORDER}`,
+              background: "rgba(255,255,255,0.03)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, color: T_DIM,
+            }}>or</div>
+            <div style={{ width: 1, flex: 1, background: BORDER_FAINT }} />
+          </div>
+
+          {/* Automatic mode */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            style={{ ...CARD, borderColor: "rgba(139,92,246,0.20)", background: "linear-gradient(180deg,rgba(18,12,30,0.96),rgba(10,8,18,0.98))" }}
+          >
+            <div style={{ marginBottom: 8 }}>
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 7,
+                borderRadius: 8, border: "1px solid rgba(139,92,246,0.28)",
+                background: "rgba(139,92,246,0.09)", padding: "4px 12px",
+                fontSize: 9, textTransform: "uppercase", letterSpacing: "0.20em", color: "#c4b5fd",
+                marginBottom: 20,
+              }}>
+                <motion.span
+                  animate={{ opacity: [0.4, 1, 0.4] }}
+                  transition={{ duration: 1.4, repeat: Infinity }}
+                  style={{ width: 5, height: 5, borderRadius: "50%", background: "#a78bfa" }}
+                />
+                Automatic mode
+              </div>
+            </div>
+            <h3 style={{
+              fontSize: 28, fontWeight: 500, letterSpacing: "-0.04em",
+              color: T_PRIMARY, lineHeight: 1.1, marginBottom: 14,
+            }}>The engine acts.<br />While you sleep.</h3>
+            <p style={{ fontSize: 14, lineHeight: "26px", color: "rgba(255,255,255,0.40)", marginBottom: 28, maxWidth: "32ch" }}>
+              ProfitDash calls the ad network API directly. Campaigns get killed, scaled, or held — with no action required from you.
+            </p>
+
+            {/* Mock automatic execution log — entries type in one by one */}
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-5%" }}
+              variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.16, delayChildren: 0.20 } } }}
+              style={{
+                borderRadius: 16, border: "1px solid rgba(139,92,246,0.18)",
+                background: "rgba(139,92,246,0.05)", padding: "20px 20px",
+              }}
+            >
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(167,139,250,0.70)", marginBottom: 14 }}>Engine log</div>
+              {[
+                { time: "03:14", msg: "Killed VPN_FR_02 · ROI −31%",      col: KILL_COL                     },
+                { time: "03:14", msg: "Paused ExoClick API · confirmed",   col: "rgba(255,255,255,0.30)"     },
+                { time: "06:22", msg: "Scaled Nutra_US_01 · ROI +41%",    col: SCALE_COL                    },
+                { time: "06:23", msg: "Budget increased +20% via API",     col: "rgba(255,255,255,0.30)"     },
+              ].map(({ time, msg, col }, i) => (
+                <motion.div
+                  key={i}
+                  variants={{ hidden: { opacity: 0, x: -10 }, visible: { opacity: 1, x: 0, transition: { duration: 0.38, ease: [0.16,1,0.3,1] } } }}
+                  style={{
+                    display: "flex", gap: 12, alignItems: "flex-start",
+                    padding: "7px 0", borderBottom: i < 3 ? `1px solid ${BORDER_FAINT}` : undefined,
+                  }}
+                >
+                  <span style={{ fontSize: 9, color: T_DIM, fontVariantNumeric: "tabular-nums", flexShrink: 0, marginTop: 1, fontFamily: "ui-monospace,monospace" }}>{time}</span>
+                  <span style={{ fontSize: 12, color: col, lineHeight: "18px" }}>{msg}</span>
+                </motion.div>
+              ))}
+            </motion.div>
+          </motion.div>
+
+        </div>
+
+        <div style={{
+          marginTop: 28, textAlign: "center",
+          fontSize: 13, color: "rgba(255,255,255,0.26)",
+        }}>
+          Switch modes per campaign at any time · No code required
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 11 — TRUST / CREDIBILITY
+// ─────────────────────────────────────────────────────────────────────────────
+
+function TrustSection() {
+  const TRUST_POINTS = [
+    {
+      icon: "🔒",
+      title: "API credentials are encrypted",
+      body: "Your ad network keys are stored with AES-256 encryption at rest. They are never logged, never shared, and only used to operate your campaigns.",
+      col: SKY,
+    },
+    {
+      icon: "🏗️",
+      title: "Automation is fully server-side",
+      body: "The engine runs on Vercel cron jobs — not in your browser. Close the dashboard, turn off your computer. The robot keeps working.",
+      col: VIOLET,
+    },
+    {
+      icon: "👁️",
+      title: "Every action is logged",
+      body: "Every kill, scale, or hold the engine takes is stored in your action log with a timestamp and a reason. You always know exactly what happened and why.",
+      col: TRACK_COL,
+    },
+    {
+      icon: "📬",
+      title: "Daily briefing in your inbox",
+      body: "Every morning at 9am, you receive a summary of what the engine did overnight — what it killed, what it scaled, what needs your attention today.",
+      col: SCALE_COL,
+    },
+  ];
+
+  return (
+    <section style={{
+      ...SEC,
+      background: [
+        "radial-gradient(ellipse at 50% 0%, rgba(56,189,248,0.04), transparent 22%)",
+        "radial-gradient(ellipse at 50% 100%, rgba(99,102,241,0.04), transparent 22%)",
+      ].join(","),
+    }}>
+      <div style={{ margin: "0 auto", maxWidth: 1100 }}>
+        <div style={{ textAlign: "center", marginBottom: 56 }}>
+          <Pill color={SKY}>Built for trust</Pill>
+          <h2 style={{
+            marginTop: 24, fontSize: 52, fontWeight: 600, lineHeight: 0.96,
+            letterSpacing: "-0.06em", color: T_PRIMARY,
+          }}>
+            Credibility is a feature.
+          </h2>
+          <p style={{ marginTop: 18, maxWidth: "36ch", margin: "18px auto 0", fontSize: 17, lineHeight: "30px", color: T_MUTED }}>
+            An engine that touches live campaigns has to earn trust. Here is how ProfitDash does it.
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {TRUST_POINTS.map(({ icon, title, body, col }, i) => (
+            <motion.div
+              key={title}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.08, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                borderRadius: 20, border: `1px solid ${BORDER_FAINT}`,
+                background: "rgba(255,255,255,0.015)",
+                padding: "32px 28px",
+                position: "relative", overflow: "hidden",
+              }}
+            >
+              {/* Subtle color wash */}
+              <div style={{
+                position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                background: `radial-gradient(circle at 10% 20%, ${col}07, transparent 50%)`,
+                pointerEvents: "none",
+              }} />
+              <div style={{ fontSize: 28, marginBottom: 18 }}>{icon}</div>
+              <div style={{
+                fontSize: 16, fontWeight: 600, letterSpacing: "-0.03em",
+                color: T_PRIMARY, marginBottom: 10, position: "relative",
+              }}>{title}</div>
+              <div style={{
+                fontSize: 14, lineHeight: "26px", color: "rgba(255,255,255,0.40)",
+                position: "relative",
+              }}>{body}</div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 12 — FINAL CTA / BRAND CLOSURE
 // ─────────────────────────────────────────────────────────────────────────────
 
 function FinalCTA() {
@@ -1873,12 +2277,13 @@ function FinalCTA() {
           viewport={{ once: true }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
           style={{
-            margin: "44px auto 0", maxWidth: "11ch",
+            margin: "44px auto 0", maxWidth: "13ch",
             fontSize: 72, fontWeight: 600, lineHeight: 0.92,
             letterSpacing: "-0.065em", color: T_PRIMARY,
           }}
         >
-          See profit clearly. Act faster.
+          Stop watching campaigns.<br />
+          <span style={{ color: "rgba(167,139,250,0.90)" }}>Start commanding them.</span>
         </motion.h2>
 
         <motion.p
@@ -1886,9 +2291,9 @@ function FinalCTA() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.9, delay: 0.1 }}
-          style={{ margin: "22px auto 0", maxWidth: "32ch", fontSize: 19, lineHeight: "32px", color: T_MUTED }}
+          style={{ margin: "22px auto 0", maxWidth: "34ch", fontSize: 19, lineHeight: "32px", color: T_MUTED }}
         >
-          Stop guessing. Stop bleeding budget. Start operating with the clarity of a real decision engine.
+          The engine runs 24/7. Kill leaks before they compound. Scale winners before the window closes.
         </motion.p>
 
         <motion.div
@@ -1938,13 +2343,7 @@ function Footer() {
           {/* Brand */}
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: 8,
-                background: "linear-gradient(135deg, rgba(124,58,237,0.22), rgba(255,255,255,0.05))",
-                border: "1px solid rgba(124,58,237,0.28)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.90)",
-              }}>P</div>
+              <LogoIcon size={26} />
               <span style={{ fontSize: 18, letterSpacing: "-0.04em", fontWeight: 400 }}>
                 <span style={{ color: T_PRIMARY }}>Profit</span><span style={{ color: "rgba(167,139,250,0.82)" }}>Dash</span>
               </span>
@@ -2008,32 +2407,47 @@ function Footer() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Grain SVG data URI (fixed, overlaid on everything for texture)
+  const grainUrl = `url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`;
+
   return (
     <div style={{
       minHeight: "100vh", background: BG, color: T_PRIMARY,
       fontFamily: "var(--font-geist, system-ui, sans-serif)",
+      position: "relative",
     }}>
+
+      {/* Grain texture overlay — subtle noise on the whole page */}
+      <div style={{
+        position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+        pointerEvents: "none", zIndex: 200,
+        backgroundImage: grainUrl,
+        opacity: 0.028,
+        mixBlendMode: "overlay",
+      }} />
 
       {/* Sticky header */}
       <header style={{
         position: "sticky", top: 0, zIndex: 100,
-        borderBottom: `1px solid ${BORDER_FAINT}`,
-        background: `${BG}cc`,
-        backdropFilter: "blur(20px)",
+        borderBottom: scrolled ? `1px solid ${BORDER_FAINT}` : "1px solid transparent",
+        background: scrolled ? `rgba(5,6,10,0.92)` : "transparent",
+        backdropFilter: scrolled ? "blur(20px)" : "none",
+        transition: "background 0.35s ease, border-color 0.35s ease, backdrop-filter 0.35s ease",
       }}>
         <div style={{
           margin: "0 auto", maxWidth: 1640, padding: "18px 48px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 10,
-              background: "linear-gradient(135deg, rgba(124,58,237,0.22), rgba(255,255,255,0.05))",
-              border: "1px solid rgba(124,58,237,0.32)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.95)",
-              letterSpacing: "-0.02em",
-            }}>P</div>
+            <LogoIcon size={30} />
             <div style={{ fontSize: 22, letterSpacing: "-0.05em", fontWeight: 400 }}>
               <span style={{ color: T_PRIMARY }}>Profit</span><span style={{ color: "rgba(167,139,250,0.82)" }}>Dash</span>
             </div>
@@ -2068,9 +2482,11 @@ export default function LandingPage() {
       <SyncStrip />
       <LosingCampaignSection />
       <EngineRevealSection />
+      <RecommendVsAutoSection />
       <SetupSection />
       <ProductPeekSection />
       <StatsSection />
+      <TrustSection />
       <PricingSection />
       <FAQSection />
       <FinalCTA />
