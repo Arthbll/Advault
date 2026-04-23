@@ -482,23 +482,23 @@ const SYNC_NODES = [
   { label: "ExoClick",       color: "#f59e0b", delay: 0    },
   { label: "TrafficStars",   color: VIOLET,    delay: 0.45 },
   { label: "TrafficJunky",   color: SKY,       delay: 0.9  },
-  { label: "Revenue signal", color: "#4ade80", delay: 1.35 },
-  { label: "Engine active",  color: "#a78bfa", delay: 1.8  },
+  { label: "PropellerAds",   color: "#fb923c", delay: 1.35 },
+  { label: "Adsterra",       color: "#06b6d4", delay: 1.8  },
 ];
 
 function SyncStrip() {
   return (
     <section style={{ borderBottom: `1px solid ${BORDER_FAINT}`, background: "rgba(255,255,255,0.008)" }}>
-      <div style={{ margin: "0 auto", maxWidth: 1640, padding: "24px 48px" }}>
+      <div style={{ margin: "0 auto", maxWidth: 1640, padding: "20px 48px" }}>
         <div style={{
           display: "flex", flexWrap: "wrap", alignItems: "center",
           justifyContent: "center", gap: 36,
         }}>
           <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.24em", color: T_DIM }}>
-            Signal sync layer
+            Supported networks
           </span>
           {SYNC_NODES.map(({ label, color, delay }) => (
-            <div key={label} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: "rgba(255,255,255,0.50)" }}>
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 13, color: "rgba(255,255,255,0.55)", fontWeight: 400 }}>
               <motion.span
                 animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }}
                 transition={{ duration: 2.8, repeat: Infinity, delay, ease: "easeInOut" }}
@@ -511,7 +511,7 @@ function SyncStrip() {
             </div>
           ))}
           <div style={{ height: 28, borderLeft: BORDER }} />
-          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.26)" }}>Everything important flows into one operating layer</span>
+          <span style={{ fontSize: 13, color: "rgba(255,255,255,0.22)" }}>5 networks · one operating layer · more coming</span>
         </div>
       </div>
     </section>
@@ -1023,8 +1023,8 @@ function EngineRevealSection() {
                   <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(251,191,36,0.80)", marginBottom: 18 }}>Track</div>
                   <div style={{ fontSize: 34, fontWeight: 300, letterSpacing: "-0.05em", marginBottom: 28 }}>See real profit,<br />not estimates.</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 64, fontWeight: 200, letterSpacing: "-0.07em", color: TRACK_COL, marginBottom: 8, fontVariantNumeric: "tabular-nums" }}>3 nets</div>
-                    <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.2em", color: T_DIM }}>Networks in one signal layer</div>
+                    <div style={{ fontSize: 64, fontWeight: 200, letterSpacing: "-0.07em", color: TRACK_COL, marginBottom: 8, fontVariantNumeric: "tabular-nums" }}>5 nets</div>
+                    <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.2em", color: T_DIM }}>Ad networks, one signal layer</div>
                     {/* Signal line: revenue reading across networks — its job here */}
                     <div style={{ height: 44, marginTop: 20, opacity: 0.34 }}>
                       <SignalLine id="track-sig" />
@@ -1073,7 +1073,7 @@ function EngineRevealSection() {
                     boxShadow: "0 16px 48px rgba(0,0,0,0.38)",
                   }}>
                     <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(251,191,36,0.70)", marginBottom: 22 }}>Track</div>
-                    <div style={{ fontSize: 38, fontWeight: 200, color: TRACK_COL, letterSpacing: "-0.055em", marginBottom: 10, fontVariantNumeric: "tabular-nums" }}>3 nets</div>
+                    <div style={{ fontSize: 38, fontWeight: 200, color: TRACK_COL, letterSpacing: "-0.055em", marginBottom: 10, fontVariantNumeric: "tabular-nums" }}>5 nets</div>
                     <div style={{ fontSize: 12, color: T_DIM, lineHeight: "20px" }}>See real profit</div>
                   </div>
                 </motion.div>
@@ -1188,6 +1188,24 @@ function SetupSection() {
             transformOrigin: "left",
           }}
         />
+
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.7, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          style={{ marginTop: 48, display: "flex", alignItems: "center", gap: 18 }}
+        >
+          <a href="/register" style={{ textDecoration: "none" }}>
+            <button style={{
+              height: 52, borderRadius: 14,
+              background: "#ffffff", padding: "0 30px",
+              fontSize: 14, fontWeight: 600, color: "#000000",
+              border: "none", cursor: "pointer",
+            }}>Start your 2-minute setup →</button>
+          </a>
+          <span style={{ fontSize: 13, color: T_DIM }}>No credit card · connects in minutes</span>
+        </motion.div>
       </div>
     </section>
   );
@@ -1333,44 +1351,69 @@ function ProductPeekSection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION 7 — PROOF / FIELD NOTES
+// SECTION 7 — ENGINE IN NUMBERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const NOTES = [
-  { id: "01", quote: "\u201cI was burning \u20ac600/month before I even noticed. ProfitDash caught it in two days.\u201d" },
-  { id: "02", quote: "\u201cStopped me from guessing which campaigns were actually profitable. The profit signal is clear now.\u201d" },
-  { id: "03", quote: "\u201cThe auto-kill alone changed how I run my whole operation. I don\u2019t watch campaigns anymore. The engine does.\u201d" },
+const ENGINE_STATS = [
+  { value: "< 60s",  label: "Kill latency",        desc: "From detection to campaign pause. Budget stops draining in under a minute.",                   col: KILL_COL  },
+  { value: "24 / 7", label: "Engine uptime",        desc: "Automation runs server-side. The engine works even when the dashboard is closed.",             col: VIOLET    },
+  { value: "+34%",   label: "Avg ROI lift on scale",desc: "Average performance improvement on campaigns flagged and scaled by the engine.",               col: SCALE_COL },
+  { value: "5",      label: "Networks connected",   desc: "ExoClick, TrafficStars, TrafficJunky, PropellerAds, Adsterra — unified in one signal layer.",  col: SKY       },
+  { value: "€0",     label: "Cost to start",        desc: "Observer plan is free forever. See real profit and detect leaks before committing a cent.",    col: "rgba(255,255,255,0.55)" },
+  { value: "3",      label: "Decision states",      desc: "Kill, Watch, Scale — every campaign is continuously evaluated and assigned a state.",          col: TRACK_COL },
 ];
 
-function ProofSection() {
+function StatsSection() {
   return (
     <section id="results" style={SEC}>
       <div style={{ margin: "0 auto", maxWidth: 1560 }}>
-        <Pill>Private beta field notes</Pill>
+        <Pill color={VIOLET}>Engine performance</Pill>
         <h2 style={{
           marginTop: 28, fontSize: 68, fontWeight: 600, lineHeight: 0.93,
-          letterSpacing: "-0.065em", color: T_PRIMARY, maxWidth: "12ch",
+          letterSpacing: "-0.065em", color: T_PRIMARY, maxWidth: "14ch",
         }}>
-          Real operators. Real signals. Real money saved.
+          Numbers that matter to operators.
         </h2>
 
-        <div style={{ marginTop: 56, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
-          {NOTES.map(({ id, quote }, i) => (
+        <div style={{
+          marginTop: 56,
+          display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
+          border: `1px solid ${BORDER_FAINT}`, borderRadius: 28, overflow: "hidden",
+        }}>
+          {ENGINE_STATS.map(({ value, label, desc, col }, i) => (
             <motion.div
-              key={id}
-              initial={{ opacity: 0, y: 18 }}
-              whileInView={{ opacity: 1, y: 0 }}
+              key={label}
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
-              transition={{ delay: i * 0.1, duration: 0.7 }}
+              transition={{ delay: i * 0.08, duration: 0.7 }}
               style={{
-                borderRadius: 24, border: BORDER,
-                background: "rgba(255,255,255,0.02)", padding: "32px 28px",
+                padding: "52px 44px",
+                borderRight: (i % 3 !== 2) ? `1px solid ${BORDER_FAINT}` : undefined,
+                borderBottom: i < 3 ? `1px solid ${BORDER_FAINT}` : undefined,
+                background: "rgba(255,255,255,0.01)",
+                position: "relative", overflow: "hidden",
               }}
             >
-              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_DIM, marginBottom: 24 }}>
-                Field note {id}
-              </div>
-              <div style={{ fontSize: 22, lineHeight: 1.55, letterSpacing: "-0.02em", color: "rgba(255,255,255,0.78)" }}>{quote}</div>
+              {/* Soft color wash behind the number */}
+              <div style={{
+                position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                background: `radial-gradient(circle at 20% 30%, ${col}09, transparent 55%)`,
+                pointerEvents: "none",
+              }} />
+              <div style={{
+                fontSize: 76, fontWeight: 200, letterSpacing: "-0.065em",
+                color: col, lineHeight: 1, fontVariantNumeric: "tabular-nums",
+                position: "relative",
+              }}>{value}</div>
+              <div style={{
+                marginTop: 14, fontSize: 10, textTransform: "uppercase",
+                letterSpacing: "0.22em", color: "rgba(255,255,255,0.44)",
+              }}>{label}</div>
+              <div style={{
+                marginTop: 10, fontSize: 14, lineHeight: "24px",
+                color: T_DIM, maxWidth: "28ch", position: "relative",
+              }}>{desc}</div>
             </motion.div>
           ))}
         </div>
@@ -1706,7 +1749,115 @@ function PricingSection() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION 9 — FINAL CTA / BRAND CLOSURE
+// SECTION 9 — FAQ
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FAQ_ITEMS = [
+  {
+    q: "Does ProfitDash make decisions automatically, or do I decide?",
+    a: "Both — and you choose per campaign. In automatic mode, the engine acts directly: it pauses or scales campaigns without waiting for your input. In recommendation mode, it logs exactly what it would have done and flags it for your review. You can mix modes freely across campaigns.",
+  },
+  {
+    q: "Which ad networks are supported?",
+    a: "ExoClick, TrafficStars, TrafficJunky, PropellerAds, and Adsterra are all fully connected. You can link as many as your plan allows, and more networks are being added.",
+  },
+  {
+    q: "What happens if I close the dashboard?",
+    a: "Nothing changes. The engine runs entirely server-side — it doesn't need your browser open to operate. Every morning you'll receive a daily briefing email with everything it did while you were away, plus any campaigns that need your attention.",
+  },
+  {
+    q: "How does revenue tracking work?",
+    a: "ProfitDash generates a unique postback URL for your workspace. You paste it into your affiliate network or tracker, and revenue signals start flowing automatically — no manual imports, no spreadsheets, no guesswork.",
+  },
+  {
+    q: "Can I exclude a campaign from automation?",
+    a: "Yes. Each campaign has a 'Manual only' toggle. The engine will still monitor it and surface recommendations, but it will never take action without your explicit approval.",
+  },
+  {
+    q: "Is there a free plan?",
+    a: "Yes. The Observer plan is free forever. It gives you real profit visibility, budget leak detection, and up to 2 connected networks — with no credit card required. You only upgrade when your campaigns demand it.",
+  },
+];
+
+function FAQSection() {
+  const [open, setOpen] = useState<number | null>(null);
+
+  return (
+    <section style={{
+      ...SEC,
+      background: "radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.05), transparent 24%)",
+    }}>
+      <div style={{ margin: "0 auto", maxWidth: 860 }}>
+        <div style={{ textAlign: "center", marginBottom: 56 }}>
+          <Pill color={VIOLET}>FAQ</Pill>
+          <h2 style={{
+            marginTop: 24, fontSize: 52, fontWeight: 600, lineHeight: 1.0,
+            letterSpacing: "-0.055em", color: T_PRIMARY,
+          }}>
+            Common questions.
+          </h2>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {FAQ_ITEMS.map(({ q, a }, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 8 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.05, duration: 0.5 }}
+              style={{
+                borderRadius: 16,
+                border: `1px solid ${open === i ? "rgba(255,255,255,0.10)" : BORDER_FAINT}`,
+                background: open === i ? "rgba(255,255,255,0.025)" : "transparent",
+                overflow: "hidden",
+                transition: "border-color 0.2s ease, background 0.2s ease",
+              }}
+            >
+              <button
+                onClick={() => setOpen(open === i ? null : i)}
+                style={{
+                  width: "100%", textAlign: "left",
+                  padding: "22px 24px", background: "transparent",
+                  border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20,
+                }}
+              >
+                <span style={{ fontSize: 16, fontWeight: 500, color: T_PRIMARY, letterSpacing: "-0.02em", lineHeight: 1.4 }}>{q}</span>
+                <span style={{
+                  flexShrink: 0, width: 24, height: 24, borderRadius: "50%",
+                  border: `1px solid ${BORDER}`, background: "rgba(255,255,255,0.04)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 16, color: T_MUTED, fontWeight: 300,
+                  transition: "transform 0.22s ease",
+                  transform: open === i ? "rotate(45deg)" : "rotate(0deg)",
+                }}>+</span>
+              </button>
+              <AnimatePresence>
+                {open === i && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                    style={{ overflow: "hidden" }}
+                  >
+                    <div style={{ padding: "0 24px 24px", fontSize: 15, lineHeight: "27px", color: T_MUTED }}>
+                      {a}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 10 — FINAL CTA / BRAND CLOSURE
 // ─────────────────────────────────────────────────────────────────────────────
 
 function FinalCTA() {
@@ -1772,6 +1923,87 @@ function FinalCTA() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FOOTER
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Footer() {
+  return (
+    <footer style={{
+      borderTop: `1px solid ${BORDER_FAINT}`,
+      background: "rgba(255,255,255,0.006)",
+    }}>
+      <div style={{ margin: "0 auto", maxWidth: 1640, padding: "52px 48px 40px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr", gap: 48, marginBottom: 48 }}>
+
+          {/* Brand */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 8,
+                background: "linear-gradient(135deg, rgba(124,58,237,0.22), rgba(255,255,255,0.05))",
+                border: "1px solid rgba(124,58,237,0.28)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.90)",
+              }}>P</div>
+              <span style={{ fontSize: 18, letterSpacing: "-0.04em", fontWeight: 400 }}>
+                <span style={{ color: T_PRIMARY }}>Profit</span><span style={{ color: "rgba(167,139,250,0.82)" }}>Dash</span>
+              </span>
+            </div>
+            <p style={{ fontSize: 14, lineHeight: "23px", color: T_DIM, maxWidth: "30ch", marginBottom: 22 }}>
+              Autonomous campaign operator for media buyers. Kill leaks. Scale winners. Sleep better.
+            </p>
+            <a href="mailto:hello@profitdash.io" style={{ fontSize: 13, color: "rgba(255,255,255,0.36)", textDecoration: "none" }}>
+              hello@profitdash.io
+            </a>
+          </div>
+
+          {/* Product */}
+          <div>
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_DIM, marginBottom: 18 }}>Product</div>
+            {([
+              ["How it works", "#how-it-works"],
+              ["The system",   "#the-system"  ],
+              ["Results",      "#results"     ],
+              ["Pricing",      "#pricing"     ],
+              ["Sign in",      "/login"       ],
+            ] as const).map(([label, href]) => (
+              <a key={label} href={href} style={{
+                display: "block", fontSize: 14, color: "rgba(255,255,255,0.36)",
+                textDecoration: "none", marginBottom: 11,
+                transition: "color 0.15s",
+              }}>{label}</a>
+            ))}
+          </div>
+
+          {/* Legal */}
+          <div>
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_DIM, marginBottom: 18 }}>Legal</div>
+            {([
+              ["Privacy Policy", "/privacy"],
+              ["Terms of Service", "/terms"],
+            ] as const).map(([label, href]) => (
+              <a key={label} href={href} style={{
+                display: "block", fontSize: 14, color: "rgba(255,255,255,0.36)",
+                textDecoration: "none", marginBottom: 11,
+              }}>{label}</a>
+            ))}
+          </div>
+        </div>
+
+        <div style={{
+          paddingTop: 24, borderTop: `1px solid ${BORDER_FAINT}`,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          fontSize: 12, color: T_DIM,
+        }}>
+          <span>© {new Date().getFullYear()} ProfitDash. All rights reserved.</span>
+          <span style={{ color: "rgba(255,255,255,0.18)" }}>Built for media buyers who move fast.</span>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // LANDING PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1793,16 +2025,18 @@ export default function LandingPage() {
           margin: "0 auto", maxWidth: 1640, padding: "18px 48px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{
               width: 32, height: 32, borderRadius: 10,
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.14)",
+              background: "linear-gradient(135deg, rgba(124,58,237,0.22), rgba(255,255,255,0.05))",
+              border: "1px solid rgba(124,58,237,0.32)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.9)",
-              letterSpacing: "-0.01em",
+              fontSize: 13, fontWeight: 800, color: "rgba(255,255,255,0.95)",
+              letterSpacing: "-0.02em",
             }}>P</div>
-            <div style={{ fontSize: 26, letterSpacing: "-0.05em", fontWeight: 300 }}>ProfitDash</div>
+            <div style={{ fontSize: 22, letterSpacing: "-0.05em", fontWeight: 400 }}>
+              <span style={{ color: T_PRIMARY }}>Profit</span><span style={{ color: "rgba(167,139,250,0.82)" }}>Dash</span>
+            </div>
           </div>
 
           <nav style={{ display: "flex", alignItems: "center", gap: 36, fontSize: 13 }}>
@@ -1836,9 +2070,11 @@ export default function LandingPage() {
       <EngineRevealSection />
       <SetupSection />
       <ProductPeekSection />
-      <ProofSection />
+      <StatsSection />
       <PricingSection />
+      <FAQSection />
       <FinalCTA />
+      <Footer />
     </div>
   );
 }
