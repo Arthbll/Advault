@@ -24,10 +24,10 @@ enum Network {
 enum CampaignStatus {
   ACTIVE
   PAUSED
-  KILLED    // terminated by Kill-Switch
-  WATCH     // flagged by Decision Rules engine — signal only, no automatic action
+  KILLED // terminated by Kill-Switch
+  WATCH // flagged by Decision Rules engine — signal only, no automatic action
   DRAFT
-  ARCHIVED  // removed from active flow, history preserved
+  ARCHIVED // removed from active flow, history preserved
 }
 
 enum LogType {
@@ -39,33 +39,50 @@ enum LogType {
   AUTH_ERROR
   API_ERROR
   BUDGET_ALERT
-  DECISION_KILL        // Decision Rules engine paused a campaign automatically
-  DECISION_WATCH       // Decision Rules engine flagged a campaign for review
-  DECISION_SCALE       // Decision Rules engine increased bid automatically
-  SECURITY_EVENT       // MFA enable/disable, recovery code generation/use
-  POSTBACK_OVERAGE     // /api/track rate-limit dépassé — loggué pour monitoring
+  DECISION_KILL // Decision Rules engine paused a campaign automatically
+  DECISION_WATCH // Decision Rules engine flagged a campaign for review
+  DECISION_SCALE // Decision Rules engine increased bid automatically
+  SECURITY_EVENT // MFA enable/disable, recovery code generation/use
+  POSTBACK_OVERAGE // /api/track rate-limit dépassé — loggué pour monitoring
   KILL_BLOCKED_NO_DATA // Kill-switch bloqué — aucun postback reçu, période de grâce 48h active
-  SAFETY_DOWNGRADE     // Engine basculé en mode recommendation — aucun postback reçu après 48h
+  SAFETY_DOWNGRADE // Engine basculé en mode recommendation — aucun postback reçu après 48h
+  DAILY_BRIEFING_SENT // Briefing quotidien envoyé avec succès
+  DAILY_BRIEFING_ERROR // Échec d'envoi du briefing quotidien (pour retry/debug)
+}
+
+// User tier — influence le format du briefing et les seuils d'alerte auto-calibrés
+enum UserTier {
+  SOLO // 1 personne, petits spends — briefing pédagogique et personnel
+  PRO // équipe / agence — briefing consolidé, vue par client
 }
 
 // ─── MODELS ───────────────────────────────────────────────────────────────────
 
 // Shadow table for Supabase Auth users
 model User {
-  id        String    @id @default(uuid()) // mirrors Supabase auth.users.id
-  email     String    @unique
-  createdAt DateTime  @default(now())
+  id        String   @id @default(uuid()) // mirrors Supabase auth.users.id
+  email     String   @unique
+  createdAt DateTime @default(now())
 
-  accounts        Account[]
-  campaigns       Campaign[]
-  logs            Log[]
-  settings        UserSettings?
-  conversions     Conversion[]
-  decisionRule    DecisionRule?
-  recoveryCodes   RecoveryCode[]
+  // Tier — Solo ou Pro. Détermine le template de briefing et les seuils auto-calibrés.
+  // Défini à l'onboarding, peut être réajusté automatiquement par un job hebdomadaire
+  // en fonction du spend réel.
+  tier UserTier @default(SOLO)
+
+  // Idempotence du briefing quotidien — timestamp du dernier envoi réussi.
+  // Utilisé par le cron pour éviter d'envoyer deux fois le même jour au même user.
+  lastDailyBriefingSentAt DateTime?
+
+  accounts      Account[]
+  campaigns     Campaign[]
+  logs          Log[]
+  settings      UserSettings?
+  conversions   Conversion[]
+  decisionRule  DecisionRule?
+  recoveryCodes RecoveryCode[]
 
   // Team relations
-  teamInvitesSent     TeamInvite[]  @relation("TeamInviteOwner")
+  teamInvitesSent      TeamInvite[] @relation("TeamInviteOwner")
   teamMembershipsOwned TeamMember[] @relation("WorkspaceOwner")
   teamMembership       TeamMember?  @relation("WorkspaceMember")
 }
@@ -91,12 +108,12 @@ model TeamInvite {
 // Active team memberships — member sees owner's workspace data
 model TeamMember {
   id        String   @id @default(uuid())
-  ownerId   String   // Command-plan workspace owner
+  ownerId   String // Command-plan workspace owner
   memberId  String   @unique // invited user (one workspace per member)
   role      String   @default("member")
   createdAt DateTime @default(now())
 
-  owner  User @relation("WorkspaceOwner",  fields: [ownerId],  references: [id], onDelete: Cascade)
+  owner  User @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   member User @relation("WorkspaceMember", fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([ownerId])
@@ -104,20 +121,20 @@ model TeamMember {
 
 // One row per network per user — API keys stored AES-256-GCM encrypted
 model Account {
-  id           String   @id @default(uuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   network      Network
-  apiKeyEnc    String   // encrypt(apiKey)
-  apiSecretEnc String?  // encrypt(apiSecret) — optional per network
-  label        String?  // display name override
-  isActive     Boolean  @default(true)
+  apiKeyEnc    String // encrypt(apiKey)
+  apiSecretEnc String? // encrypt(apiSecret) — optional per network
+  label        String? // display name override
+  isActive     Boolean @default(true)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  campaigns    Campaign[]
+  campaigns Campaign[]
 
   @@unique([userId, network])
   @@index([userId])
@@ -125,32 +142,32 @@ model Account {
 
 // Aggregated stats snapshot per campaign per date range
 model Campaign {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accountId   String
-  account     Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  externalId  String
-  name        String
-  network     Network
-  status      CampaignStatus @default(ACTIVE)
+  externalId String
+  name       String
+  network    Network
+  status     CampaignStatus @default(ACTIVE)
 
-  spend       Decimal  @db.Decimal(12, 4) @default(0)
-  revenue     Decimal  @db.Decimal(12, 4) @default(0)
-  impressions Int      @default(0)
-  clicks      Int      @default(0)
-  conversions Int      @default(0)
+  spend       Decimal @default(0) @db.Decimal(12, 4)
+  revenue     Decimal @default(0) @db.Decimal(12, 4)
+  impressions Int     @default(0)
+  clicks      Int     @default(0)
+  conversions Int     @default(0)
 
   // Decision Engine controls
   excludeFromEngine Boolean @default(false) // "Manual only" — excluded from all engine actions
 
-  dateFrom    DateTime
-  dateTo      DateTime
-  syncedAt    DateTime @default(now())
-  createdAt   DateTime @default(now())
+  dateFrom  DateTime
+  dateTo    DateTime
+  syncedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  logs        Log[]
+  logs Log[]
 
   @@unique([accountId, externalId, dateFrom, dateTo])
   @@index([userId, dateFrom, dateTo])
@@ -159,57 +176,57 @@ model Campaign {
 
 // Kill-Switch & alert settings per user
 model UserSettings {
-  id                    String    @id @default(uuid())
-  userId                String    @unique
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Kill-Switch
-  killSwitchEnabled     Boolean   @default(false)
-  spendOnlyMode         Boolean   @default(false)  // si true, ignore le ROI — kill uniquement sur maxSpend
-  roiThreshold          Float     @default(-50)    // % — kill si ROI < ce seuil (ignoré si spendOnlyMode)
-  maxSpendPerCampaign   Float?                     // € — kill si spend dépasse ce montant
-  checkIntervalMinutes  Int       @default(30)     // fréquence de vérification
+  killSwitchEnabled    Boolean @default(false)
+  spendOnlyMode        Boolean @default(false) // si true, ignore le ROI — kill uniquement sur maxSpend
+  roiThreshold         Float   @default(-50) // % — kill si ROI < ce seuil (ignoré si spendOnlyMode)
+  maxSpendPerCampaign  Float? // € — kill si spend dépasse ce montant
+  checkIntervalMinutes Int     @default(30) // fréquence de vérification
 
   // Budget alerts
-  budgetAlertEnabled    Boolean   @default(false)
-  dailyBudgetLimit      Float?                     // $ — alerte si dépense journalière dépasse
+  budgetAlertEnabled Boolean @default(false)
+  dailyBudgetLimit   Float? // $ — alerte si dépense journalière dépasse
 
   // Decision Engine — Emergency stop (Bloc 6)
-  enginePausedUntil     DateTime?                  // si non-null et dans le futur, toute automation est suspendue
+  enginePausedUntil DateTime? // si non-null et dans le futur, toute automation est suspendue
 
   // Workspace preferences
-  timezone              String    @default("UTC")  // IANA tz (e.g. "Europe/Paris")
-  currency              String    @default("USD")  // ISO 4217 (e.g. "EUR")
+  timezone String @default("UTC") // IANA tz (e.g. "Europe/Paris")
+  currency String @default("USD") // ISO 4217 (e.g. "EUR")
 
   // Session tracking — last known login IP for concurrent-session detection
-  lastLoginIp           String?
+  lastLoginIp String?
 
-  updatedAt             DateTime  @updatedAt
-  createdAt             DateTime  @default(now())
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
 }
 
 // Conversions reçues via postback URL (CrakRevenue, Voluum, etc.)
 model Conversion {
-  id           String   @id @default(uuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  campaignId   String?  // externalId de la campagne ExoClick (passé dans l'URL)
-  clickId      String?  // {clickid} du CPA network — pour déduplication
-  revenue      Float    @default(0)
-  currency     String   @default("USD")
-  source       String?  // ex: "crakrevenue", "maxbounty", "manual"
-  ip           String?  // IP pour audit
+  campaignId String? // externalId de la campagne ExoClick (passé dans l'URL)
+  clickId    String? // {clickid} du CPA network — pour déduplication
+  revenue    Float   @default(0)
+  currency   String  @default("USD")
+  source     String? // ex: "crakrevenue", "maxbounty", "manual"
+  ip         String? // IP pour audit
 
-  createdAt    DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  @@index([userId, createdAt])
-  @@index([userId, campaignId])
   // Contrainte UNIQUE sur clickId :
   // - si clickId est fourni → un seul enregistrement possible (dédup forte)
   // - si clickId est null   → plusieurs NULL autorisés (PostgreSQL : NULL ≠ NULL)
   // C'est la vraie garantie de déduplication, indépendante de la couche applicative.
   @@unique([clickId])
+  @@index([userId, createdAt])
+  @@index([userId, campaignId])
 }
 
 // Decision Rules — per-user engine configuration (Kill / Watch / Scale)
@@ -219,31 +236,31 @@ model DecisionRule {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Active preset name (soft | balanced | aggressive | custom)
-  preset  String @default("balanced")
+  preset String @default("balanced")
 
   // Engine operating mode (Bloc 5)
   engineMode String @default("automatic") // "automatic" | "recommendation"
 
   // Kill thresholds
-  killRoi      Float @default(-30)   // ROI % floor — kill below this
+  killRoi Float @default(-30) // ROI % floor — kill below this
 
   // Watch thresholds
-  watchLow     Float @default(-15)   // lower bound of watch zone
-  watchHigh    Float @default(0)     // upper bound of watch zone (fixed at 0)
+  watchLow  Float @default(-15) // lower bound of watch zone
+  watchHigh Float @default(0) // upper bound of watch zone (fixed at 0)
 
   // Scale thresholds
-  scaleRoi       Float @default(30)   // ROI % target — scale above this
-  scaleIncrement Float @default(10)   // bid increase %
+  scaleRoi       Float @default(30) // ROI % target — scale above this
+  scaleIncrement Float @default(10) // bid increase %
 
   // Safety controls
-  minSpend       Float @default(20)   // € minimum spend before any decision
-  minConversions Int   @default(3)    // min conversions required before scale
-  killHoldMin    Int   @default(30)   // minutes condition must hold before Kill fires
-  scaleHoldMin   Int   @default(60)   // minutes condition must hold before Scale fires
-  killCooldownH  Int   @default(3)    // hours between Kill actions
-  scaleCooldownH Int   @default(6)    // hours between Scale actions
-  maxKillsDay    Int   @default(5)    // max Kill actions per day
-  maxScalesDay   Int   @default(2)    // max Scale actions per day
+  minSpend       Float @default(20) // € minimum spend before any decision
+  minConversions Int   @default(3) // min conversions required before scale
+  killHoldMin    Int   @default(30) // minutes condition must hold before Kill fires
+  scaleHoldMin   Int   @default(60) // minutes condition must hold before Scale fires
+  killCooldownH  Int   @default(3) // hours between Kill actions
+  scaleCooldownH Int   @default(6) // hours between Scale actions
+  maxKillsDay    Int   @default(5) // max Kill actions per day
+  maxScalesDay   Int   @default(2) // max Scale actions per day
 
   // Active hours — engine only runs within this UTC window (null = 24h)
   timeWindowStart Int? // UTC hour 0-23
@@ -255,11 +272,11 @@ model DecisionRule {
 
 // MFA recovery codes — hashed, one-time use
 model RecoveryCode {
-  id        String    @id @default(uuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  codeHash  String    // SHA-256(normalised_code + ENCRYPTION_KEY pepper)
+  codeHash  String // SHA-256(normalised_code + ENCRYPTION_KEY pepper)
   usedAt    DateTime?
   createdAt DateTime  @default(now())
 
@@ -274,11 +291,11 @@ model Log {
   campaignId String?
   campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 
-  type       LogType
-  message    String
-  metadata   Json?     // { roi, threshold, network, zoneId, ... }
+  type     LogType
+  message  String
+  metadata Json? // { roi, threshold, network, zoneId, ... }
 
-  createdAt  DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([userId, type])

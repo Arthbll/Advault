@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="color-scheme" content="light only">
+<title>ProfitDash — Briefing Pro (preview)</title>
+<style>
+  :root {
+    --bg: #0d0d10;
+    --panel: #141418;
+    --line: rgba(255,255,255,0.08);
+    --text: rgba(255,255,255,0.92);
+    --muted: rgba(255,255,255,0.55);
+    --faint: rgba(255,255,255,0.36);
+    --accent: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 32px 20px 80px;
+    min-height: 100vh;
+  }
+  .shell {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .nav-link {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+  .nav-link:hover {
+    color: var(--text);
+    border-color: rgba(255,255,255,0.2);
+  }
+  .title-block {
+    flex: 1;
+    min-width: 220px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    background: rgba(74, 222, 128, 0.12);
+    color: var(--accent);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0 0 4px;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0;
+  }
+  .controls {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .control-label {
+    font-size: 11px;
+    color: var(--faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .btn-row {
+    display: inline-flex;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .btn {
+    font: inherit;
+    color: var(--muted);
+    background: transparent;
+    border: 0;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .btn[aria-pressed="true"] {
+    background: rgba(255,255,255,0.10);
+    color: var(--text);
+  }
+  .btn:hover:not([aria-pressed="true"]) {
+    color: var(--text);
+  }
+  .email-frame {
+    background: #f5f5f7;
+    border-radius: 16px;
+    padding: 32px 16px;
+    border: 1px solid var(--line);
+  }
+  .note {
+    color: var(--faint);
+    font-size: 11px;
+    text-align: center;
+    margin-top: 16px;
+    line-height: 1.6;
+  }
+  [data-lang="en"] .fr { display: none; }
+  [data-lang="fr"] .en { display: none; }
+  [data-volume="normal"] .busy-only { display: none; }
+  [data-volume="busy"] .normal-only { display: none; }
+</style>
+</head>
+<body data-lang="fr" data-volume="normal">
+
+<div class="shell">
+
+  <div class="top-bar">
+    <div class="title-block">
+      <div class="badge">Pro / Agency · Preview</div>
+      <h1>Mail quotidien — version Pro</h1>
+      <p class="subtitle">Ton formel · vue portefeuille · agrégats par client</p>
+    </div>
+    <a href="daily-email-preview.html" class="nav-link">← Voir la version Solo</a>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="control-group">
+      <span class="control-label">Langue</span>
+      <div class="btn-row" role="group">
+        <button class="btn" data-set="lang" data-val="fr" aria-pressed="true">FR</button>
+        <button class="btn" data-set="lang" data-val="en" aria-pressed="false">EN</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <span class="control-label">Volume nuit</span>
+      <div class="btn-row" role="group">
+        <button class="btn" data-set="volume" data-val="normal" aria-pressed="true">Normal</button>
+        <button class="btn" data-set="volume" data-val="busy" aria-pressed="false">Busy (25 events)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email -->
+  <div class="email-frame">
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid rgba(0,0,0,0.08);border-radius:16px;overflow:hidden;">
+      <tr><td style="padding:36px 32px;">
+
+        <!-- Header -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:28px;">
+          <tr>
+            <td>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="width:28px;height:28px;border-radius:8px;background:#0d0d10;color:#ffffff;font-weight:800;font-size:14px;text-align:center;vertical-align:middle;line-height:28px;">P</td>
+                  <td style="padding-left:10px;font-weight:600;color:#0a0a0c;font-size:15px;">ProfitDash</td>
+                </tr>
+              </table>
+            </td>
+            <td align="right" style="font-size:11px;color:rgba(0,0,0,0.45);">
+              <span class="fr">22 avril 2026 · 9:00</span>
+              <span class="en">April 22, 2026 · 9:00</span>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Greeting -->
+        <div style="margin-bottom:6px;">
+          <div style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,0,0,0.42);font-weight:600;margin-bottom:6px;">
+            <span class="fr">Briefing portefeuille</span>
+            <span class="en">Portfolio briefing</span>
+          </div>
+          <div style="font-size:22px;font-weight:600;color:#0a0a0c;letter-spacing:-0.015em;">
+            <span class="fr">Bonjour,</span>
+            <span class="en">Good morning,</span>
+          </div>
+        </div>
+        <div style="color:rgba(0,0,0,0.60);font-size:13px;line-height:1.55;margin-bottom:28px;">
+          <span class="fr">Synthèse consolidée de votre portefeuille pour la journée d'hier. Le robot a géré les actions automatiques pendant la nuit.</span>
+          <span class="en">Consolidated summary of your portfolio for yesterday. Automated actions were handled by the engine overnight.</span>
+        </div>
+
+        <!-- Consolidated KPIs -->
+        <div style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,0,0,0.42);font-weight:600;margin-bottom:12px;">
+          <span class="fr">Performance portefeuille · hier</span>
+          <span class="en">Portfolio performance · yesterday</span>
+        </div>
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafafa;border:1px solid rgba(0,0,0,0.08);border-radius:14px;margin-bottom:28px;">
+          <tr><td style="padding:20px 22px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr>
+                <td width="25%">
+                  <div style="font-size:10px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">
+                    <span class="fr">Dépense</span><span class="en">Spend</span>
+                  </div>
+                  <div style="font-size:20px;font-weight:600;color:#0a0a0c;letter-spacing:-0.01em;">$14,847</div>
+                  <div style="font-size:11px;color:#16a34a;margin-top:2px;">+$1,102 <span style="color:rgba(0,0,0,0.55);">(+8%)</span></div>
+                </td>
+                <td width="25%">
+                  <div style="font-size:10px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">
+                    <span class="fr">Revenu</span><span class="en">Revenue</span>
+                  </div>
+                  <div style="font-size:20px;font-weight:600;color:#0a0a0c;letter-spacing:-0.01em;">$21,203</div>
+                  <div style="font-size:11px;color:#16a34a;margin-top:2px;">+$2,284 <span style="color:rgba(0,0,0,0.55);">(+12%)</span></div>
+                </td>
+                <td width="25%">
+                  <div style="font-size:10px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">ROI</div>
+                  <div style="font-size:20px;font-weight:600;color:#16a34a;letter-spacing:-0.01em;">+43%</div>
+                  <div style="font-size:11px;color:#16a34a;margin-top:2px;">+4pts</div>
+                </td>
+                <td width="25%">
+                  <div style="font-size:10px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">
+                    <span class="fr">Campagnes actives</span><span class="en">Active campaigns</span>
+                  </div>
+                  <div style="font-size:20px;font-weight:600;color:#0a0a0c;letter-spacing:-0.01em;">120</div>
+                  <div style="font-size:11px;color:rgba(0,0,0,0.55);margin-top:2px;">3 clients</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="border-top:1px solid rgba(0,0,0,0.08);margin:16px 0;"></div>
+
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr>
+                <td width="25%">
+                  <div style="font-size:10px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Impressions</div>
+                  <div style="font-size:15px;font-weight:600;color:#0a0a0c;">8.2M</div>
+                </td>
+                <td width="25%">
+                  <div style="font-size:10px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">CTR</div>
+                  <div style="font-size:15px;font-weight:600;color:#0a0a0c;">1.42%</div>
+                </td>
+                <td width="25%">
+                  <div style="font-size:10px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">CVR</div>
+                  <div style="font-size:15px;font-weight:600;color:#0a0a0c;">2.3%</div>
+                </td>
+                <td width="25%">
+                  <div style="font-size:10px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">eCPA</div>
+                  <div style="font-size:15px;font-weight:600;color:#0a0a0c;">$5.42</div>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <!-- Per-client breakdown -->
+        <div style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,0,0,0.42);font-weight:600;margin-bottom:12px;">
+          <span class="fr">Par client</span>
+          <span class="en">By client</span>
+        </div>
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafafa;border:1px solid rgba(0,0,0,0.08);border-radius:14px;margin-bottom:28px;">
+          <tr><td style="padding:4px 0;">
+
+            <!-- Nike -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr><td style="padding:14px 22px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                  <tr>
+                    <td>
+                      <div style="font-weight:600;font-size:13px;color:#0a0a0c;margin-bottom:2px;">Nike Sportswear</div>
+                      <div style="color:rgba(0,0,0,0.55);font-size:11px;">
+                        <span class="fr">42 campagnes · $5,240 dépensés · 1 anomalie</span>
+                        <span class="en">42 campaigns · $5,240 spent · 1 anomaly</span>
+                      </div>
+                    </td>
+                    <td align="right" valign="middle" style="white-space:nowrap;">
+                      <div style="font-size:14px;font-weight:600;color:#16a34a;">ROI +51%</div>
+                      <div style="font-size:10px;color:rgba(0,0,0,0.55);margin-top:2px;">
+                        <span class="fr">rev. $7,912</span>
+                        <span class="en">rev. $7,912</span>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td></tr>
+            </table>
+
+            <div style="border-top:1px solid rgba(0,0,0,0.06);margin:0 22px;"></div>
+
+            <!-- Adidas -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr><td style="padding:14px 22px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                  <tr>
+                    <td>
+                      <div style="font-weight:600;font-size:13px;color:#0a0a0c;margin-bottom:2px;">Adidas Running</div>
+                      <div style="color:rgba(0,0,0,0.55);font-size:11px;">
+                        <span class="fr">38 campagnes · $4,892 dépensés · 3 kills</span>
+                        <span class="en">38 campaigns · $4,892 spent · 3 killed</span>
+                      </div>
+                    </td>
+                    <td align="right" valign="middle" style="white-space:nowrap;">
+                      <div style="font-size:14px;font-weight:600;color:#16a34a;">ROI +38%</div>
+                      <div style="font-size:10px;color:rgba(0,0,0,0.55);margin-top:2px;">rev. $6,751</div>
+                    </td>
+                  </tr>
+                </table>
+              </td></tr>
+            </table>
+
+            <div style="border-top:1px solid rgba(0,0,0,0.06);margin:0 22px;"></div>
+
+            <!-- Puma -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr><td style="padding:14px 22px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                  <tr>
+                    <td>
+                      <div style="font-weight:600;font-size:13px;color:#0a0a0c;margin-bottom:2px;">Puma Performance</div>
+                      <div style="color:rgba(0,0,0,0.55);font-size:11px;">
+                        <span class="fr">40 campagnes · $4,715 dépensés · stable</span>
+                        <span class="en">40 campaigns · $4,715 spent · stable</span>
+                      </div>
+                    </td>
+                    <td align="right" valign="middle" style="white-space:nowrap;">
+                      <div style="font-size:14px;font-weight:600;color:#16a34a;">ROI +32%</div>
+                      <div style="font-size:10px;color:rgba(0,0,0,0.55);margin-top:2px;">rev. $6,224</div>
+                    </td>
+                  </tr>
+                </table>
+              </td></tr>
+            </table>
+
+          </td></tr>
+        </table>
+
+        <!-- Critical events -->
+        <div style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,0,0,0.42);font-weight:600;margin-bottom:12px;">
+          <span class="fr">Événements critiques cette nuit</span>
+          <span class="en">Critical events overnight</span>
+        </div>
+
+        <!-- NORMAL VOLUME -->
+        <div class="normal-only">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafafa;border:1px solid rgba(0,0,0,0.08);border-radius:14px;margin-bottom:28px;">
+            <tr><td style="padding:16px 22px;">
+
+              <!-- Kill 1 -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="22" valign="top" style="padding-top:3px;">
+                    <div style="width:18px;height:18px;border-radius:5px;background:rgba(220,38,38,0.12);color:#dc2626;font-weight:700;font-size:11px;text-align:center;line-height:18px;">&#10007;</div>
+                  </td>
+                  <td style="padding-left:10px;font-size:12px;line-height:1.5;">
+                    <span style="color:rgba(0,0,0,0.45);font-weight:600;font-size:11px;">NIKE ·</span>
+                    <span style="font-weight:600;color:#0a0a0c;">FR-Dating-v4</span>
+                    <span style="color:rgba(0,0,0,0.55);">— <span class="fr">tuée · ROI -42% sur 3h · dépense $387</span><span class="en">killed · ROI -42% over 3h · spend $387</span></span>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="border-top:1px solid rgba(0,0,0,0.06);margin:10px 0;"></div>
+
+              <!-- Kill 2 -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="22" valign="top" style="padding-top:3px;">
+                    <div style="width:18px;height:18px;border-radius:5px;background:rgba(220,38,38,0.12);color:#dc2626;font-weight:700;font-size:11px;text-align:center;line-height:18px;">&#10007;</div>
+                  </td>
+                  <td style="padding-left:10px;font-size:12px;line-height:1.5;">
+                    <span style="color:rgba(0,0,0,0.45);font-weight:600;font-size:11px;">ADIDAS ·</span>
+                    <span style="font-weight:600;color:#0a0a0c;">UK-Sweeps-push</span>
+                    <span style="color:rgba(0,0,0,0.55);">— <span class="fr">tuée · CPA x2.4 · dépense $512</span><span class="en">killed · CPA x2.4 · spend $512</span></span>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="border-top:1px solid rgba(0,0,0,0.06);margin:10px 0;"></div>
+
+              <!-- Scale -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="22" valign="top" style="padding-top:3px;">
+                    <div style="width:18px;height:18px;border-radius:5px;background:rgba(22,163,74,0.12);color:#16a34a;font-weight:700;font-size:11px;text-align:center;line-height:18px;">&#9650;</div>
+                  </td>
+                  <td style="padding-left:10px;font-size:12px;line-height:1.5;">
+                    <span style="color:rgba(0,0,0,0.45);font-weight:600;font-size:11px;">PUMA ·</span>
+                    <span style="font-weight:600;color:#0a0a0c;">IT-Crypto-pop</span>
+                    <span style="color:rgba(0,0,0,0.55);">— <span class="fr">scalée +30% · ROI +64% sur 6h</span><span class="en">scaled +30% · ROI +64% over 6h</span></span>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="border-top:1px solid rgba(0,0,0,0.06);margin:10px 0;"></div>
+
+              <!-- Anomaly -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="22" valign="top" style="padding-top:3px;">
+                    <div style="width:18px;height:18px;border-radius:5px;background:rgba(217,119,6,0.12);color:#d97706;font-weight:700;font-size:11px;text-align:center;line-height:18px;">!</div>
+                  </td>
+                  <td style="padding-left:10px;font-size:12px;line-height:1.5;">
+                    <span style="color:rgba(0,0,0,0.45);font-weight:600;font-size:11px;">NIKE ·</span>
+                    <span style="font-weight:600;color:#0a0a0c;">US-Health-native</span>
+                    <span style="color:rgba(0,0,0,0.55);">— <span class="fr">postback silencieux 8h · grace period active</span><span class="en">postback silent 8h · grace period active</span></span>
+                  </td>
+                </tr>
+              </table>
+
+            </td></tr>
+          </table>
+        </div>
+
+        <!-- BUSY VOLUME -->
+        <div class="busy-only">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafafa;border:1px solid rgba(0,0,0,0.08);border-radius:14px;margin-bottom:28px;">
+            <tr><td style="padding:16px 22px;">
+
+              <!-- Summary row -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:12px;">
+                <tr>
+                  <td width="33%">
+                    <div style="font-size:18px;font-weight:700;color:#dc2626;">12</div>
+                    <div style="font-size:10px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.06em;">
+                      <span class="fr">tuées</span><span class="en">killed</span>
+                    </div>
+                  </td>
+                  <td width="33%">
+                    <div style="font-size:18px;font-weight:700;color:#16a34a;">8</div>
+                    <div style="font-size:10px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.06em;">
+                      <span class="fr">scalées</span><span class="en">scaled</span>
+                    </div>
+                  </td>
+                  <td width="33%">
+                    <div style="font-size:18px;font-weight:700;color:#d97706;">5</div>
+                    <div style="font-size:10px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.06em;">
+                      <span class="fr">anomalies</span><span class="en">anomalies</span>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="border-top:1px solid rgba(0,0,0,0.08);margin:0 0 12px;"></div>
+
+              <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:rgba(0,0,0,0.42);font-weight:600;margin-bottom:10px;">
+                <span class="fr">Top 5 par impact ($ dépense)</span>
+                <span class="en">Top 5 by impact ($ spend)</span>
+              </div>
+
+              <!-- Top-5 events: condensed -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="22" valign="top" style="padding-top:3px;">
+                    <div style="width:18px;height:18px;border-radius:5px;background:rgba(220,38,38,0.12);color:#dc2626;font-weight:700;font-size:11px;text-align:center;line-height:18px;">&#10007;</div>
+                  </td>
+                  <td style="padding-left:10px;font-size:12px;line-height:1.5;">
+                    <span style="color:rgba(0,0,0,0.45);font-weight:600;font-size:11px;">ADIDAS ·</span>
+                    <span style="font-weight:600;color:#0a0a0c;">DE-Sweeps-native</span>
+                    <span style="color:rgba(0,0,0,0.55);">— <span class="fr">tuée · dépense $842</span><span class="en">killed · spend $842</span></span>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="border-top:1px solid rgba(0,0,0,0.06);margin:8px 0;"></div>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="22" valign="top" style="padding-top:3px;">
+                    <div style="width:18px;height:18px;border-radius:5px;background:rgba(220,38,38,0.12);color:#dc2626;font-weight:700;font-size:11px;text-align:center;line-height:18px;">&#10007;</div>
+                  </td>
+                  <td style="padding-left:10px;font-size:12px;line-height:1.5;">
+                    <span style="color:rgba(0,0,0,0.45);font-weight:600;font-size:11px;">NIKE ·</span>
+                    <span style="font-weight:600;color:#0a0a0c;">US-Dating-pop</span>
+                    <span style="color:rgba(0,0,0,0.55);">— <span class="fr">tuée · dépense $687</span><span class="en">killed · spend $687</span></span>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="border-top:1px solid rgba(0,0,0,0.06);margin:8px 0;"></div>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="22" valign="top" style="padding-top:3px;">
+                    <div style="width:18px;height:18px;border-radius:5px;background:rgba(22,163,74,0.12);color:#16a34a;font-weight:700;font-size:11px;text-align:center;line-height:18px;">&#9650;</div>
+                  </td>
+                  <td style="padding-left:10px;font-size:12px;line-height:1.5;">
+                    <span style="color:rgba(0,0,0,0.45);font-weight:600;font-size:11px;">PUMA ·</span>
+                    <span style="font-weight:600;color:#0a0a0c;">IT-Crypto-pop</span>
+                    <span style="color:rgba(0,0,0,0.55);">— <span class="fr">scalée +30% · +$620 budget</span><span class="en">scaled +30% · +$620 budget</span></span>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="border-top:1px solid rgba(0,0,0,0.06);margin:8px 0;"></div>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="22" valign="top" style="padding-top:3px;">
+                    <div style="width:18px;height:18px;border-radius:5px;background:rgba(217,119,6,0.12);color:#d97706;font-weight:700;font-size:11px;text-align:center;line-height:18px;">!</div>
+                  </td>
+                  <td style="padding-left:10px;font-size:12px;line-height:1.5;">
+                    <span style="color:rgba(0,0,0,0.45);font-weight:600;font-size:11px;">NIKE ·</span>
+                    <span style="font-weight:600;color:#0a0a0c;">US-Health-native</span>
+                    <span style="color:rgba(0,0,0,0.55);">— <span class="fr">postback muet 8h · dépense bloquée $67</span><span class="en">postback silent 8h · spend locked $67</span></span>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="border-top:1px solid rgba(0,0,0,0.06);margin:8px 0;"></div>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td width="22" valign="top" style="padding-top:3px;">
+                    <div style="width:18px;height:18px;border-radius:5px;background:rgba(220,38,38,0.12);color:#dc2626;font-weight:700;font-size:11px;text-align:center;line-height:18px;">&#10007;</div>
+                  </td>
+                  <td style="padding-left:10px;font-size:12px;line-height:1.5;">
+                    <span style="color:rgba(0,0,0,0.45);font-weight:600;font-size:11px;">ADIDAS ·</span>
+                    <span style="font-weight:600;color:#0a0a0c;">FR-Finance-push</span>
+                    <span style="color:rgba(0,0,0,0.55);">— <span class="fr">tuée · dépense $498</span><span class="en">killed · spend $498</span></span>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="border-top:1px solid rgba(0,0,0,0.08);margin:14px 0 10px;"></div>
+
+              <div style="text-align:center;">
+                <a href="#" style="font-size:12px;color:#2563eb;text-decoration:none;font-weight:600;">
+                  <span class="fr">Voir les 20 autres événements →</span>
+                  <span class="en">See 20 more events →</span>
+                </a>
+              </div>
+
+            </td></tr>
+          </table>
+        </div>
+
+        <!-- CTA -->
+        <div style="text-align:center;margin:16px 0 24px;">
+          <a href="https://profitdash.app/dashboard" style="display:inline-block;background:#0d0d10;color:#ffffff;font-weight:600;font-size:14px;padding:13px 24px;border-radius:10px;text-decoration:none;">
+            <span class="fr">Ouvrir le tableau de bord consolidé</span>
+            <span class="en">Open consolidated dashboard</span>
+          </a>
+        </div>
+
+        <!-- Footer -->
+        <div style="border-top:1px solid rgba(0,0,0,0.08);padding-top:20px;font-size:11px;color:rgba(0,0,0,0.42);text-align:center;line-height:1.7;">
+          <span class="fr">ProfitDash · Plan Pro · Mockup de preview, pas un vrai briefing.</span>
+          <span class="en">ProfitDash · Pro plan · Preview mockup, not an actual briefing.</span>
+          <br>
+          <a href="#" style="color:rgba(0,0,0,0.55);text-decoration:none;">
+            <span class="fr">Préférences email</span><span class="en">Email preferences</span>
+          </a> ·
+          <a href="#" style="color:rgba(0,0,0,0.55);text-decoration:none;">
+            <span class="fr">Se désabonner</span><span class="en">Unsubscribe</span>
+          </a>
+          <br>
+          <span class="fr">Envoyé à 9:00 · Europe/Paris</span>
+          <span class="en">Sent at 9:00 · Europe/Paris</span>
+        </div>
+
+      </td></tr>
+    </table>
+
+  </div>
+
+  <p class="note">
+    <span class="fr">Maquette statique — aucune donnée n'est réelle. Les toggles en haut changent langue et volume d'événements.</span>
+    <span class="en">Static mockup — no real data. Toggles above change language and event volume.</span>
+  </p>
+
+</div>
+
+<script>
+(function() {
+  const body = document.body;
+  const buttons = document.querySelectorAll('.btn');
+
+  buttons.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const set = btn.dataset.set;
+      const val = btn.dataset.val;
+      body.dataset[set] = val;
+      document.querySelectorAll('.btn[data-set="' + set + '"]').forEach(function(b) {
+        b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+      });
+      document.documentElement.lang = body.dataset.lang;
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

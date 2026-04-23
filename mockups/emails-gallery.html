@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ProfitDash — Galerie complète des emails</title>
+<style>
+  :root {
+    --bg: #0d0d10;
+    --panel: #141418;
+    --panel-alt: #1a1a20;
+    --line: rgba(255,255,255,0.08);
+    --text: rgba(255,255,255,0.92);
+    --muted: rgba(255,255,255,0.55);
+    --faint: rgba(255,255,255,0.32);
+    --accent: #4ade80;
+
+    --cat-trans: #60a5fa;   /* bleu transactionnel */
+    --cat-bill:  #f59e0b;   /* amber billing */
+    --cat-ops:   #4ade80;   /* vert opérationnel */
+    --cat-eng:   #c084fc;   /* violet engagement */
+    --cat-legal: #f472b6;   /* rose compliance */
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 40px 24px 80px;
+  }
+  .shell {
+    max-width: 1240px;
+    margin: 0 auto;
+  }
+  header.page-header {
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  h1 {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+  }
+  .page-sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0;
+  }
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  /* Category section */
+  .cat-section {
+    margin-bottom: 48px;
+  }
+  .cat-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .cat-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .cat-pill {
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .cat-count { font-size: 11px; color: var(--faint); }
+
+  /* Email grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  /* Email card */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), border-color 200ms;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255,255,255,0.16);
+  }
+  .card-banner {
+    height: 4px;
+    background: var(--cat);
+  }
+  .card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px 0;
+    font-size: 10px;
+    color: var(--faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+  .card-status {
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 9px;
+  }
+  .status-done { background: rgba(74,222,128,0.14); color: var(--accent); }
+  .status-todo { background: rgba(255,255,255,0.06); color: var(--muted); }
+
+  .email-preview {
+    background: #ffffff;
+    margin: 12px 14px 0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: #0a0a0c;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .ep-logo {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 10px;
+  }
+  .ep-logo-mark {
+    width: 20px; height: 20px;
+    border-radius: 6px;
+    background: #0d0d10;
+    color: white;
+    font-weight: 800;
+    font-size: 11px;
+    text-align: center;
+    line-height: 20px;
+  }
+  .ep-logo-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #0a0a0c;
+  }
+  .ep-subject {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0a0a0c;
+    line-height: 1.35;
+    margin-bottom: 6px;
+    letter-spacing: -0.01em;
+  }
+  .ep-preview {
+    font-size: 11px;
+    color: rgba(0,0,0,0.58);
+    line-height: 1.5;
+    margin-bottom: 10px;
+    flex: 1;
+  }
+  .ep-highlight-box {
+    background: #fafafa;
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 10px;
+    color: rgba(0,0,0,0.65);
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+  .ep-num {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0a0a0c;
+    letter-spacing: -0.01em;
+  }
+  .ep-cta {
+    display: inline-block;
+    background: #0d0d10;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 6px 11px;
+    border-radius: 7px;
+    margin-top: auto;
+  }
+  .ep-cta.danger { background: #dc2626; }
+  .ep-cta.warn { background: #d97706; }
+  .ep-cta.success { background: #16a34a; }
+
+  .card-foot {
+    padding: 10px 14px 14px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  .trigger {
+    color: var(--faint);
+    font-size: 10px;
+  }
+  .view-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .view-link:hover { text-decoration: underline; }
+
+  /* Small helpers */
+  .tag {
+    display: inline-block;
+    padding: 2px 7px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 999px;
+    font-size: 10px;
+    color: var(--muted);
+    margin-right: 4px;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header class="page-header">
+    <div>
+      <h1>ProfitDash — Galerie complète des emails</h1>
+      <p class="page-sub">13 emails en 5 familles · Vague 1 + 2 · chaque carte est une miniature, clique pour voir le détail si dispo</p>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:var(--cat-trans);"></span>Transactionnels</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--cat-bill);"></span>Billing</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--cat-ops);"></span>Opérationnels</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--cat-eng);"></span>Engagement</span>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- 1. TRANSACTIONNELS                                                      -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="cat-section">
+    <div class="cat-head">
+      <span class="cat-pill" style="background:rgba(96,165,250,0.14);color:var(--cat-trans);">Transactionnels</span>
+      <span class="cat-title">Déclenchés par une action user</span>
+      <span class="cat-count">4 emails</span>
+    </div>
+
+    <div class="grid">
+
+      <!-- Vérification d'email -->
+      <div class="card" style="--cat:var(--cat-trans);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Auth</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Confirme ton adresse email</div>
+          <div class="ep-preview">Bienvenue sur ProfitDash, Arthur. Pour commencer, confirme que cette adresse est bien la tienne — ça prend 3 secondes.</div>
+          <div class="ep-highlight-box">Code expire dans 24h · pas demandé ce mail ? Ignore-le.</div>
+          <div class="ep-cta">Confirmer mon email</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">Inscription</span>
+        </div>
+      </div>
+
+      <!-- Bienvenue -->
+      <div class="card" style="--cat:var(--cat-trans);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Onboarding</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Bienvenue — ton robot est prêt</div>
+          <div class="ep-preview">Ton compte est actif. Voici les 3 étapes pour que le robot commence à bosser pour toi : connecte un compte pub, ajoute ton premier postback, lance ta 1re campagne.</div>
+          <div class="ep-highlight-box">3 étapes · ~10 min · on te guide</div>
+          <div class="ep-cta success">Commencer le setup</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">Email vérifié</span>
+        </div>
+      </div>
+
+      <!-- Reset password -->
+      <div class="card" style="--cat:var(--cat-trans);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Sécurité</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Réinitialisation de ton mot de passe</div>
+          <div class="ep-preview">Tu as demandé à réinitialiser ton mot de passe. Clique ci-dessous — le lien est valide 1h.</div>
+          <div class="ep-highlight-box">Pas toi ? Ignore ce mail, ton mot de passe reste inchangé. Active le 2FA si tu veux plus de sécurité.</div>
+          <div class="ep-cta">Choisir un nouveau mot de passe</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">"Mot de passe oublié"</span>
+        </div>
+      </div>
+
+      <!-- New device login -->
+      <div class="card" style="--cat:var(--cat-trans);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Sécurité</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Nouvelle connexion à ton compte</div>
+          <div class="ep-preview">Un navigateur Chrome sur macOS s'est connecté à ProfitDash depuis Paris, FR. Si c'est toi, aucune action. Si ce n'est pas toi, sécurise ton compte.</div>
+          <div class="ep-highlight-box">IP 78.193.xx.xx · 22 avril, 14:32 · Paris, FR</div>
+          <div class="ep-cta danger">Ce n'était pas moi</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">Login sur un device inconnu</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- 2. BILLING                                                              -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="cat-section">
+    <div class="cat-head">
+      <span class="cat-pill" style="background:rgba(245,158,11,0.14);color:var(--cat-bill);">Billing</span>
+      <span class="cat-title">Abonnement et paiements</span>
+      <span class="cat-count">7 emails</span>
+    </div>
+
+    <div class="grid">
+
+      <!-- Subscription confirmed -->
+      <div class="card" style="--cat:var(--cat-bill);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Abo activé</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Ton abonnement Pro est actif</div>
+          <div class="ep-preview">Merci Arthur. Ton plan Pro est maintenant actif — le robot est à plein régime sur toutes tes campagnes.</div>
+          <div class="ep-highlight-box"><span class="ep-num">$99/mois</span> · prochaine facturation le 22 mai</div>
+          <div class="ep-cta success">Voir ton dashboard</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">1er paiement réussi</span>
+        </div>
+      </div>
+
+      <!-- Monthly receipt -->
+      <div class="card" style="--cat:var(--cat-bill);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Reçu mensuel</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Reçu ProfitDash · avril 2026</div>
+          <div class="ep-preview">Merci pour ton abonnement. Voici ton reçu pour la période du 22 mars au 22 avril.</div>
+          <div class="ep-highlight-box">Plan Pro · <span class="ep-num">$99.00</span> · Visa ••4242</div>
+          <div class="ep-cta">Télécharger la facture PDF</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">Renouvellement mensuel</span>
+        </div>
+      </div>
+
+      <!-- Payment failed J0 -->
+      <div class="card" style="--cat:var(--cat-bill);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Paiement échoué · J0</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">On n'a pas pu débiter ta carte</div>
+          <div class="ep-preview">Ton paiement mensuel a été refusé par ta banque. On va retenter automatiquement dans 3 jours. Aucune action requise si tu veux juste attendre.</div>
+          <div class="ep-highlight-box">Ton service continue normalement. Robot toujours actif.</div>
+          <div class="ep-cta warn">Mettre à jour ma carte</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">Stripe invoice.payment_failed</span>
+        </div>
+      </div>
+
+      <!-- Payment failed J+3 -->
+      <div class="card" style="--cat:var(--cat-bill);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Paiement échoué · J+3</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">2e tentative échouée — action nécessaire</div>
+          <div class="ep-preview">Ta carte a été refusée une deuxième fois. Sans mise à jour avant 4 jours, ton compte sera suspendu et le robot arrêtera de gérer tes campagnes.</div>
+          <div class="ep-highlight-box">Suspension prévue le 29 avril · Robot OFF si paiement pas reçu</div>
+          <div class="ep-cta warn">Régler maintenant</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">2e tentative Stripe</span>
+        </div>
+      </div>
+
+      <!-- Payment failed J+5 warning -->
+      <div class="card" style="--cat:var(--cat-bill);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Paiement échoué · J+5</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">⚠ Suspension dans 48h</div>
+          <div class="ep-preview">Dernière chance. Sans règlement dans les 48h, le robot sera désactivé, tes kill-switches ne fonctionneront plus, et tes campagnes continueront à tourner sans supervision.</div>
+          <div class="ep-highlight-box">Tes données sont préservées pendant 30 jours après suspension.</div>
+          <div class="ep-cta danger">Éviter la suspension</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">3e tentative Stripe</span>
+        </div>
+      </div>
+
+      <!-- Account suspended -->
+      <div class="card" style="--cat:var(--cat-bill);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Compte suspendu</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Compte suspendu — robot désactivé</div>
+          <div class="ep-preview">Ton compte ProfitDash est maintenant suspendu. Le robot n'agit plus sur tes campagnes. Elles continuent sur les régies — c'est à toi de les gérer directement jusqu'à réactivation.</div>
+          <div class="ep-highlight-box">Tes données sont gardées 30 jours. Réactivation = paiement + clic.</div>
+          <div class="ep-cta danger">Réactiver mon compte</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">J+7 sans paiement</span>
+        </div>
+      </div>
+
+      <!-- Account reactivated -->
+      <div class="card" style="--cat:var(--cat-bill);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Compte réactivé</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">De retour — le robot est réactivé</div>
+          <div class="ep-preview">Paiement reçu. Ton compte est réactivé et le robot reprend la gestion de tes campagnes immédiatement. Bienvenue de nouveau.</div>
+          <div class="ep-highlight-box">Tes règles et paramètres sont intacts · Robot ON depuis 14:03</div>
+          <div class="ep-cta success">Ouvrir le dashboard</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">Paiement reçu après suspension</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- 3. OPÉRATIONNELS                                                         -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="cat-section">
+    <div class="cat-head">
+      <span class="cat-pill" style="background:rgba(74,222,128,0.14);color:var(--cat-ops);">Opérationnels</span>
+      <span class="cat-title">Le robot qui rend compte</span>
+      <span class="cat-count">5 emails</span>
+    </div>
+
+    <div class="grid">
+
+      <!-- Daily Solo -->
+      <div class="card" style="--cat:var(--cat-ops);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Briefing quotidien · Solo</span>
+          <span class="card-status status-done">Prêt</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Bonjour Arthur — briefing du 22 avril</div>
+          <div class="ep-preview">2 campagnes tuées, 1 scalée, 1 anomalie détectée. Rien n'attend ton action.</div>
+          <div class="ep-highlight-box">Hier : dépense <span class="ep-num">$1,248</span> · revenu <span class="ep-num">$1,824</span> · ROI <span style="color:#16a34a;">+46%</span></div>
+          <div class="ep-cta">Ouvrir le dashboard</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">Tous les jours 9h</span>
+          <a href="daily-email-preview.html" class="view-link">Détail →</a>
+        </div>
+      </div>
+
+      <!-- Daily Pro -->
+      <div class="card" style="--cat:var(--cat-ops);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Briefing quotidien · Pro</span>
+          <span class="card-status status-done">Prêt</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Briefing portefeuille · 22 avril</div>
+          <div class="ep-preview">Synthèse consolidée : 120 campagnes actives sur 3 clients. Vue par client (Nike, Adidas, Puma) et événements critiques.</div>
+          <div class="ep-highlight-box">Dépense <span class="ep-num">$14,847</span> · revenu <span class="ep-num">$21,203</span> · ROI <span style="color:#16a34a;">+43%</span></div>
+          <div class="ep-cta">Tableau de bord consolidé</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">Tous les jours 9h (Pro)</span>
+          <a href="daily-email-pro-preview.html" class="view-link">Détail →</a>
+        </div>
+      </div>
+
+      <!-- Urgent alert -->
+      <div class="card" style="--cat:var(--cat-ops);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Alerte urgente</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">🚨 Alerte — postback silencieux depuis 4h</div>
+          <div class="ep-preview">Ta campagne US-Health-native ne reçoit plus de conversions depuis 4h. Risque : le robot ne peut plus évaluer le ROI et les kill-switches sont en pause.</div>
+          <div class="ep-highlight-box">Dépense bloquée aveugle : <span class="ep-num">$67</span> · Action requise rapide</div>
+          <div class="ep-cta danger">Vérifier le postback</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">Postback HS >4h / spend anormal / kill massif</span>
+        </div>
+      </div>
+
+      <!-- Monthly recap Solo -->
+      <div class="card" style="--cat:var(--cat-ops);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Récap mensuel · Solo</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Ton mois d'avril en résumé</div>
+          <div class="ep-preview">Le robot a tué 14 campagnes, scalé 8, et économisé environ $1,240 de dépense inefficace. Top campagne : DE-Finance-pop, ROI +62%.</div>
+          <div class="ep-highlight-box">Dépense <span class="ep-num">$38,720</span> · revenu <span class="ep-num">$56,340</span> · ROI <span style="color:#16a34a;">+46%</span></div>
+          <div class="ep-cta">Voir l'analyse complète</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">1er du mois, 9h</span>
+        </div>
+      </div>
+
+      <!-- Monthly recap Pro -->
+      <div class="card" style="--cat:var(--cat-ops);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Récap mensuel · Pro</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Rapport mensuel portefeuille · avril 2026</div>
+          <div class="ep-preview">3 clients · 120 campagnes · 8.2M impressions. Vue client par client, top 10 campagnes par ROI, patterns détectés, recommandations pour mai.</div>
+          <div class="ep-highlight-box">Nike +51% · Adidas +38% · Puma +32% · moyenne pondérée <span style="color:#16a34a;">+43%</span></div>
+          <div class="ep-cta">Rapport complet (PDF)</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">1er du mois (Pro/Agency)</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- 4. ENGAGEMENT                                                           -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="cat-section">
+    <div class="cat-head">
+      <span class="cat-pill" style="background:rgba(192,132,252,0.14);color:var(--cat-eng);">Engagement</span>
+      <span class="cat-title">Pour garder l'user engagé · optionnels</span>
+      <span class="cat-count">3 emails</span>
+    </div>
+
+    <div class="grid">
+
+      <!-- Onboarding drip J1 -->
+      <div class="card" style="--cat:var(--cat-eng);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Onboarding · J1</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Tes kill-switches — explication en 2 min</div>
+          <div class="ep-preview">Les kill-switches sont les règles qui permettent au robot de tuer automatiquement une campagne qui perd. Voici comment les configurer pour ton premier objectif.</div>
+          <div class="ep-highlight-box">Tutoriel vidéo · 2 min · pour débloquer la vraie valeur du robot</div>
+          <div class="ep-cta">Voir le guide</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">J+1 après 1re campagne lancée</span>
+        </div>
+      </div>
+
+      <!-- Feature announcement -->
+      <div class="card" style="--cat:var(--cat-eng);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Nouvelle fonction</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Nouveau — alertes Telegram instantanées</div>
+          <div class="ep-preview">On vient de brancher Telegram à ProfitDash. Reçois en temps réel les alertes urgentes (kill massif, postback HS). Configuration en 30 secondes.</div>
+          <div class="ep-highlight-box">Beta publique · disponible sur Pro et Agency</div>
+          <div class="ep-cta success">Connecter Telegram</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">Release d'une nouvelle feature</span>
+        </div>
+      </div>
+
+      <!-- Inactivity -->
+      <div class="card" style="--cat:var(--cat-eng);">
+        <div class="card-banner"></div>
+        <div class="card-meta">
+          <span>Inactivité</span>
+          <span class="card-status status-todo">Todo</span>
+        </div>
+        <div class="email-preview">
+          <div class="ep-logo">
+            <div class="ep-logo-mark">P</div>
+            <div class="ep-logo-name">ProfitDash</div>
+          </div>
+          <div class="ep-subject">Le robot bosse encore — pense à regarder</div>
+          <div class="ep-preview">Tu n'as pas lancé de campagne depuis 15 jours. Pas de souci : tes 5 campagnes existantes tournent toujours et le robot les gère en continu.</div>
+          <div class="ep-highlight-box">Ce mois-ci : <span class="ep-num">$1,240</span> économisés par le robot · 3 kills auto</div>
+          <div class="ep-cta">Voir ce qui tourne</div>
+        </div>
+        <div class="card-foot">
+          <span class="trigger">15+ jours sans nouvelle campagne</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Summary footer -->
+  <section style="margin-top:56px;padding-top:24px;border-top:1px solid var(--line);">
+    <div style="display:flex;gap:32px;flex-wrap:wrap;font-size:12px;color:var(--muted);">
+      <div>
+        <div style="font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Total</div>
+        <div style="font-size:20px;font-weight:600;color:var(--text);">19 emails</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Prêts (v1)</div>
+        <div style="font-size:20px;font-weight:600;color:var(--accent);">2</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">À mockupper</div>
+        <div style="font-size:20px;font-weight:600;color:var(--text);">17</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">Obligatoires</div>
+        <div style="font-size:20px;font-weight:600;color:var(--text);">11</div>
+        <div style="font-size:10px;color:var(--faint);margin-top:2px;">Transactionnels + Billing</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

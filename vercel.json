@@ -3,6 +3,10 @@
     {
       "path": "/api/kill-switch/run",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/daily-briefing/run",
+      "schedule": "0 7 * * *"
     }
   ]
 }

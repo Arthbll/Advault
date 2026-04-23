@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light">
+<title>ProfitDash — Briefing du matin</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,sans-serif;color:#0a0a0c;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f5f5f7;padding:32px 16px;">
+<tr><td align="center">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border:1px solid rgba(0,0,0,0.08);border-radius:16px;padding:36px 28px;">
+
+<!-- Logo -->
+<tr><td style="padding-bottom:28px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="width:28px;height:28px;border-radius:8px;background:#0d0d10;color:#ffffff;font-weight:800;font-size:14px;text-align:center;vertical-align:middle;line-height:28px;">P</td>
+<td style="padding-left:10px;font-weight:600;color:#0a0a0c;font-size:15px;">ProfitDash</td>
+</tr>
+</table>
+</td></tr>
+
+<!-- Greeting -->
+<tr><td style="padding-bottom:28px;">
+<div style="font-size:22px;font-weight:600;color:#0a0a0c;letter-spacing:-0.015em;margin-bottom:6px;">Bonjour Arthur,</div>
+<div style="color:rgba(0,0,0,0.60);font-size:13px;line-height:1.55;">Voici ce que le robot a fait pendant la nuit. Rien n'attend ton action — tout a été géré automatiquement.</div>
+</td></tr>
+
+<!-- Section label -->
+<tr><td style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,0,0,0.42);font-weight:600;padding-bottom:12px;">Ce qui s'est passé cette nuit</td></tr>
+
+<!-- Night summary card -->
+<tr><td style="padding-bottom:28px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafafa;border:1px solid rgba(0,0,0,0.08);border-radius:14px;">
+<tr><td style="padding:18px 22px;">
+
+<!-- Row 1: killed -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td width="34" valign="top" style="padding-top:4px;">
+<div style="width:26px;height:26px;border-radius:8px;background:rgba(220,38,38,0.12);color:#dc2626;font-weight:700;font-size:13px;text-align:center;line-height:26px;">✕</div>
+</td>
+<td style="padding-left:14px;font-size:13px;line-height:1.55;">
+<div style="font-weight:600;color:#0a0a0c;">2 campagnes tuées (kill)</div>
+<div style="color:rgba(0,0,0,0.60);font-size:12px;margin-top:3px;">ROI &lt; -40% sur 3h consécutives (seuil kill-switch) — FR-Dating-v4, IT-Sweeps-push</div>
+</td>
+</tr>
+</table>
+
+<div style="border-top:1px solid rgba(0,0,0,0.08);margin:12px 0;"></div>
+
+<!-- Row 2: scaled -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td width="34" valign="top" style="padding-top:4px;">
+<div style="width:26px;height:26px;border-radius:8px;background:rgba(22,163,74,0.12);color:#16a34a;font-weight:700;font-size:13px;text-align:center;line-height:26px;">▲</div>
+</td>
+<td style="padding-left:14px;font-size:13px;line-height:1.55;">
+<div style="font-weight:600;color:#0a0a0c;">1 campagne scalée (+30% budget)</div>
+<div style="color:rgba(0,0,0,0.60);font-size:12px;margin-top:3px;">ROI stable &gt; 60% pendant 6h sur DE-Finance-pop — budget poussé de $50 à $65/jour</div>
+</td>
+</tr>
+</table>
+
+<div style="border-top:1px solid rgba(0,0,0,0.08);margin:12px 0;"></div>
+
+<!-- Row 3: flagged -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td width="34" valign="top" style="padding-top:4px;">
+<div style="width:26px;height:26px;border-radius:8px;background:rgba(217,119,6,0.12);color:#d97706;font-weight:700;font-size:13px;text-align:center;line-height:26px;">!</div>
+</td>
+<td style="padding-left:14px;font-size:13px;line-height:1.55;">
+<div style="font-weight:600;color:#0a0a0c;">1 anomalie détectée</div>
+<div style="color:rgba(0,0,0,0.60);font-size:12px;margin-top:3px;">US-Health-native : postback n'a rien renvoyé depuis 8h. Pas de kill car en grace period — vérifie la connexion.</div>
+</td>
+</tr>
+</table>
+
+</td></tr></table>
+</td></tr>
+
+<!-- Section label -->
+<tr><td style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,0,0,0.42);font-weight:600;padding-bottom:12px;">État du portefeuille ce matin</td></tr>
+
+<!-- Status tiles -->
+<tr><td style="padding-bottom:28px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td width="33%" style="padding-right:5px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafafa;border:1px solid rgba(0,0,0,0.08);border-radius:12px;">
+<tr><td style="padding:14px;">
+<div style="font-size:11px;color:rgba(0,0,0,0.60);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">En scaling</div>
+<div style="font-size:24px;font-weight:600;color:#16a34a;letter-spacing:-0.02em;">4</div>
+</td></tr>
+</table>
+</td>
+<td width="33%" style="padding:0 5px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafafa;border:1px solid rgba(0,0,0,0.08);border-radius:12px;">
+<tr><td style="padding:14px;">
+<div style="font-size:11px;color:rgba(0,0,0,0.60);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">À surveiller</div>
+<div style="font-size:24px;font-weight:600;color:#d97706;letter-spacing:-0.02em;">7</div>
+</td></tr>
+</table>
+</td>
+<td width="33%" style="padding-left:5px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafafa;border:1px solid rgba(0,0,0,0.08);border-radius:12px;">
+<tr><td style="padding:14px;">
+<div style="font-size:11px;color:rgba(0,0,0,0.60);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Action requise</div>
+<div style="font-size:24px;font-weight:600;color:#dc2626;letter-spacing:-0.02em;">2</div>
+</td></tr>
+</table>
+</td>
+</tr>
+</table>
+</td></tr>
+
+<!-- Section label -->
+<tr><td style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,0,0,0.42);font-weight:600;padding-bottom:12px;">Campagnes à regarder aujourd'hui</td></tr>
+
+<!-- Attention list -->
+<tr><td style="padding-bottom:28px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafafa;border:1px solid rgba(0,0,0,0.08);border-radius:14px;">
+<tr><td style="padding:18px 22px;">
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td>
+<div style="font-weight:500;font-size:13px;color:#0a0a0c;margin-bottom:3px;">US-Health-native</div>
+<div style="color:rgba(0,0,0,0.60);font-size:12px;">Postback silencieux 8h — ROI inconnu</div>
+</td>
+<td align="right" valign="top" style="white-space:nowrap;">
+<div style="font-size:14px;font-weight:600;color:rgba(0,0,0,0.42);font-style:italic;">—</div>
+<div style="color:rgba(0,0,0,0.60);font-size:12px;">dépense $67</div>
+</td>
+</tr>
+</table>
+
+<div style="border-top:1px solid rgba(0,0,0,0.08);margin:14px 0;"></div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td>
+<div style="font-weight:500;font-size:13px;color:#0a0a0c;margin-bottom:3px;">CA-Gambling-push</div>
+<div style="color:rgba(0,0,0,0.60);font-size:12px;">ROI en chute (-12% cette nuit)</div>
+</td>
+<td align="right" valign="top" style="white-space:nowrap;">
+<div style="font-size:14px;font-weight:600;color:#dc2626;">-18%</div>
+<div style="color:rgba(0,0,0,0.60);font-size:12px;">dépense $94</div>
+</td>
+</tr>
+</table>
+
+<div style="border-top:1px solid rgba(0,0,0,0.08);margin:14px 0;"></div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td>
+<div style="font-weight:500;font-size:13px;color:#0a0a0c;margin-bottom:3px;">UK-Crypto-native</div>
+<div style="color:rgba(0,0,0,0.60);font-size:12px;">Nouveau créatif en test — résultats mitigés</div>
+</td>
+<td align="right" valign="top" style="white-space:nowrap;">
+<div style="font-size:14px;font-weight:600;color:#0a0a0c;">+4%</div>
+<div style="color:rgba(0,0,0,0.60);font-size:12px;">dépense $128</div>
+</td>
+</tr>
+</table>
+
+</td></tr></table>
+</td></tr>
+
+<!-- Section label -->
+<tr><td style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,0,0,0.42);font-weight:600;padding-bottom:12px;">Top créatif de la nuit</td></tr>
+
+<!-- Creative card -->
+<tr><td style="padding-bottom:28px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafafa;border:1px solid rgba(0,0,0,0.08);border-radius:14px;">
+<tr><td style="padding:16px 18px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td width="64" valign="middle">
+<div style="width:52px;height:52px;border-radius:10px;background:linear-gradient(135deg,#16a34a,#2563eb);color:#ffffff;font-weight:700;font-size:22px;text-align:center;line-height:52px;">🎯</div>
+</td>
+<td valign="middle" style="padding-left:14px;">
+<div style="font-weight:600;font-size:14px;color:#0a0a0c;margin-bottom:3px;">native_de_finance_04.jpg</div>
+<div style="color:rgba(0,0,0,0.60);font-size:12px;">DE-Finance-pop · 2 847 impressions · 89 conversions</div>
+</td>
+<td valign="middle" align="right" style="white-space:nowrap;">
+<div style="font-size:16px;font-weight:600;color:#16a34a;">+62%</div>
+<div style="font-size:11px;color:rgba(0,0,0,0.60);">ROI</div>
+</td>
+</tr>
+</table>
+</td></tr></table>
+</td></tr>
+
+<!-- Section label -->
+<tr><td style="font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:rgba(0,0,0,0.42);font-weight:600;padding-bottom:12px;">Hier vs avant-hier</td></tr>
+
+<!-- Perf grid -->
+<tr><td style="padding-bottom:28px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafafa;border:1px solid rgba(0,0,0,0.08);border-radius:14px;">
+<tr><td style="padding:20px 22px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+<tr>
+<td width="33%">
+<div style="font-size:11px;color:rgba(0,0,0,0.60);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Dépense</div>
+<div style="font-size:18px;font-weight:600;color:#0a0a0c;letter-spacing:-0.01em;">$1,248</div>
+<div style="font-size:11px;color:#16a34a;margin-top:2px;">+$82 <span style="color:rgba(0,0,0,0.60);">(+7%)</span></div>
+</td>
+<td width="33%">
+<div style="font-size:11px;color:rgba(0,0,0,0.60);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Revenu</div>
+<div style="font-size:18px;font-weight:600;color:#0a0a0c;letter-spacing:-0.01em;">$1,824</div>
+<div style="font-size:11px;color:#16a34a;margin-top:2px;">+$194 <span style="color:rgba(0,0,0,0.60);">(+12%)</span></div>
+</td>
+<td width="33%">
+<div style="font-size:11px;color:rgba(0,0,0,0.60);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">ROI</div>
+<div style="font-size:18px;font-weight:600;color:#16a34a;letter-spacing:-0.01em;">+46%</div>
+<div style="font-size:11px;color:#16a34a;margin-top:2px;">+6pts</div>
+</td>
+</tr>
+</table>
+</td></tr></table>
+</td></tr>
+
+<!-- CTA -->
+<tr><td align="center" style="padding:16px 0 24px;">
+<a href="https://profitdash.app/dashboard" style="display:inline-block;background:#0d0d10;color:#ffffff;font-weight:600;font-size:14px;padding:13px 24px;border-radius:10px;text-decoration:none;">Ouvrir le dashboard</a>
+</td></tr>
+
+<!-- Footer -->
+<tr><td style="border-top:1px solid rgba(0,0,0,0.08);padding-top:20px;font-size:11px;color:rgba(0,0,0,0.42);text-align:center;line-height:1.7;">
+ProfitDash · Ceci est un MOCKUP de preview (v2 fond clair), pas un vrai briefing.<br>
+<a href="#" style="color:rgba(0,0,0,0.60);text-decoration:none;">Gérer les préférences email</a> · <a href="#" style="color:rgba(0,0,0,0.60);text-decoration:none;">Se désabonner</a><br>
+Envoyé à 9:00 · Europe/Paris
+</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>
