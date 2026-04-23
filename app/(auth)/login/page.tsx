@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -35,8 +35,10 @@ function s(i: number) {
   };
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-export default function LoginPage() {
+// ─── Page (inner) ─────────────────────────────────────────────────────────────
+// Séparé en composant interne pour satisfaire la règle Suspense de Next.js 16 :
+// useSearchParams() doit toujours être dans un composant enveloppé par <Suspense>.
+function LoginPageInner() {
   const [error, setError]           = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showPw, setShowPw]         = useState(false);
@@ -413,5 +415,16 @@ export default function LoginPage() {
         </form>
       </motion.div>
     </div>
+  );
+}
+
+// ─── Page export ──────────────────────────────────────────────────────────────
+// Enveloppe LoginPageInner dans <Suspense> pour satisfaire la règle Next.js 16 :
+// useSearchParams() doit toujours être dans un arbre Suspense.
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
   );
 }

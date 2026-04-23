@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import ReactDOM from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -127,7 +127,7 @@ function timeAgo(iso: string | null | undefined): string {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function CampaignsPage() {
+function CampaignsPageInner() {
   const isMobile     = useIsMobile();
   const router       = useRouter();
   const searchParams = useSearchParams();
@@ -1509,6 +1509,15 @@ export default function CampaignsPage() {
       )}
 
     </div>
+  );
+}
+
+// ─── Page export with Suspense ────────────────────────────────────────────────
+export default function CampaignsPage() {
+  return (
+    <Suspense fallback={null}>
+      <CampaignsPageInner />
+    </Suspense>
   );
 }
 
