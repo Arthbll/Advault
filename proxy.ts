@@ -11,7 +11,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/waitlist",
 ];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_API_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
