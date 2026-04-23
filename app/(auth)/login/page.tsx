@@ -4,21 +4,22 @@ import { useState, useTransition, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, AlertCircle } from "lucide-react";
-import { login } from "@/app/actions/auth";
+import { ArrowRight, AlertCircle, CheckCircle, Mail } from "lucide-react";
+import { login, signInWithGoogle, signInWithMagicLink } from "@/app/actions/auth";
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Ease ─────────────────────────────────────────────────────────────────────
 const EASE: [number, number, number, number] = [0.23, 1, 0.32, 1];
 
+// ─── Input style ──────────────────────────────────────────────────────────────
 const INPUT: React.CSSProperties = {
   width: "100%",
-  height: 52,
-  padding: "0 18px",
-  borderRadius: 16,
+  height: 46,
+  padding: "0 16px",
+  borderRadius: 12,
   fontSize: 14,
   outline: "none",
   background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.10)",
+  border: "1px solid rgba(255,255,255,0.09)",
   color: "rgba(255,255,255,0.88)",
   transition: "border-color 0.18s, background 0.18s",
   boxSizing: "border-box",
@@ -26,31 +27,74 @@ const INPUT: React.CSSProperties = {
   letterSpacing: "0.01em",
 };
 
-// ─── Stagger helper ───────────────────────────────────────────────────────────
-function s(i: number) {
-  return {
-    initial: { opacity: 0, y: 14 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.55, delay: i * 0.08, ease: EASE },
-  };
+// ─── Logo SVG ─────────────────────────────────────────────────────────────────
+function LogoIcon({ size = 38 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="lg-login" x1="0" y1="0" x2="38" y2="38" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#8b5cf6" />
+          <stop offset="55%" stopColor="#6366f1" />
+          <stop offset="100%" stopColor="#38bdf8" />
+        </linearGradient>
+      </defs>
+      <rect width="38" height="38" rx="10" fill="url(#lg-login)" />
+      <polyline
+        points="7,27 14,18 20,22 27,12 31,15"
+        stroke="white"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        opacity="0.92"
+      />
+      <circle cx="31" cy="15" r="2" fill="white" opacity="0.92" />
+    </svg>
+  );
 }
 
-// ─── Page (inner) ─────────────────────────────────────────────────────────────
-// Séparé en composant interne pour satisfaire la règle Suspense de Next.js 16 :
-// useSearchParams() doit toujours être dans un composant enveloppé par <Suspense>.
+// ─── Google icon ──────────────────────────────────────────────────────────────
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+      <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+      <path d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z" fill="#FBBC05"/>
+      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z" fill="#EA4335"/>
+    </svg>
+  );
+}
+
+// ─── Divider ──────────────────────────────────────────────────────────────────
+function OrDivider() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 0" }}>
+      <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.22)", letterSpacing: "0.08em", textTransform: "uppercase" }}>or</span>
+      <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+    </div>
+  );
+}
+
+// ─── Inner page ───────────────────────────────────────────────────────────────
 function LoginPageInner() {
-  const [error, setError]           = useState<string | null>(null);
+  const [error,   setError]   = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [showPw, setShowPw]         = useState(false);
+  const [showPw,  setShowPw]  = useState(false);
   const [kickedBanner, setKickedBanner] = useState(false);
+
+  // Magic link mode state
+  const [magicMode, setMagicMode] = useState(false);
+  const [magicEmail, setMagicEmail] = useState("");
+  const [magicSent, setMagicSent] = useState(false);
+
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (searchParams?.get("reason") === "kicked") {
-      setKickedBanner(true);
-    }
+    if (searchParams?.get("reason") === "kicked") setKickedBanner(true);
   }, [searchParams]);
 
+  // ── Normal sign-in ──────────────────────────────────────────────────────────
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -61,366 +105,350 @@ function LoginPageInner() {
     });
   }
 
+  // ── Google OAuth ────────────────────────────────────────────────────────────
+  function handleGoogle() {
+    setError(null);
+    startTransition(async () => {
+      const result = await signInWithGoogle();
+      if (result?.error) setError(result.error);
+    });
+  }
+
+  // ── Magic link ──────────────────────────────────────────────────────────────
+  function handleMagicLink(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    const formData = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const result = await signInWithMagicLink(formData);
+      if (result?.error) setError(result.error);
+      if (result?.success) setMagicSent(true);
+    });
+  }
+
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        width: "100%",
-        maxWidth: 480,
-      }}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: EASE }}
+      style={{ width: "100%", maxWidth: 420 }}
     >
-      {/* ── Badge ─────────────────────────────────────────────────────────── */}
-      <motion.div {...s(0)} style={{ marginBottom: 24 }}>
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            borderRadius: 999,
-            border: "1px solid rgba(139,92,246,0.20)",
-            background: "rgba(139,92,246,0.08)",
-            padding: "6px 18px",
-            fontSize: 10,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.24em",
-            color: "rgba(196,181,253,1)",
-          }}
-        >
-          Private access
-        </span>
-      </motion.div>
-
-      {/* ── Headline ──────────────────────────────────────────────────────── */}
-      <motion.h1 {...s(1)}
+      {/* ── Card ──────────────────────────────────────────────────────────────── */}
+      <div
         style={{
-          fontSize: 58,
-          fontWeight: 200,
-          letterSpacing: "-0.065em",
-          lineHeight: 0.92,
-          color: "rgba(255,255,255,0.92)",
-          textAlign: "center",
-          margin: "0 0 18px",
-          maxWidth: "10ch",
+          background: "linear-gradient(180deg, rgba(18,19,28,0.97) 0%, rgba(10,11,18,0.99) 100%)",
+          border: "1px solid rgba(255,255,255,0.09)",
+          borderRadius: 24,
+          boxShadow: "0 32px 80px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)",
+          padding: "32px 32px 28px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 0,
         }}
       >
-        See what deserves action.
-      </motion.h1>
-
-      {/* ── Sub ───────────────────────────────────────────────────────────── */}
-      <motion.p {...s(2)}
-        style={{
-          fontSize: 16,
-          lineHeight: 1.75,
-          color: "rgba(255,255,255,0.34)",
-          textAlign: "center",
-          margin: "0 0 36px",
-          maxWidth: "34ch",
-        }}
-      >
-        The operating layer between traffic and profit.
-      </motion.p>
-
-      {/* ── Card ──────────────────────────────────────────────────────────── */}
-      <motion.div
-        initial={{ opacity: 0, y: 24, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.7, delay: 0.28, ease: EASE }}
-        style={{
-          width: "100%",
-          background:
-            "linear-gradient(180deg, rgba(16,17,25,0.96) 0%, rgba(9,10,16,0.98) 100%)",
-          border: "1px solid rgba(255,255,255,0.10)",
-          borderRadius: 28,
-          boxShadow:
-            "0 30px 90px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.08)",
-          padding: "32px",
-        }}
-      >
-        {/* Wordmark row */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-            marginBottom: 24,
-          }}
-        >
-          <div
-            style={{
-              width: 46,
-              height: 46,
-              borderRadius: 14,
-              background: "linear-gradient(145deg, #8b5cf6, #2563eb, #38bdf8)",
-              boxShadow: "0 10px 28px rgba(99,102,241,0.32)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 20,
-              fontWeight: 600,
-              color: "#fff",
-              flexShrink: 0,
-            }}
-          >
-            P
-          </div>
+        {/* Logo + wordmark */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+          <LogoIcon size={38} />
           <div>
-            <p
-              style={{
-                fontSize: 26,
-                fontWeight: 200,
-                letterSpacing: "-0.05em",
-                color: "rgba(255,255,255,0.92)",
-                margin: 0,
-                lineHeight: 1,
-              }}
-            >
+            <p style={{ fontSize: 18, fontWeight: 300, letterSpacing: "-0.04em", color: "rgba(255,255,255,0.92)", margin: 0, lineHeight: 1 }}>
               ProfitDash
             </p>
-            <p
-              style={{
-                fontSize: 10,
-                textTransform: "uppercase",
-                letterSpacing: "0.22em",
-                color: "rgba(255,255,255,0.26)",
-                margin: "5px 0 0",
-              }}
-            >
-              Decision engine for media buyers
+            <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.20em", color: "rgba(255,255,255,0.22)", margin: "4px 0 0" }}>
+              Campaign decision engine
             </p>
           </div>
         </div>
 
-        {/* Welcome */}
-        <div style={{ marginBottom: 24 }}>
-          <p
-            style={{
-              fontSize: 28,
-              fontWeight: 200,
-              letterSpacing: "-0.04em",
-              color: "rgba(255,255,255,0.92)",
-              margin: "0 0 8px",
-            }}
-          >
-            Welcome back
-          </p>
-          <p
-            style={{
-              fontSize: 14,
-              lineHeight: 1.7,
-              color: "rgba(255,255,255,0.34)",
-              margin: 0,
-            }}
-          >
-            Get back to the signal, the engine, and the campaigns that need action.
-          </p>
-        </div>
+        {/* Headline */}
+        <p style={{ fontSize: 22, fontWeight: 300, letterSpacing: "-0.04em", color: "rgba(255,255,255,0.90)", margin: "0 0 24px", lineHeight: 1.2 }}>
+          Sign in to ProfitDash
+        </p>
 
-        {/* Form */}
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: "flex", flexDirection: "column", gap: 10 }}
+        <AnimatePresence mode="wait">
+
+          {/* ── Magic link sent confirmation ─────────────────────────────────── */}
+          {magicSent ? (
+            <motion.div
+              key="magic-sent"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4, ease: EASE }}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, textAlign: "center", paddingBottom: 8 }}
+            >
+              <div style={{
+                width: 48, height: 48, borderRadius: "50%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.18)",
+              }}>
+                <Mail size={20} strokeWidth={1.5} style={{ color: "#a78bfa" }} />
+              </div>
+              <div>
+                <p style={{ fontSize: 16, fontWeight: 300, letterSpacing: "-0.03em", color: "rgba(255,255,255,0.92)", margin: "0 0 8px" }}>
+                  Check your inbox
+                </p>
+                <p style={{ fontSize: 13, lineHeight: 1.7, color: "rgba(255,255,255,0.38)", margin: 0, maxWidth: "26ch" }}>
+                  We sent a magic link to <strong style={{ color: "rgba(255,255,255,0.55)", fontWeight: 400 }}>{magicEmail}</strong>. Click it to sign in.
+                </p>
+              </div>
+              <button
+                onClick={() => { setMagicSent(false); setMagicMode(false); setError(null); }}
+                style={{
+                  marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.30)",
+                  background: "none", border: "none", cursor: "pointer", textDecoration: "underline",
+                  textDecorationColor: "rgba(255,255,255,0.15)",
+                }}
+              >
+                Back to sign in
+              </button>
+            </motion.div>
+
+          ) : magicMode ? (
+
+            /* ── Magic link form ──────────────────────────────────────────────── */
+            <motion.div
+              key="magic-form"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.35, ease: EASE }}
+            >
+              <form onSubmit={handleMagicLink} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.38)", margin: "0 0 4px", lineHeight: 1.6 }}>
+                  Enter your email and we'll send you a sign-in link — no password needed.
+                </p>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  autoFocus
+                  autoComplete="email"
+                  placeholder="you@domain.com"
+                  value={magicEmail}
+                  onChange={e => setMagicEmail(e.target.value)}
+                  style={INPUT}
+                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(139,92,246,0.40)"; e.currentTarget.style.background = "rgba(255,255,255,0.055)"; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                />
+
+                <AnimatePresence>
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, fontSize: 13, background: "rgba(244,63,94,0.07)", border: "1px solid rgba(248,113,133,0.14)", color: "rgba(254,205,211,0.9)" }}
+                    >
+                      <AlertCircle size={13} strokeWidth={1.5} />
+                      {error}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <motion.button
+                  type="submit"
+                  disabled={isPending}
+                  whileHover={!isPending ? { scale: 1.01 } : {}}
+                  whileTap={!isPending ? { scale: 0.98 } : {}}
+                  style={{
+                    height: 46, width: "100%", borderRadius: 12, border: "none",
+                    background: isPending ? "rgba(139,92,246,0.25)" : "linear-gradient(90deg, #8b5cf6, #6366f1)",
+                    color: "#fff", fontSize: 14, fontWeight: 500, cursor: isPending ? "not-allowed" : "pointer",
+                    opacity: isPending ? 0.65 : 1, letterSpacing: "0.01em",
+                    boxShadow: isPending ? "none" : "0 8px 28px rgba(99,102,241,0.26)",
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {isPending ? "Sending…" : "Send magic link"}
+                </motion.button>
+
+                <button
+                  type="button"
+                  onClick={() => { setMagicMode(false); setError(null); }}
+                  style={{ fontSize: 13, color: "rgba(255,255,255,0.30)", background: "none", border: "none", cursor: "pointer", marginTop: 2 }}
+                >
+                  ← Back to sign in
+                </button>
+              </form>
+            </motion.div>
+
+          ) : (
+
+            /* ── Normal sign-in form ──────────────────────────────────────────── */
+            <motion.div
+              key="normal-form"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.35, ease: EASE }}
+              style={{ display: "flex", flexDirection: "column", gap: 10 }}
+            >
+              {/* Kicked banner */}
+              <AnimatePresence>
+                {kickedBanner && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    style={{ padding: "12px 14px", borderRadius: 12, fontSize: 13, background: "rgba(245,158,11,0.07)", border: "1px solid rgba(251,191,36,0.18)", color: "rgba(253,230,138,0.90)", lineHeight: 1.65 }}
+                  >
+                    <div style={{ fontWeight: 500, marginBottom: 3 }}>Session terminated</div>
+                    Your session was revoked because your account signed in from another device. If this wasn't you, consider enabling 2FA.
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Google button */}
+              <motion.button
+                type="button"
+                onClick={handleGoogle}
+                disabled={isPending}
+                whileHover={!isPending ? { scale: 1.01, background: "rgba(255,255,255,0.088)" } : {}}
+                whileTap={!isPending ? { scale: 0.98 } : {}}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                  height: 46, width: "100%", borderRadius: 12,
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  color: "rgba(255,255,255,0.82)", fontSize: 14, fontWeight: 400,
+                  cursor: isPending ? "not-allowed" : "pointer",
+                  opacity: isPending ? 0.55 : 1,
+                  transition: "opacity 0.15s",
+                  letterSpacing: "0.01em",
+                }}
+              >
+                <GoogleIcon />
+                Continue with Google
+              </motion.button>
+
+              <OrDivider />
+
+              {/* Email / password form */}
+              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  autoComplete="email"
+                  placeholder="you@domain.com"
+                  style={INPUT}
+                  onFocus={e => { e.currentTarget.style.borderColor = "rgba(139,92,246,0.38)"; e.currentTarget.style.background = "rgba(255,255,255,0.055)"; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                />
+
+                {/* Password row with inline "Forgot?" */}
+                <div>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type={showPw ? "text" : "password"}
+                      name="password"
+                      required
+                      autoComplete="current-password"
+                      placeholder="Password"
+                      style={{ ...INPUT, paddingRight: 80 }}
+                      onFocus={e => { e.currentTarget.style.borderColor = "rgba(139,92,246,0.38)"; e.currentTarget.style.background = "rgba(255,255,255,0.055)"; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                    />
+                    {/* show/hide */}
+                    <span
+                      onClick={() => setShowPw(v => !v)}
+                      style={{
+                        position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
+                        fontSize: 11, color: "rgba(255,255,255,0.28)", cursor: "pointer", userSelect: "none",
+                      }}
+                    >
+                      {showPw ? "Hide" : "Show"}
+                    </span>
+                  </div>
+                  {/* Forgot below field, right-aligned */}
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+                    <Link
+                      href="/forgot-password"
+                      style={{ fontSize: 12, color: "rgba(255,255,255,0.28)", textDecoration: "none", transition: "color 0.15s" }}
+                      onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.60)")}
+                      onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.28)")}
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Error */}
+                <AnimatePresence>
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, fontSize: 13, background: "rgba(244,63,94,0.07)", border: "1px solid rgba(248,113,133,0.14)", color: "rgba(254,205,211,0.9)" }}
+                    >
+                      <AlertCircle size={13} strokeWidth={1.5} />
+                      {error}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* CTA */}
+                <motion.button
+                  type="submit"
+                  disabled={isPending}
+                  whileHover={!isPending ? { scale: 1.01 } : {}}
+                  whileTap={!isPending ? { scale: 0.98 } : {}}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    height: 46, width: "100%", borderRadius: 12, marginTop: 2, border: "none",
+                    background: isPending ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.92)",
+                    color: isPending ? "rgba(255,255,255,0.40)" : "#0a0a12",
+                    fontSize: 14, fontWeight: 500, cursor: isPending ? "not-allowed" : "pointer",
+                    opacity: isPending ? 0.65 : 1, letterSpacing: "0.01em",
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {isPending ? "Signing in…" : (
+                    <>
+                      <span>Sign in</span>
+                      <ArrowRight size={14} strokeWidth={2} />
+                    </>
+                  )}
+                </motion.button>
+              </form>
+
+              {/* Magic link toggle */}
+              <button
+                type="button"
+                onClick={() => { setMagicMode(true); setError(null); }}
+                style={{
+                  fontSize: 13, color: "rgba(255,255,255,0.30)", background: "none", border: "none",
+                  cursor: "pointer", textAlign: "center", marginTop: 2,
+                  transition: "color 0.15s",
+                }}
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.60)")}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.30)")}
+              >
+                Use a magic link instead
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* ── Footer link ─────────────────────────────────────────────────────── */}
+      <p style={{ textAlign: "center", fontSize: 13, marginTop: 20, color: "rgba(255,255,255,0.24)" }}>
+        No account?{" "}
+        <Link
+          href="/register"
+          style={{ color: "rgba(255,255,255,0.50)", textDecoration: "none", transition: "color 0.15s" }}
+          onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.85)")}
+          onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.50)")}
         >
-          <input
-            type="email"
-            name="email"
-            required
-            autoComplete="email"
-            placeholder="Email"
-            style={INPUT}
-            onFocus={e => {
-              e.currentTarget.style.borderColor = "rgba(139,92,246,0.40)";
-              e.currentTarget.style.background  = "rgba(255,255,255,0.055)";
-            }}
-            onBlur={e => {
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
-              e.currentTarget.style.background  = "rgba(255,255,255,0.04)";
-            }}
-          />
-
-          <div style={{ position: "relative" }}>
-            <input
-              type={showPw ? "text" : "password"}
-              name="password"
-              required
-              autoComplete="current-password"
-              placeholder="Password"
-              style={{ ...INPUT, paddingRight: 60 }}
-              onFocus={e => {
-                e.currentTarget.style.borderColor = "rgba(139,92,246,0.40)";
-                e.currentTarget.style.background  = "rgba(255,255,255,0.055)";
-              }}
-              onBlur={e => {
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)";
-                e.currentTarget.style.background  = "rgba(255,255,255,0.04)";
-              }}
-            />
-            <span
-              onClick={() => setShowPw(v => !v)}
-              style={{
-                position: "absolute",
-                right: 18,
-                top: "50%",
-                transform: "translateY(-50%)",
-                fontSize: 11,
-                color: "rgba(255,255,255,0.32)",
-                cursor: "pointer",
-                userSelect: "none",
-                transition: "color 0.15s",
-              }}
-            >
-              {showPw ? "Hide" : "Show"}
-            </span>
-          </div>
-
-          {/* Kicked banner — another device signed in with the same credentials */}
-          <AnimatePresence>
-            {kickedBanner && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                style={{
-                  padding: "14px 16px",
-                  borderRadius: 14,
-                  fontSize: 13,
-                  background: "rgba(245,158,11,0.08)",
-                  border: "1px solid rgba(251,191,36,0.20)",
-                  color: "rgba(253,230,138,0.95)",
-                  lineHeight: 1.65,
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>Session terminated</div>
-                Your account was signed in from another device and your session has been revoked.
-                If this wasn't you, your credentials may have been shared. Consider enabling 2FA or upgrading to the Command plan for proper team access.
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Error */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "11px 16px",
-                  borderRadius: 12,
-                  fontSize: 13,
-                  background: "rgba(244,63,94,0.07)",
-                  border: "1px solid rgba(248,113,133,0.16)",
-                  color: "rgba(254,205,211,0.9)",
-                }}
-              >
-                <AlertCircle size={13} strokeWidth={1.5} />
-                {error}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Forgot password */}
-          <div style={{ padding: "2px 2px" }}>
-            <Link
-              href="/forgot-password"
-              style={{
-                fontSize: 13,
-                color: "rgba(255,255,255,0.32)",
-                textDecoration: "none",
-                transition: "color 0.15s",
-              }}
-              onMouseEnter={e =>
-                (e.currentTarget.style.color = "rgba(255,255,255,0.65)")
-              }
-              onMouseLeave={e =>
-                (e.currentTarget.style.color = "rgba(255,255,255,0.32)")
-              }
-            >
-              Forgot password?
-            </Link>
-          </div>
-
-          {/* CTA */}
-          <motion.button
-            type="submit"
-            disabled={isPending}
-            whileHover={!isPending ? { scale: 1.01 } : {}}
-            whileTap={!isPending ? { scale: 0.98 } : {}}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              height: 52,
-              width: "100%",
-              borderRadius: 16,
-              marginTop: 4,
-              border: "none",
-              background: isPending
-                ? "rgba(99,102,241,0.30)"
-                : "linear-gradient(90deg, #8b5cf6, #6366f1, #38bdf8)",
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: isPending ? "not-allowed" : "pointer",
-              opacity: isPending ? 0.65 : 1,
-              letterSpacing: "0.01em",
-              boxShadow: isPending
-                ? "none"
-                : "0 18px 50px rgba(99,102,241,0.30)",
-              transition: "opacity 0.15s",
-            }}
-          >
-            {isPending ? (
-              "Signing in…"
-            ) : (
-              <>
-                <span>Sign in to ProfitDash</span>
-                <ArrowRight size={14} strokeWidth={2} />
-              </>
-            )}
-          </motion.button>
-
-          {/* Request access */}
-          <p
-            style={{
-              textAlign: "center",
-              fontSize: 13,
-              marginTop: 4,
-              color: "rgba(255,255,255,0.28)",
-            }}
-          >
-            No account yet?{" "}
-            <Link
-              href="/register"
-              style={{
-                color: "rgba(255,255,255,0.62)",
-                textDecoration: "none",
-                transition: "color 0.15s",
-              }}
-              onMouseEnter={e =>
-                (e.currentTarget.style.color = "rgba(255,255,255,0.90)")
-              }
-              onMouseLeave={e =>
-                (e.currentTarget.style.color = "rgba(255,255,255,0.62)")
-              }
-            >
-              Request access
-            </Link>
-          </p>
-        </form>
-      </motion.div>
-    </div>
+          Request early access →
+        </Link>
+      </p>
+    </motion.div>
   );
 }
 
 // ─── Page export ──────────────────────────────────────────────────────────────
-// Enveloppe LoginPageInner dans <Suspense> pour satisfaire la règle Next.js 16 :
-// useSearchParams() doit toujours être dans un arbre Suspense.
 export default function LoginPage() {
   return (
     <Suspense fallback={null}>

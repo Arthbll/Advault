@@ -39,7 +39,8 @@ export async function updateSession(request: NextRequest) {
   const isPublicRoute  = pathname === "/"
                        || pathname.startsWith("/api/waitlist")
                        || pathname.startsWith("/privacy")
-                       || pathname.startsWith("/terms");
+                       || pathname.startsWith("/terms")
+                       || pathname.startsWith("/auth/callback");
 
   // Redirect unauthenticated users away from protected routes
   if (!user && !isAuthRoute && !isMFAChallenge && !isPublicRoute) {
