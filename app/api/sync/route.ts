@@ -386,7 +386,7 @@ export async function POST(req: NextRequest) {
                   userId:      userId,
                   accountId:   account.id,
                   externalId:  extId,
-                  name:        campaign.title,
+                  name:        campaign.title ?? campaign.name,
                   network:     Network.PROPELLERADS,
                   status:      PropellerAds.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
                   spend:       stat?.spent       ?? 0,
@@ -399,7 +399,7 @@ export async function POST(req: NextRequest) {
                   syncedAt:    new Date(),
                 },
                 update: {
-                  name:        campaign.title,
+                  name:        campaign.title ?? campaign.name,
                   status:      PropellerAds.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
                   spend:       stat?.spent       ?? 0,
                   revenue:     stat?.revenue     ?? 0,

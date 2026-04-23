@@ -561,7 +561,12 @@ export async function runKillSwitchForUser(userId: string): Promise<KillSwitchRe
       await evaluateCampaigns(userId, account.id, Network.PROPELLERADS, "PROPELLERADS", statsMap, roiThreshold, maxSpendPerCampaign,
         (id) => PropellerAds.pauseCampaign(apiKey, id).then(r => { if (!r.ok) throw new Error(r.error); }),
         result, spendOnlyMode,
-        (id, mult) => PropellerAds.scaleBid(apiKey, id, mult),
+        // scaleBid retourne { ok, oldRates, newRates } — on adapte au format
+        // attendu par evaluateCampaigns ({ oldBid, newBid }).
+        (id, mult) => PropellerAds.scaleBid(apiKey, id, mult).then(r => ({
+          oldBid: r.oldRates[0]?.amount ?? 0,
+          newBid: r.newRates[0]?.amount ?? 0,
+        })),
         engineRule, inGracePeriod);
     }
 

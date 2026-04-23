@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
           const s = statsMap[String(c.id)];
           rows.push({
             campaignId:  String(c.id),
-            name:        c.title,
+            name:        c.title ?? c.name,
             network:     "PROPELLERADS",
             status:      PropellerAds.mapStatus(c.status),
             spend:       s?.spent       ?? 0,

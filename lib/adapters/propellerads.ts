@@ -18,6 +18,7 @@ const BASE = "https://ssp-api.propellerads.com/v5";
 export interface PropellerAdsCampaign {
   id:                  number;
   name:                string;
+  title?:              string;  // alias de name dans certaines versions de l'API PropellerAds
   status:              number;   // 1=draft, 2=moderation, 3=rejected, 6=active, 7=paused, 8=stopped
   direction_id?:       number;
   rate_model?:         string;
