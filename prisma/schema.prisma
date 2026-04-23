@@ -164,6 +164,7 @@ model Campaign {
 
   // Decision Engine controls
   excludeFromEngine Boolean @default(false) // "Manual only" — excluded from all engine actions
+  automationPaused  Boolean @default(false) // pause temporaire de l'automation sur cette campagne
 
   dateFrom  DateTime
   dateTo    DateTime
