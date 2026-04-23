@@ -11,8 +11,8 @@ const nextConfig: NextConfig = {
   // TODO: supprimer dès que le client Prisma local est régénéré proprement.
   typescript: { ignoreBuildErrors: true },
 
-  // Même chose pour ESLint — on ne veut pas que des warnings bloquent le déploiement.
-  eslint: { ignoreDuringBuilds: true },
+  // Note: l'option `eslint` a été supprimée dans Next.js 16.
+  // ESLint n'est plus exécuté pendant le build avec Turbopack — aucune config nécessaire.
 };
 
 export default nextConfig;
