@@ -16,6 +16,20 @@ export default async function SettingsPage() {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const userPlan: string = (meta.plan as string | undefined) ?? "Observer";
 
+  // Stripe data from DB
+  let stripeData = {
+    planId: "observer",
+    subscriptionStatus: null as string | null,
+    periodEnd: null as string | null,
+    hasSubscription: false,
+    prices: {
+      operatorMonthly: process.env.STRIPE_PRICE_OPERATOR_MONTHLY ?? "",
+      operatorAnnual:  process.env.STRIPE_PRICE_OPERATOR_ANNUAL  ?? "",
+      dominionMonthly: process.env.STRIPE_PRICE_DOMINION_MONTHLY ?? "",
+      dominionAnnual:  process.env.STRIPE_PRICE_DOMINION_ANNUAL  ?? "",
+    },
+  };
+
   let accounts: { network: string; isActive: boolean }[] = [];
   let userSettings: {
     killSwitchEnabled: boolean;
@@ -30,6 +44,17 @@ export default async function SettingsPage() {
   let pendingInvites: InviteRow[] = [];
 
   try {
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (dbUser) {
+      stripeData = {
+        ...stripeData,
+        planId:             dbUser.planId ?? "observer",
+        subscriptionStatus: dbUser.stripeSubscriptionStatus ?? null,
+        periodEnd:          dbUser.planCurrentPeriodEnd?.toISOString() ?? null,
+        hasSubscription:    !!dbUser.stripeSubscriptionId && dbUser.stripeSubscriptionStatus === "active",
+      };
+    }
+
     [accounts, userSettings] = await Promise.all([
       prisma.account.findMany({
         where:  { userId: user.id },
@@ -89,6 +114,7 @@ export default async function SettingsPage() {
       pendingInvites={pendingInvites.map(i => ({ ...i, inviteUrl: `${origin}/invite/${i.token}` }))}
       timezone={wsTimezone}
       currency={wsCurrency}
+      stripeData={stripeData}
     />
   );
 }

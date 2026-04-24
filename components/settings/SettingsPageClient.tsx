@@ -48,6 +48,19 @@ interface PendingInviteData {
   inviteUrl: string;
 }
 
+interface StripeData {
+  planId: string;                   // observer | operator | dominion
+  subscriptionStatus: string | null; // active | canceled | past_due | null
+  periodEnd: string | null;          // ISO date
+  hasSubscription: boolean;
+  prices: {
+    operatorMonthly: string;
+    operatorAnnual: string;
+    dominionMonthly: string;
+    dominionAnnual: string;
+  };
+}
+
 interface Props {
   connectedCount: number;
   accounts: AccountInfo[];
@@ -57,6 +70,7 @@ interface Props {
   pendingInvites?: PendingInviteData[];
   timezone?: string;
   currency?: string;
+  stripeData?: StripeData;
 }
 
 // ─── Network configs ────────────────────────────────────────────────────────────
@@ -237,6 +251,7 @@ export default function SettingsPageClient({
   pendingInvites: initialPendingInvites = [],
   timezone: initialTimezone = "UTC",
   currency: initialCurrency = "USD",
+  stripeData,
 }: Props) {
   const searchParams = useSearchParams();
   const [tab, setTab]                     = useState<Tab>(() => {
@@ -326,21 +341,54 @@ export default function SettingsPageClient({
   }
 
   // ── Plan actions ──────────────────────────────────────────────────────────────
-  async function handlePlanChange(newPlan: string) {
+  async function handlePlanChange(newPlan: string, annual = false) {
+    if (!stripeData) return;
     setPlanLoading(newPlan);
     setPlanError(null);
+
     try {
-      const res = await fetch("/api/plan/update", {
+      // Si l'utilisateur a déjà un abonnement actif → Customer Portal pour gérer
+      if (stripeData.hasSubscription && newPlan !== "observer") {
+        const res = await fetch("/api/stripe/portal", { method: "POST" });
+        const data = await res.json() as { url?: string; error?: string };
+        if (data.url) { window.location.href = data.url; return; }
+        setPlanError(data.error ?? "Could not open billing portal");
+        return;
+      }
+
+      // Sinon → Stripe Checkout avec le bon priceId
+      const priceMap: Record<string, string> = {
+        operator_monthly:  stripeData.prices.operatorMonthly,
+        operator_annual:   stripeData.prices.operatorAnnual,
+        dominion_monthly:  stripeData.prices.dominionMonthly,
+        dominion_annual:   stripeData.prices.dominionAnnual,
+      };
+      const key = `${newPlan.toLowerCase()}_${annual ? "annual" : "monthly"}`;
+      const priceId = priceMap[key];
+      if (!priceId) { setPlanError("Plan not available"); return; }
+
+      const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: newPlan }),
+        body: JSON.stringify({ priceId }),
       });
-      const data = await res.json() as { ok?: boolean; error?: string };
-      if (!res.ok || data.error) {
-        setPlanError(data.error ?? "Failed to update plan");
-      } else {
-        setCurrentPlan(newPlan);
-      }
+      const data = await res.json() as { url?: string; error?: string };
+      if (data.url) { window.location.href = data.url; return; }
+      setPlanError(data.error ?? "Could not start checkout");
+    } catch {
+      setPlanError("Network error");
+    } finally {
+      setPlanLoading(null);
+    }
+  }
+
+  async function handleManageBilling() {
+    setPlanLoading("billing");
+    try {
+      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const data = await res.json() as { url?: string; error?: string };
+      if (data.url) { window.location.href = data.url; return; }
+      setPlanError(data.error ?? "Could not open billing portal");
     } catch {
       setPlanError("Network error");
     } finally {
@@ -718,41 +766,39 @@ export default function SettingsPageClient({
       id: string;
       label: string;
       tagline: string;
+      price: string;
       features: string[];
       tone: ToneKey;
     }[] = [
       {
-        id: "Observer",
+        id: "observer",
         label: "Observer",
         tagline: "Read-only visibility into your traffic",
+        price: "Free",
         features: ["Performance dashboard", "Analytics & statistics", "Transaction history", "Vault access"],
         tone: "white",
       },
       {
-        id: "Operator",
+        id: "operator",
         label: "Operator",
         tagline: "Active campaign management",
+        price: "€99/mo",
         features: ["Everything in Observer", "Campaign execution", "Kill-switch engine", "Postback tracking"],
         tone: "sky",
       },
       {
-        id: "Dominion",
+        id: "dominion",
         label: "Dominion",
         tagline: "Advanced automation & analytics",
+        price: "€249/mo",
         features: ["Everything in Operator", "Engine defaults & rules", "Advanced ROI tracking", "Priority sync intervals"],
         tone: "violet",
       },
-      {
-        id: "Command",
-        label: "Command",
-        tagline: "Full workspace with team management",
-        features: ["Everything in Dominion", "Invite team members", "Role-based access", "Shared workspace"],
-        tone: "rose",
-      },
     ];
 
-    const PLAN_ORDER = ["Observer", "Operator", "Dominion", "Command"];
-    const currentIdx = PLAN_ORDER.indexOf(currentPlan);
+    const PLAN_ORDER = ["observer", "operator", "dominion"];
+    const activePlanId = stripeData?.planId ?? "observer";
+    const currentIdx = PLAN_ORDER.indexOf(activePlanId);
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
@@ -761,16 +807,39 @@ export default function SettingsPageClient({
             Current plan
           </div>
           <div style={{ fontSize: 28, fontWeight: 200, letterSpacing: "-0.04em", marginTop: 6 }}>
-            You are on <span style={{ color: "rgba(255,255,255,0.90)" }}>{currentPlan}</span>
+            You are on <span style={{ color: "rgba(255,255,255,0.90)" }}>{activePlanId.charAt(0).toUpperCase() + activePlanId.slice(1)}</span>
           </div>
+          {stripeData?.subscriptionStatus === "past_due" && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "rgba(251,113,133,0.9)" }}>
+              Your last payment failed. Please update your payment method.
+            </div>
+          )}
+          {stripeData?.periodEnd && stripeData.subscriptionStatus === "active" && (
+            <div style={{ marginTop: 6, fontSize: 12, color: "rgba(255,255,255,0.35)" }}>
+              Renews on {new Date(stripeData.periodEnd).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+            </div>
+          )}
           {planError && (
             <div style={{ marginTop: 8, fontSize: 12, color: "rgba(251,113,133,0.9)" }}>{planError}</div>
+          )}
+          {stripeData?.hasSubscription && (
+            <button
+              onClick={handleManageBilling}
+              disabled={planLoading === "billing"}
+              style={{
+                marginTop: 12, fontSize: 12, padding: "6px 14px", borderRadius: 10,
+                border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)",
+                color: "rgba(255,255,255,0.55)", cursor: "pointer",
+              }}
+            >
+              {planLoading === "billing" ? "Opening…" : "Manage billing & invoices →"}
+            </button>
           )}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
           {PLANS.map((p, i) => {
-            const isCurrent = p.id === currentPlan;
+            const isCurrent = p.id === activePlanId;
             const isUpgrade = i > currentIdx;
             const t = TONES[p.tone];
             return (
@@ -803,8 +872,13 @@ export default function SettingsPageClient({
                   )}
                 </div>
 
+                {/* Price */}
+                <div style={{ fontSize: 22, fontWeight: 200, letterSpacing: "-0.03em", marginTop: 12, color: isCurrent ? t.text : "rgba(255,255,255,0.55)" }}>
+                  {p.price}
+                </div>
+
                 {/* Tagline */}
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.38)", marginTop: 14, lineHeight: 1.6 }}>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.38)", marginTop: 6, lineHeight: 1.6 }}>
                   {p.tagline}
                 </div>
 
@@ -820,25 +894,28 @@ export default function SettingsPageClient({
 
                 {/* CTA */}
                 <button
-                  disabled={isCurrent || planLoading === p.id}
-                  onClick={() => !isCurrent && handlePlanChange(p.id)}
+                  disabled={isCurrent || planLoading === p.id || p.id === "observer"}
+                  onClick={() => !isCurrent && p.id !== "observer" && handlePlanChange(p.id)}
                   style={{
                     marginTop: 22, width: "100%", borderRadius: 14, padding: "10px 0",
-                    fontSize: 12, fontWeight: 500, cursor: isCurrent ? "default" : "pointer",
+                    fontSize: 12, fontWeight: 500,
+                    cursor: (isCurrent || p.id === "observer") ? "default" : "pointer",
                     border: isCurrent ? `1px solid ${t.border}` : "1px solid rgba(255,255,255,0.10)",
-                    background: isCurrent ? t.bg : "rgba(255,255,255,0.04)",
-                    color: isCurrent ? t.text : "rgba(255,255,255,0.45)",
+                    background: isCurrent ? t.bg : isUpgrade ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.04)",
+                    color: isCurrent ? t.text : isUpgrade ? "rgba(255,255,255,0.70)" : "rgba(255,255,255,0.35)",
                     transition: "all 0.2s",
                     opacity: planLoading === p.id ? 0.6 : 1,
                   }}
                 >
                   {planLoading === p.id
-                    ? "Updating…"
+                    ? "Redirecting…"
                     : isCurrent
                     ? "Current plan"
+                    : p.id === "observer"
+                    ? "Free forever"
                     : isUpgrade
-                    ? `Upgrade to ${p.label}`
-                    : `Downgrade to ${p.label}`}
+                    ? `Upgrade to ${p.label} →`
+                    : `Switch to ${p.label}`}
                 </button>
               </motion.div>
             );

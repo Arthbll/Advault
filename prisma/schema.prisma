@@ -73,6 +73,14 @@ model User {
   // Utilisé par le cron pour éviter d'envoyer deux fois le même jour au même user.
   lastDailyBriefingSentAt DateTime?
 
+  // ── Stripe ────────────────────────────────────────────────────────────────
+  stripeCustomerId         String?   @unique
+  stripeSubscriptionId     String?   @unique
+  stripePriceId            String?   // price_xxx actif
+  stripeSubscriptionStatus String?   // active | canceled | past_due | trialing | incomplete
+  planId                   String    @default("observer") // observer | operator | dominion
+  planCurrentPeriodEnd     DateTime? // fin de la période en cours
+
   accounts      Account[]
   campaigns     Campaign[]
   logs          Log[]
