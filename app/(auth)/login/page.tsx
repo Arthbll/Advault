@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, AlertCircle, CheckCircle, Mail } from "lucide-react";
-import { login, signInWithGoogle, signInWithMagicLink } from "@/app/actions/auth";
+import { login, signInWithGoogle, signInWithApple, signInWithMagicLink } from "@/app/actions/auth";
 
 // ─── Ease ─────────────────────────────────────────────────────────────────────
 const EASE: [number, number, number, number] = [0.23, 1, 0.32, 1];
@@ -49,6 +49,15 @@ function LogoIcon({ size = 38 }: { size?: number }) {
         opacity="0.92"
       />
       <circle cx="31" cy="15" r="2" fill="white" opacity="0.92" />
+    </svg>
+  );
+}
+
+// ─── Apple icon ───────────────────────────────────────────────────────────────
+function AppleIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 814 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-42.2-150.3-109.2c-52.5-78.4-98.4-203.8-98.4-323.3C13 156.5 109.4 40 243.8 40c58 0 107.1 40.8 143.8 40.8 33.8 0 87.5-40.8 155.5-40.8 28.5 0 119.2 2.6 178.9 99.5zm-234-181.5c28.5-35.7 48.5-85.4 48.5-135.1 0-6.5-.6-13-1.9-18.2-45.3 1.9-99.9 32.5-133.7 72.5-26.7 31.7-52.5 81.4-52.5 133.1 0 7.1 1.3 14.3 1.9 16.5 3.2.6 8.4 1.3 13.6 1.3 40.8 0 89.5-29.8 124.1-70.1z"/>
     </svg>
   );
 }
@@ -110,6 +119,15 @@ function LoginPageInner() {
     setError(null);
     startTransition(async () => {
       const result = await signInWithGoogle();
+      if (result?.error) setError(result.error);
+    });
+  }
+
+  // ── Apple OAuth ─────────────────────────────────────────────────────────────
+  function handleApple() {
+    setError(null);
+    startTransition(async () => {
+      const result = await signInWithApple();
       if (result?.error) setError(result.error);
     });
   }
@@ -223,7 +241,7 @@ function LoginPageInner() {
                   required
                   autoFocus
                   autoComplete="email"
-                  placeholder="you@domain.com"
+                  placeholder="Email"
                   value={magicEmail}
                   onChange={e => setMagicEmail(e.target.value)}
                   style={INPUT}
@@ -298,28 +316,52 @@ function LoginPageInner() {
                 )}
               </AnimatePresence>
 
-              {/* Google button */}
-              <motion.button
-                type="button"
-                onClick={handleGoogle}
-                disabled={isPending}
-                whileHover={!isPending ? { scale: 1.01, background: "rgba(255,255,255,0.088)" } : {}}
-                whileTap={!isPending ? { scale: 0.98 } : {}}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-                  height: 46, width: "100%", borderRadius: 12,
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  color: "rgba(255,255,255,0.82)", fontSize: 14, fontWeight: 400,
-                  cursor: isPending ? "not-allowed" : "pointer",
-                  opacity: isPending ? 0.55 : 1,
-                  transition: "opacity 0.15s",
-                  letterSpacing: "0.01em",
-                }}
-              >
-                <GoogleIcon />
-                Continue with Google
-              </motion.button>
+              {/* Google + Apple buttons */}
+              <div style={{ display: "flex", gap: 10 }}>
+                <motion.button
+                  type="button"
+                  onClick={handleGoogle}
+                  disabled={isPending}
+                  whileHover={!isPending ? { scale: 1.01, background: "rgba(255,255,255,0.088)" } : {}}
+                  whileTap={!isPending ? { scale: 0.98 } : {}}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+                    height: 46, flex: 1, borderRadius: 12,
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    color: "rgba(255,255,255,0.82)", fontSize: 13, fontWeight: 400,
+                    cursor: isPending ? "not-allowed" : "pointer",
+                    opacity: isPending ? 0.55 : 1,
+                    transition: "background 0.15s, opacity 0.15s",
+                    letterSpacing: "0.01em",
+                  }}
+                >
+                  <GoogleIcon />
+                  Google
+                </motion.button>
+
+                <motion.button
+                  type="button"
+                  onClick={handleApple}
+                  disabled={isPending}
+                  whileHover={!isPending ? { scale: 1.01, background: "rgba(255,255,255,0.088)" } : {}}
+                  whileTap={!isPending ? { scale: 0.98 } : {}}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 9,
+                    height: 46, flex: 1, borderRadius: 12,
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    color: "rgba(255,255,255,0.82)", fontSize: 13, fontWeight: 400,
+                    cursor: isPending ? "not-allowed" : "pointer",
+                    opacity: isPending ? 0.55 : 1,
+                    transition: "background 0.15s, opacity 0.15s",
+                    letterSpacing: "0.01em",
+                  }}
+                >
+                  <AppleIcon />
+                  Apple
+                </motion.button>
+              </div>
 
               <OrDivider />
 
@@ -330,7 +372,7 @@ function LoginPageInner() {
                   name="email"
                   required
                   autoComplete="email"
-                  placeholder="you@domain.com"
+                  placeholder="Email"
                   style={INPUT}
                   onFocus={e => { e.currentTarget.style.borderColor = "rgba(139,92,246,0.38)"; e.currentTarget.style.background = "rgba(255,255,255,0.055)"; }}
                   onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}

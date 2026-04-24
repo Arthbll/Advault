@@ -93,6 +93,20 @@ export async function signInWithGoogle() {
   if (data.url) redirect(data.url);
 }
 
+export async function signInWithApple() {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "apple",
+    options: {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+    },
+  });
+
+  if (error) return { error: error.message };
+  if (data.url) redirect(data.url);
+}
+
 export async function signInWithMagicLink(formData: FormData) {
   const supabase = await createClient();
 
