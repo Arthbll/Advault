@@ -36,7 +36,7 @@ export async function register(formData: FormData) {
   const email    = formData.get("email")    as string;
   const password = formData.get("password") as string;
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -46,6 +46,12 @@ export async function register(formData: FormData) {
 
   if (error) {
     return { error: error.message };
+  }
+
+  // Supabase ne dit jamais explicitement "email déjà utilisé" (sécurité anti-enumération).
+  // Mais quand l'email existe déjà, il retourne un user avec identities: [].
+  if (data.user && data.user.identities?.length === 0) {
+    return { error: "An account with this email already exists. Try signing in instead." };
   }
 
   return { success: "Check your inbox and click the confirmation link to activate your account." };
