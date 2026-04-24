@@ -34,8 +34,15 @@ export async function GET() {
     ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
     : name.slice(0, 2).toUpperCase();
 
-  // Plan: Observer → Operator → Dominion → Command (team)
-  const plan: string = (meta.plan as string | undefined) ?? "Observer";
+  // Plan: observer → operator → dominion
+  const rawPlan = (meta.plan as string | undefined) ?? "observer";
+  const planId  = rawPlan.toLowerCase();                    // "observer" | "operator" | "dominion"
+  const planLabels: Record<string, string> = {
+    observer: "Free",
+    operator: "Operator",
+    dominion: "Dominion",
+  };
+  const plan = planLabels[planId] ?? "Free";               // label affiché dans le chip
 
   // Roles: admin > operator > member
   const rawRole = (meta.role as string | undefined) ?? "operator";
@@ -44,5 +51,5 @@ export async function GET() {
     rawRole === "member" ? "Member"   :
                            "Operator";
 
-  return NextResponse.json({ name, initials, plan, role });
+  return NextResponse.json({ name, initials, plan, planId, role });
 }

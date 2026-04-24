@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Save, CheckCircle2, Zap, BookOpen, ShieldOff, Shield, Play, AlertCircle, RefreshCw, Power, ChevronDown, Lock, TrendingUp, Link2 } from "lucide-react";
 import { useIsMobile } from "@/lib/hooks/useIsMobile";
+import { usePlan } from "@/hooks/usePlan";
+import Link from "next/link";
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 const C    = (op: number) => `rgba(255,255,255,${op})`;
@@ -203,6 +205,7 @@ function CustomFieldInline({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function DecisionRulesPage() {
   const isMobile = useIsMobile();
+  const { canUseAutomatic, plan: currentPlan } = usePlan();
   const [key,           setKey]           = useState<PresetKey>("balanced");
   const [saved,         setSaved]         = useState(false);
   const [saving,        setSaving]        = useState(false);
@@ -649,49 +652,72 @@ export default function DecisionRulesPage() {
             </button>
 
             {/* ── Bloc 5: Engine Mode Toggle ─────────────────────────────── */}
-            <div style={{
-              display:      "flex",
-              alignItems:   "center",
-              borderRadius: 14,
-              border:       `1px solid ${engineMode === "automatic" ? "rgba(74,222,128,0.22)" : "rgba(139,92,246,0.20)"}`,
-              background:   engineMode === "automatic" ? "rgba(74,222,128,0.06)" : "rgba(139,92,246,0.06)",
-              padding:      3,
-              gap:          2,
-              transition:   "all 0.25s ease",
-            }}>
-              {(["recommendation", "automatic"] as const).map(m => {
-                const isActive = engineMode === m;
-                const Icon = m === "automatic" ? Zap : BookOpen;
-                return (
-                  <button
-                    key={m}
-                    onClick={() => handleModeSwitch(m)}
-                    style={{
-                      height:        34,
-                      padding:       "0 13px",
-                      borderRadius:  11,
-                      border:        "none",
-                      background:    isActive
-                        ? m === "automatic" ? "rgba(74,222,128,0.16)" : "rgba(139,92,246,0.18)"
-                        : "transparent",
-                      color:         isActive
-                        ? m === "automatic" ? "#86efac" : "rgba(196,181,253,1)"
-                        : C(0.38),
-                      fontSize:      12,
-                      fontWeight:    isActive ? 600 : 400,
-                      cursor:        "pointer",
-                      transition:    "all 0.18s ease",
-                      display:       "flex",
-                      alignItems:    "center",
-                      gap:           5,
-                      whiteSpace:    "nowrap" as const,
-                    }}
-                  >
-                    <Icon size={11} />
-                    {m === "automatic" ? "Automatic" : "Recommend"}
-                  </button>
-                );
-              })}
+            <div style={{ position: "relative" }}>
+              <div style={{
+                display:      "flex",
+                alignItems:   "center",
+                borderRadius: 14,
+                border:       `1px solid ${engineMode === "automatic" ? "rgba(74,222,128,0.22)" : "rgba(139,92,246,0.20)"}`,
+                background:   engineMode === "automatic" ? "rgba(74,222,128,0.06)" : "rgba(139,92,246,0.06)",
+                padding:      3,
+                gap:          2,
+                transition:   "all 0.25s ease",
+                opacity:      canUseAutomatic ? 1 : 0.6,
+              }}>
+                {(["recommendation", "automatic"] as const).map(m => {
+                  const isActive = engineMode === m;
+                  const Icon = m === "automatic" ? Zap : BookOpen;
+                  const isLocked = m === "automatic" && !canUseAutomatic;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => isLocked ? null : handleModeSwitch(m)}
+                      title={isLocked ? `Automatic mode — available on Dominion. ${currentPlan.upgradeLabel}` : undefined}
+                      style={{
+                        height:        34,
+                        padding:       "0 13px",
+                        borderRadius:  11,
+                        border:        "none",
+                        background:    isActive
+                          ? m === "automatic" ? "rgba(74,222,128,0.16)" : "rgba(139,92,246,0.18)"
+                          : "transparent",
+                        color:         isActive
+                          ? m === "automatic" ? "#86efac" : "rgba(196,181,253,1)"
+                          : C(0.38),
+                        fontSize:      12,
+                        fontWeight:    isActive ? 600 : 400,
+                        cursor:        isLocked ? "not-allowed" : "pointer",
+                        transition:    "all 0.18s ease",
+                        display:       "flex",
+                        alignItems:    "center",
+                        gap:           5,
+                        whiteSpace:    "nowrap" as const,
+                      }}
+                    >
+                      {isLocked ? <Lock size={10} strokeWidth={2} /> : <Icon size={11} />}
+                      {m === "automatic" ? "Automatic" : "Recommend"}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Badge "Dominion only" si le mode automatique est verrouillé */}
+              {!canUseAutomatic && (
+                <Link
+                  href="/dashboard/settings?tab=plan"
+                  style={{
+                    position: "absolute", top: -8, right: -8,
+                    display: "flex", alignItems: "center", gap: 3,
+                    padding: "2px 7px", borderRadius: 99,
+                    background: "rgba(139,92,246,0.12)",
+                    border: "1px solid rgba(139,92,246,0.25)",
+                    fontSize: 9, fontWeight: 700, color: "rgba(196,181,253,0.9)",
+                    textDecoration: "none", letterSpacing: "0.06em", textTransform: "uppercase",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <Lock size={7} strokeWidth={2.5} /> Dominion
+                </Link>
+              )}
             </div>
 
             {/* Preset segmented control */}

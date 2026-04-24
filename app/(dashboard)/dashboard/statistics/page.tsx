@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { RefreshCw, Download, ChevronLeft, Zap, BookOpen, AlertCircle } from "lucide-react";
+import { RefreshCw, Download, ChevronLeft, Zap, BookOpen, AlertCircle, Lock } from "lucide-react";
 import EmptyStateCard from "@/components/ui/EmptyStateCard";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { usePlan } from "@/hooks/usePlan";
+import PlanGate from "@/components/ui/PlanGate";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const BG   = "#0d0d10";
@@ -298,6 +300,7 @@ function NetRow({ name, profit, roi, pct, color }: {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function StatisticsPage() {
   const router         = useRouter();
+  const { planId, canViewAnalytics, canExportCsv, canUseDrillDown } = usePlan();
   const [range,        setRange]        = useState<DateRange>(PRESETS[2]);
   const [loading,      setLoading]      = useState(true);
   const [dashData,     setDashData]     = useState<DashStats | null>(null);
@@ -472,6 +475,46 @@ export default function StatisticsPage() {
   const donutBg    = `conic-gradient(rgba(110,231,183,0.8) 0 ${activePct}%,rgba(148,163,184,0.55) ${activePct}% ${activePct + pausedPct}%,rgba(251,191,36,0.65) ${activePct + pausedPct}% 100%)`;
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  // Observer (Free) : page entièrement verrouillée
+  if (!canViewAnalytics) {
+    return (
+      <div style={{ minHeight: "100vh", background: BG, padding: "22px 26px 80px", color: C(0.88), display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center", maxWidth: 400 }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 18, margin: "0 auto 24px",
+            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Lock size={26} strokeWidth={1.3} color="rgba(255,255,255,0.35)" />
+          </div>
+          <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.28)", margin: "0 0 12px" }}>
+            Analytics
+          </p>
+          <h2 style={{ fontSize: 32, fontWeight: 300, letterSpacing: "-0.04em", margin: "0 0 14px" }}>
+            Available on Operator
+          </h2>
+          <p style={{ fontSize: 14, color: C(0.38), lineHeight: 1.7, margin: "0 0 28px" }}>
+            Unlock performance trends, network breakdowns, campaign analysis and CSV export by upgrading your plan.
+          </p>
+          <Link
+            href="/dashboard/settings?tab=plan"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              padding: "11px 24px", borderRadius: 99,
+              background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.14)",
+              fontSize: 13, fontWeight: 600, color: C(0.85), textDecoration: "none",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            <Lock size={12} strokeWidth={2} />
+            Upgrade to Operator
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: BG, padding: "22px 26px 80px", color: C(0.88) }}>
 
@@ -547,16 +590,29 @@ export default function StatisticsPage() {
               background: "rgba(255,255,255,0.03)", color: C(0.7),
               padding: "9px 16px", fontSize: 13, cursor: "pointer",
             }}>Custom</button>
-            <button onClick={exportCSV} disabled={loading} style={{
-              borderRadius: 16, border: "1px solid rgba(52,211,153,0.14)",
-              background: "rgba(16,185,129,0.08)", color: "rgba(167,243,208,1)",
-              padding: "9px 16px", fontSize: 13, cursor: "pointer",
-              opacity: loading ? 0.5 : 1,
-              display: "flex", alignItems: "center", gap: 6,
-            }}>
-              <Download size={12} strokeWidth={1.6} />
-              CSV
-            </button>
+            {canExportCsv ? (
+              <button onClick={exportCSV} disabled={loading} style={{
+                borderRadius: 16, border: "1px solid rgba(52,211,153,0.14)",
+                background: "rgba(16,185,129,0.08)", color: "rgba(167,243,208,1)",
+                padding: "9px 16px", fontSize: 13, cursor: "pointer",
+                opacity: loading ? 0.5 : 1,
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <Download size={12} strokeWidth={1.6} />
+                CSV
+              </button>
+            ) : (
+              <Link href="/dashboard/settings?tab=plan" style={{
+                borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.03)", color: C(0.3),
+                padding: "9px 16px", fontSize: 13, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6,
+                textDecoration: "none", opacity: 0.7,
+              }} title="CSV export available on Dominion">
+                <Lock size={11} strokeWidth={1.8} />
+                CSV
+              </Link>
+            )}
             {loading && (
               <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
                 <RefreshCw size={14} color={C(0.28)} />
@@ -816,10 +872,15 @@ export default function StatisticsPage() {
               >
                 <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.22em", color: C(0.24), marginBottom: 6 }}>By network</div>
                 <div style={{ fontSize: 22, fontWeight: 200, letterSpacing: "-0.04em", marginBottom: 22 }}>Profit contribution</div>
-                {netRows.length > 0
-                  ? netRows.map(n => <NetRow key={n.key} name={n.label} profit={n.profit} roi={n.roi} pct={n.pct} color={n.color} />)
-                  : <div style={{ color: C(0.28), fontSize: 12 }}>No network data for this period.</div>
-                }
+                {canUseDrillDown ? (
+                  netRows.length > 0
+                    ? netRows.map(n => <NetRow key={n.key} name={n.label} profit={n.profit} roi={n.roi} pct={n.pct} color={n.color} />)
+                    : <div style={{ color: C(0.28), fontSize: 12 }}>No network data for this period.</div>
+                ) : (
+                  <PlanGate planId={planId} requiredPlan="dominion" feature="Network breakdown" description="Drill-down by network available on Dominion.">
+                    <div style={{ height: 120 }} />
+                  </PlanGate>
+                )}
               </motion.div>
 
               <motion.div
@@ -829,19 +890,25 @@ export default function StatisticsPage() {
               >
                 <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.22em", color: C(0.24), marginBottom: 6 }}>Geo breakdown</div>
                 <div style={{ fontSize: 22, fontWeight: 200, letterSpacing: "-0.04em", marginBottom: 18 }}>Profitability by geography</div>
-                <div style={{
-                  borderRadius: 18, border: "1px solid rgba(255,255,255,0.06)",
-                  background: "rgba(255,255,255,0.015)", padding: "24px 20px",
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center",
-                }}>
-                  <div style={{ fontSize: 28, opacity: 0.25 }}>🌍</div>
-                  <div style={{ fontSize: 13, color: C(0.55), lineHeight: 1.6 }}>
-                    Geo-level ROI breakdown requires conversion postback data.
+                {canUseDrillDown ? (
+                  <div style={{
+                    borderRadius: 18, border: "1px solid rgba(255,255,255,0.06)",
+                    background: "rgba(255,255,255,0.015)", padding: "24px 20px",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center",
+                  }}>
+                    <div style={{ fontSize: 28, opacity: 0.25 }}>🌍</div>
+                    <div style={{ fontSize: 13, color: C(0.55), lineHeight: 1.6 }}>
+                      Geo-level ROI breakdown requires conversion postback data.
+                    </div>
+                    <div style={{ fontSize: 11, color: C(0.28) }}>
+                      Connect your tracker or enable postback to unlock geo analytics.
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11, color: C(0.28) }}>
-                    Connect your tracker or enable postback to unlock geo analytics.
-                  </div>
-                </div>
+                ) : (
+                  <PlanGate planId={planId} requiredPlan="dominion" feature="Geo breakdown" description="Country-level ROI analysis available on Dominion.">
+                    <div style={{ height: 120 }} />
+                  </PlanGate>
+                )}
               </motion.div>
             </div>
           </div>

@@ -9,6 +9,8 @@ import {
   IconRefresh, IconPause, IconPlay, IconMinus, IconArrowRight, IconX,
 } from "@/components/ui/Icons";
 import ResumeCampaignModal, { type DraftInfo } from "@/components/campaigns/ResumeCampaignModal";
+import { usePlan } from "@/hooks/usePlan";
+import { Lock } from "lucide-react";
 
 const DRAFT_KEY          = "profitdash_campaign_draft";
 const ARCHIVED_DRAFTS_KEY = "profitdash_archived_drafts";
@@ -131,6 +133,8 @@ function CampaignsPageInner() {
   const isMobile     = useIsMobile();
   const router       = useRouter();
   const searchParams = useSearchParams();
+  const { planId, campaignLimit, hasAccess: planHasAccess } = usePlan();
+  const [campaignCount, setCampaignCount] = useState<{ current: number; limit: number } | null>(null);
   const [campaigns,     setCampaigns]     = useState<Campaign[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [syncing,       setSyncing]       = useState(false);
@@ -359,6 +363,12 @@ function CampaignsPageInner() {
       })
       .catch(() => { /* keep defaults */ });
 
+    // Récupérer le compteur de campagnes (pour la limite par plan)
+    fetch("/api/campaigns/count")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { current: number; limit: number } | null) => { if (d) setCampaignCount(d); })
+      .catch(() => {});
+
     // Auto-sync on page open: pull fresh data from ad networks immediately,
     // then show campaigns. No need to click "Sync now" manually.
     async function openSync() {
@@ -537,18 +547,51 @@ function CampaignsPageInner() {
               {backfilling ? "Import…" : "Last 90 days"}
             </motion.button>
 
+            {/* Compteur de campagnes selon le plan */}
+            {campaignCount && campaignCount.limit !== Infinity && (
+              <div style={{
+                fontSize: 11, fontWeight: 500,
+                color: campaignCount.current >= campaignCount.limit
+                  ? "rgba(248,113,113,0.85)"
+                  : "rgba(255,255,255,0.32)",
+                background: campaignCount.current >= campaignCount.limit
+                  ? "rgba(248,113,113,0.08)"
+                  : "rgba(255,255,255,0.04)",
+                border: `1px solid ${campaignCount.current >= campaignCount.limit
+                  ? "rgba(248,113,113,0.2)"
+                  : "rgba(255,255,255,0.08)"}`,
+                borderRadius: 99, padding: "4px 10px",
+              }}>
+                {campaignCount.current} / {campaignCount.limit} campaigns
+              </div>
+            )}
             <motion.button
-              onClick={handleNewCampaign}
-              whileTap={{ scale: 0.97 }}
+              onClick={campaignCount && campaignCount.current >= campaignCount.limit ? undefined : handleNewCampaign}
+              whileTap={campaignCount && campaignCount.current >= campaignCount.limit ? {} : { scale: 0.97 }}
               style={{
                 display: "flex", alignItems: "center", gap: 7,
                 padding: "9px 18px", borderRadius: 14, fontSize: 12, fontWeight: 600,
-                background: "#ffffff",
-                color: "#000000", border: "none", cursor: "pointer",
+                background: campaignCount && campaignCount.current >= campaignCount.limit
+                  ? "rgba(255,255,255,0.08)"
+                  : "#ffffff",
+                color: campaignCount && campaignCount.current >= campaignCount.limit
+                  ? "rgba(255,255,255,0.3)"
+                  : "#000000",
+                border: "none",
+                cursor: campaignCount && campaignCount.current >= campaignCount.limit ? "not-allowed" : "pointer",
+                opacity: campaignCount && campaignCount.current >= campaignCount.limit ? 0.6 : 1,
               }}
+              title={campaignCount && campaignCount.current >= campaignCount.limit
+                ? `Campaign limit reached (${campaignCount.limit}/${campaignCount.limit}). Upgrade your plan to create more.`
+                : undefined}
             >
+              {campaignCount && campaignCount.current >= campaignCount.limit
+                ? <Lock size={11} strokeWidth={2} />
+                : null}
               Launch new campaign
-              <IconArrowRight size={11} strokeWidth={2} />
+              {!(campaignCount && campaignCount.current >= campaignCount.limit) && (
+                <IconArrowRight size={11} strokeWidth={2} />
+              )}
             </motion.button>
           </div>
         </div>

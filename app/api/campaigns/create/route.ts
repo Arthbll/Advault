@@ -12,6 +12,7 @@ import { TrafficJunkyAdapter } from "@/lib/adapters/trafficjunky";
 import { Network, CampaignStatus } from "@prisma/client";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
 import { assertCanMutate } from "@/lib/team-role";
+import { getSessionPlanId, checkCampaignLimit } from "@/lib/plan-access";
 
 // ─── Post-creation verification helpers ──────────────────────────────────────
 //
@@ -169,6 +170,20 @@ export async function POST(req: NextRequest) {
     if (viewerBlock) return viewerBlock;
 
     const userId = await resolveWorkspaceUserId(user.id);
+
+    // ── Vérification de la limite de campagnes par plan ────────────────────
+    const planId = await getSessionPlanId();
+    const limitCheck = await checkCampaignLimit(userId, planId);
+    if (!limitCheck.allowed) {
+      return NextResponse.json({
+        error:   "Campaign limit reached",
+        code:    "PLAN_LIMIT",
+        current: limitCheck.current,
+        limit:   limitCheck.limit,
+        planId,
+      }, { status: 403 });
+    }
+    // ──────────────────────────────────────────────────────────────────────
 
     let body: Record<string, unknown> & { network?: string };
     try { body = await req.json(); }
