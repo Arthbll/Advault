@@ -783,7 +783,7 @@ export default function SettingsPageClient({
         label: "Operator",
         tagline: "Active campaign management",
         price: "€99/mo",
-        features: ["Everything in Observer", "Campaign execution", "Kill-switch engine", "Postback tracking"],
+        features: ["Everything in Observer", "Campaign execution", "Decision Engine", "Postback tracking"],
         tone: "sky",
       },
       {

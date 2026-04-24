@@ -380,7 +380,7 @@ export default function KillSwitchSettings() {
     const verb = cfg.engineMode === "automatic" ? "will" : "would";
 
     if (!cfg.killSwitchEnabled) {
-      lines.push("Kill switch is OFF — no campaigns will be paused automatically");
+      lines.push("Decision Engine is OFF — no campaigns will be paused automatically");
     } else if (cfg.spendOnlyMode) {
       lines.push(`Engine ${verb} ignore ROI — spend-only mode is active`);
       if (cfg.maxSpendPerCampaign != null) {
@@ -456,7 +456,7 @@ export default function KillSwitchSettings() {
       const res = await fetch("/api/kill-switch/run", { method: "POST" });
       const j   = await res.json() as { killed?: number; checked?: number; skipped?: boolean };
       if (j.skipped) {
-        showToast("Kill-switch is disabled — enable it above", false);
+        showToast("Decision Engine is disabled — enable it above", false);
       } else {
         const label = cfg.engineMode === "recommendation" ? "scan (Recommend mode)" : "scan";
         showToast(`${label}: ${j.checked ?? 0} campaigns checked, ${j.killed ?? 0} acted on`, true);
@@ -609,7 +609,7 @@ export default function KillSwitchSettings() {
         <Toggle
           value={cfg.killSwitchEnabled}
           onChange={v => setCfg(prev => ({ ...prev, killSwitchEnabled: v }))}
-          label="Kill Switch"
+          label="Decision Engine"
           description="Enable automated campaign pausing. When off, the engine never touches your campaigns regardless of other settings."
           color="#4ade80"
         />

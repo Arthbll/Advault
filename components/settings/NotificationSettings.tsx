@@ -134,7 +134,7 @@ export default function NotificationSettings() {
               style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {([
                 { key: "onSync"       as const, label: "Sync complete",      desc: "When auto-sync finishes"        },
-                { key: "onKillSwitch" as const, label: "Kill-switch fired",   desc: "When a campaign is stopped"     },
+                { key: "onKillSwitch" as const, label: "Engine action fired", desc: "When a campaign is stopped"     },
               ]).map(({ key, label, desc }) => (
                 <div key={key} onClick={() => togglePref(key)}
                   style={{

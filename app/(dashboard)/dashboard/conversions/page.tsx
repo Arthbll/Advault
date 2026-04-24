@@ -1,26 +1,29 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw, ChevronLeft, ChevronRight, AlertCircle, X, ChevronDown } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ConvRow {
-  id:           string;
-  campaignId:   string | null;
-  campaignName: string | null;
-  clickId:      string | null;
-  revenue:      number;
-  currency:     string;
-  source:       string | null;
-  createdAt:    string;
+  id:                 string;
+  campaignId:         string | null; // external network ID
+  campaignInternalId: string | null; // our internal UUID — use this for links
+  campaignName:       string | null;
+  clickId:            string | null;
+  revenue:            number;
+  currency:           string;
+  source:             string | null;
+  createdAt:          string;
 }
 interface SourceRow { source: string; revenue: number; count: number; }
 interface ConvData {
   totalRevenue: number; totalCount: number;
   page: number; limit: number;
   rows: ConvRow[]; bySource: SourceRow[];
+  filterCampaign: { id: string; name: string | null } | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -93,7 +96,10 @@ function SourceBadge({ source }: { source: string | null }) {
 
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export default function ConversionsPage() {
+function ConversionsPageInner() {
+  const searchParams   = useSearchParams();
+  const urlCampaignId  = searchParams.get("campaignId"); // internal UUID from campaign detail
+
   const [dateFrom, setDateFrom] = useState(iso30dAgo());
   const [dateTo,   setDateTo]   = useState(isoToday());
   const [page,     setPage]     = useState(0);
@@ -121,7 +127,12 @@ export default function ConversionsPage() {
   const load = useCallback(async (df: string, dt: string, p: number) => {
     setLoading(true);
     try {
-      const res  = await fetch(`/api/conversions?dateFrom=${df}&dateTo=${dt}&page=${p}&limit=50`);
+      const qs = new URLSearchParams({
+        dateFrom: df, dateTo: dt,
+        page: String(p), limit: "50",
+        ...(urlCampaignId ? { campaignId: urlCampaignId } : {}),
+      });
+      const res  = await fetch(`/api/conversions?${qs}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as ConvData;
       setData(json);
@@ -130,7 +141,7 @@ export default function ConversionsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [urlCampaignId]);
 
   useEffect(() => { load(dateFrom, dateTo, page); }, [load, dateFrom, dateTo, page]);
 
@@ -227,6 +238,43 @@ export default function ConversionsPage() {
             </button>
           </div>
         </div>
+
+        {/* ── Campaign filter banner ── */}
+        {(data?.filterCampaign ?? urlCampaignId) && (
+          <div style={{
+            padding: "12px 32px",
+            borderBottom: "1px solid rgba(99,102,241,0.15)",
+            background: "rgba(99,102,241,0.05)",
+            display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(165,180,252,0.6)" }}>
+              Filtered by campaign
+            </span>
+            <span style={{
+              fontSize: 12, fontWeight: 500, color: "rgba(199,210,254,1)",
+              background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)",
+              borderRadius: 8, padding: "3px 10px",
+            }}>
+              {data?.filterCampaign?.name ?? "Loading…"}
+            </span>
+            <Link
+              href={`/dashboard/campaigns/${urlCampaignId}`}
+              style={{ fontSize: 12, color: "rgba(165,180,252,0.7)", textDecoration: "none", marginLeft: 4 }}
+            >
+              ← Back to campaign
+            </Link>
+            <div style={{ flex: 1 }} />
+            <Link
+              href="/dashboard/conversions"
+              style={{
+                fontSize: 11, color: "rgba(255,255,255,0.38)", textDecoration: "none",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <X size={11} /> Clear filter
+            </Link>
+          </div>
+        )}
 
         <div style={{ padding: "32px", display: "flex", flexDirection: "column", gap: 28 }}>
 
@@ -494,9 +542,9 @@ export default function ConversionsPage() {
                         >
                           <div style={{ color: "rgba(255,255,255,0.34)", fontSize: 13 }}>{fmtDate(row.createdAt)}</div>
                           <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {row.campaignId ? (
+                            {row.campaignInternalId ? (
                               <Link
-                                href={`/dashboard/campaigns/${row.campaignId}`}
+                                href={`/dashboard/campaigns/${row.campaignInternalId}`}
                                 style={{ color: "rgba(255,255,255,0.78)", textDecoration: "none", transition: "color 0.15s" }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "rgba(196,181,253,0.9)"; }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.78)"; }}
@@ -552,5 +600,13 @@ export default function ConversionsPage() {
         button { font-family: inherit; }
       `}</style>
     </div>
+  );
+}
+
+export default function ConversionsPage() {
+  return (
+    <Suspense>
+      <ConversionsPageInner />
+    </Suspense>
   );
 }

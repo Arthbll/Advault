@@ -5,6 +5,8 @@ import { updateSession } from "@/lib/supabase/middleware";
 // Elles ne doivent JAMAIS passer par le guard Supabase — retour immédiat sans vérification.
 const PUBLIC_API_PREFIXES = [
   "/api/cron/",
+  "/api/kill-switch/run",    // Vercel Cron → CRON_SECRET, pas de session Supabase
+  "/api/stripe/webhook",     // Stripe → stripe-signature, pas de session Supabase
   "/api/track",
   "/api/postback",
   "/api/demo",
@@ -15,6 +17,7 @@ const PUBLIC_API_PREFIXES = [
 const PUBLIC_PAGE_PREFIXES = [
   "/upgrade-success",
   "/welcome",
+  "/invite", // page d'invitation équipe — gère elle-même l'auth (formulaire OTP / mot de passe)
 ];
 
 export async function proxy(request: NextRequest) {
