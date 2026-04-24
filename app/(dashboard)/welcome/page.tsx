@@ -862,10 +862,11 @@ function Step5({
 
 // ─── Step 6: Decision Engine ──────────────────────────────────────────────────
 
-function Step6({ onFinish }: { onFinish: (mode: "recommendation" | "automatic") => void }) {
+function Step6({ onFinish }: { onFinish: (mode: "recommendation" | "automatic" | "skipped") => void }) {
   const [selected, setSelected] = useState<"recommendation" | "automatic">("recommendation");
   const [signal, setSignal]     = useState<boolean | null>(null);
   const [saving, setSaving]     = useState(false);
+  const [saveErr, setSaveErr]   = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/revenue/signal")
@@ -879,13 +880,33 @@ function Step6({ onFinish }: { onFinish: (mode: "recommendation" | "automatic") 
 
   async function activate() {
     setSaving(true);
-    await fetch("/api/rules", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ engineMode: selected }),
-    }).catch(() => {});
+    setSaveErr(null);
+    try {
+      // Use /api/settings PATCH-style PUT — only sends engineMode, preserves other fields
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ engineMode: selected }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setSaveErr((d as { error?: string }).error ?? "Save failed — you can change this in Decision Rules later.");
+        setSaving(false);
+        return;
+      }
+    } catch {
+      setSaveErr("Network error — you can change this in Decision Rules later.");
+      setSaving(false);
+      return;
+    }
     await fetch("/api/user/welcome", { method: "POST" }).catch(() => {});
     onFinish(selected);
+  }
+
+  async function skip() {
+    // Mark as welcomed without saving a specific engine mode (defaults apply)
+    await fetch("/api/user/welcome", { method: "POST" }).catch(() => {});
+    onFinish("skipped");
   }
 
   const MODES: Array<{
@@ -991,9 +1012,23 @@ function Step6({ onFinish }: { onFinish: (mode: "recommendation" | "automatic") 
         })}
       </div>
 
-      <Cta onClick={activate} loading={saving}>
-        <Zap size={14} /> Activate engine
-      </Cta>
+      {saveErr && (
+        <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 12, fontSize: 12, background: "rgba(255,139,139,0.07)", border: "1px solid rgba(255,139,139,0.18)", color: "#ff8b8b", lineHeight: 1.6 }}>
+          {saveErr}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 0 }}>
+        <Cta onClick={activate} loading={saving}>
+          <Zap size={14} /> Activate engine
+        </Cta>
+        <Cta onClick={skip} variant="ghost">
+          Skip for now
+        </Cta>
+      </div>
+      <p style={{ marginTop: 10, fontSize: 11, color: MUTED }}>
+        You can change engine mode at any time in Decision Rules.
+      </p>
     </div>
   );
 }
@@ -1008,9 +1043,9 @@ export default function WelcomePage() {
 
   function next() { setStep(s => Math.min(s + 1, TOTAL_STEPS)); }
 
-  async function handleFinish(mode: "recommendation" | "automatic") {
+  async function handleFinish(mode: "recommendation" | "automatic" | "skipped") {
+    void mode; // already saved in Step6.activate() (or skipped intentionally)
     router.push("/dashboard");
-    void mode; // already saved in Step6.activate()
   }
 
   return (

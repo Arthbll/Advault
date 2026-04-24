@@ -90,7 +90,8 @@ function LoginPageInner() {
   const [error,   setError]   = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [showPw,  setShowPw]  = useState(false);
-  const [kickedBanner, setKickedBanner] = useState(false);
+  const [kickedBanner,     setKickedBanner]     = useState(false);
+  const [confirmedBanner,  setConfirmedBanner]  = useState(false);
 
   // Magic link mode state
   const [magicMode, setMagicMode] = useState(false);
@@ -101,6 +102,7 @@ function LoginPageInner() {
 
   useEffect(() => {
     if (searchParams?.get("reason") === "kicked") setKickedBanner(true);
+    if (searchParams?.get("confirmed") === "true")  setConfirmedBanner(true);
   }, [searchParams]);
 
   // ── Normal sign-in ──────────────────────────────────────────────────────────
@@ -301,6 +303,24 @@ function LoginPageInner() {
               transition={{ duration: 0.35, ease: EASE }}
               style={{ display: "flex", flexDirection: "column", gap: 10 }}
             >
+              {/* Email confirmed banner */}
+              <AnimatePresence>
+                {confirmedBanner && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: 12, fontSize: 13, background: "rgba(52,211,153,0.07)", border: "1px solid rgba(52,211,153,0.20)", color: "rgba(167,243,208,0.92)", lineHeight: 1.65 }}
+                  >
+                    <CheckCircle size={15} style={{ marginTop: 1, flexShrink: 0, color: "#6ee7b7" }} />
+                    <div>
+                      <div style={{ fontWeight: 500, marginBottom: 2 }}>Email confirmed</div>
+                      Your email address has been verified. You can now sign in.
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Kicked banner */}
               <AnimatePresence>
                 {kickedBanner && (
