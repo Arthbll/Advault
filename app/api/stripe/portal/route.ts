@@ -10,28 +10,36 @@ import { stripe } from "@/lib/stripe";
  * (changer de plan, annuler, voir les factures).
  */
 export async function POST() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const customerId = (dbUser as any)?.stripeCustomerId as string | undefined;
+
+    if (!customerId) {
+      return NextResponse.json(
+        { error: "No active subscription found" },
+        { status: 400 }
+      );
+    }
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://advault-project.vercel.app";
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${siteUrl}/dashboard/settings?tab=billing`,
+    });
+
+    return NextResponse.json({ url: session.url });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[stripe/portal]", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
-
-  if (!dbUser?.stripeCustomerId) {
-    return NextResponse.json(
-      { error: "No active subscription found" },
-      { status: 400 }
-    );
-  }
-
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-
-  const session = await stripe.billingPortal.sessions.create({
-    customer: dbUser.stripeCustomerId,
-    return_url: `${siteUrl}/dashboard/settings?tab=billing`,
-  });
-
-  return NextResponse.json({ url: session.url });
 }
