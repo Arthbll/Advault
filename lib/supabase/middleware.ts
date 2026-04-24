@@ -40,7 +40,9 @@ export async function updateSession(request: NextRequest) {
                        || pathname.startsWith("/api/waitlist")
                        || pathname.startsWith("/privacy")
                        || pathname.startsWith("/terms")
-                       || pathname.startsWith("/auth/callback");
+                       || pathname.startsWith("/auth/callback")
+                       || pathname.startsWith("/upgrade-success")
+                       || pathname.startsWith("/welcome");
 
   // Redirect unauthenticated users away from protected routes
   if (!user && !isAuthRoute && !isMFAChallenge && !isPublicRoute) {

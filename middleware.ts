@@ -11,10 +11,20 @@ const PUBLIC_API_PREFIXES = [
   "/api/waitlist",
 ];
 
-export async function proxy(request: NextRequest) {
+// Pages publiques accessibles sans connexion
+const PUBLIC_PAGE_PREFIXES = [
+  "/upgrade-success",
+  "/welcome",
+];
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_API_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+    return NextResponse.next();
+  }
+
+  if (PUBLIC_PAGE_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
     return NextResponse.next();
   }
 
