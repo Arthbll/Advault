@@ -794,9 +794,17 @@ export default function SettingsPageClient({
         features: ["Everything in Operator", "Engine defaults & rules", "Advanced ROI tracking", "Priority sync intervals"],
         tone: "violet",
       },
+      {
+        id: "command",
+        label: "Command",
+        tagline: "Full workspace with team management",
+        price: "Custom",
+        features: ["Everything in Dominion", "Invite team members", "Role-based access", "Shared workspace"],
+        tone: "rose",
+      },
     ];
 
-    const PLAN_ORDER = ["observer", "operator", "dominion"];
+    const PLAN_ORDER = ["observer", "operator", "dominion", "command"];
     const activePlanId = stripeData?.planId ?? "observer";
     const currentIdx = PLAN_ORDER.indexOf(activePlanId);
 
@@ -893,30 +901,45 @@ export default function SettingsPageClient({
                 </div>
 
                 {/* CTA */}
-                <button
-                  disabled={isCurrent || planLoading === p.id || p.id === "observer"}
-                  onClick={() => !isCurrent && p.id !== "observer" && handlePlanChange(p.id)}
-                  style={{
-                    marginTop: 22, width: "100%", borderRadius: 14, padding: "10px 0",
-                    fontSize: 12, fontWeight: 500,
-                    cursor: (isCurrent || p.id === "observer") ? "default" : "pointer",
-                    border: isCurrent ? `1px solid ${t.border}` : "1px solid rgba(255,255,255,0.10)",
-                    background: isCurrent ? t.bg : isUpgrade ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.04)",
-                    color: isCurrent ? t.text : isUpgrade ? "rgba(255,255,255,0.70)" : "rgba(255,255,255,0.35)",
-                    transition: "all 0.2s",
-                    opacity: planLoading === p.id ? 0.6 : 1,
-                  }}
-                >
-                  {planLoading === p.id
-                    ? "Redirecting…"
-                    : isCurrent
-                    ? "Current plan"
-                    : p.id === "observer"
-                    ? "Free forever"
-                    : isUpgrade
-                    ? `Upgrade to ${p.label} →`
-                    : `Switch to ${p.label}`}
-                </button>
+                {p.id === "command" && !isCurrent ? (
+                  <a
+                    href="mailto:arthur.bonelli67@gmail.com?subject=Command Plan — ProfitDash&body=Hi, I'm interested in the Command plan."
+                    style={{
+                      marginTop: 22, display: "block", width: "100%", borderRadius: 14, padding: "10px 0",
+                      fontSize: 12, fontWeight: 500, textAlign: "center", textDecoration: "none",
+                      border: `1px solid ${t.border}`,
+                      background: t.bg,
+                      color: t.text,
+                    }}
+                  >
+                    Contact us →
+                  </a>
+                ) : (
+                  <button
+                    disabled={isCurrent || planLoading === p.id || p.id === "observer" || p.id === "command"}
+                    onClick={() => !isCurrent && p.id !== "observer" && p.id !== "command" && handlePlanChange(p.id)}
+                    style={{
+                      marginTop: 22, width: "100%", borderRadius: 14, padding: "10px 0",
+                      fontSize: 12, fontWeight: 500,
+                      cursor: (isCurrent || p.id === "observer" || p.id === "command") ? "default" : "pointer",
+                      border: isCurrent ? `1px solid ${t.border}` : "1px solid rgba(255,255,255,0.10)",
+                      background: isCurrent ? t.bg : isUpgrade ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.04)",
+                      color: isCurrent ? t.text : isUpgrade ? "rgba(255,255,255,0.70)" : "rgba(255,255,255,0.35)",
+                      transition: "all 0.2s",
+                      opacity: planLoading === p.id ? 0.6 : 1,
+                    }}
+                  >
+                    {planLoading === p.id
+                      ? "Redirecting…"
+                      : isCurrent
+                      ? "Current plan"
+                      : p.id === "observer"
+                      ? "Free forever"
+                      : isUpgrade
+                      ? `Upgrade to ${p.label} →`
+                      : `Switch to ${p.label}`}
+                  </button>
+                )}
               </motion.div>
             );
           })}
