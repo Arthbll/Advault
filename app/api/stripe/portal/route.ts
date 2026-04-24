@@ -8,6 +8,7 @@ import { stripe } from "@/lib/stripe";
  *
  * Crée une session Stripe Customer Portal pour gérer l'abonnement
  * (changer de plan, annuler, voir les factures).
+ * Crée automatiquement une configuration portal si aucune n'existe.
  */
 export async function POST() {
   try {
@@ -31,9 +32,48 @@ export async function POST() {
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://advault-project.vercel.app";
 
+    // Récupérer ou créer la configuration du portail
+    let configurationId: string | undefined;
+    try {
+      const configs = await stripe.billingPortal.configurations.list({ limit: 1 });
+      if (configs.data.length > 0) {
+        configurationId = configs.data[0].id;
+      }
+    } catch { /* ignore */ }
+
+    if (!configurationId) {
+      const config = await stripe.billingPortal.configurations.create({
+        business_profile: {
+          headline: "Manage your ProfitDash subscription",
+        },
+        features: {
+          subscription_cancel: { enabled: true },
+          subscription_update: {
+            enabled: true,
+            default_allowed_updates: ["price"],
+            proration_behavior: "create_prorations",
+            products: [
+              {
+                product: (await stripe.prices.retrieve(
+                  process.env.STRIPE_PRICE_OPERATOR_MONTHLY?.trim() ?? ""
+                )).product as string,
+                prices: [
+                  process.env.STRIPE_PRICE_OPERATOR_MONTHLY?.trim() ?? "",
+                  process.env.STRIPE_PRICE_OPERATOR_ANNUAL?.trim()  ?? "",
+                ],
+              },
+            ],
+          },
+          invoice_history: { enabled: true },
+        },
+      });
+      configurationId = config.id;
+    }
+
     const session = await stripe.billingPortal.sessions.create({
-      customer: customerId,
-      return_url: `${siteUrl}/dashboard/settings?tab=billing`,
+      customer:      customerId,
+      return_url:    `${siteUrl}/dashboard/settings?tab=plan`,
+      configuration: configurationId,
     });
 
     return NextResponse.json({ url: session.url });
