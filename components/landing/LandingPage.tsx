@@ -1217,7 +1217,7 @@ function SetupSection() {
               key={n}
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+              viewport={{ once: true, amount: 0 }}
               transition={{ delay: i * 0.12, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
               style={{
                 padding: "40px 36px", minHeight: 320,
@@ -1237,7 +1237,7 @@ function SetupSection() {
         <motion.div
           initial={{ scaleX: 0, opacity: 0 }}
           whileInView={{ scaleX: 1, opacity: 1 }}
-          viewport={{ once: true }}
+          viewport={{ once: true, amount: 0 }}
           transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
           style={{
             height: 1, marginTop: -1,
@@ -1249,7 +1249,7 @@ function SetupSection() {
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          viewport={{ once: true, amount: 0 }}
           transition={{ duration: 0.7, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
           style={{ marginTop: 48, display: "flex", alignItems: "center", gap: 18 }}
         >
@@ -1307,7 +1307,7 @@ function ProductPeekSection() {
         <div style={{ marginTop: 56, display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 18 }}>
 
           {/* ── Dashboard ── */}
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0, duration: 0.7, ease: [0.16, 1, 0.3, 1] }} style={CARD_WRAP}>
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0 }} transition={{ delay: 0, duration: 0.7, ease: [0.16, 1, 0.3, 1] }} style={CARD_WRAP}>
             <div style={LABEL}>Dashboard</div>
             <div style={{ ...FRAG, border: "1px solid rgba(139,92,246,0.14)" }}>
               {/* KPI strip */}
@@ -1331,7 +1331,7 @@ function ProductPeekSection() {
           </motion.div>
 
           {/* ── Transactions ── */}
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1, duration: 0.7, ease: [0.16, 1, 0.3, 1] }} style={CARD_WRAP}>
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0 }} transition={{ delay: 0.1, duration: 0.7, ease: [0.16, 1, 0.3, 1] }} style={CARD_WRAP}>
             <div style={LABEL}>Transactions</div>
             <div style={{ ...FRAG, border: "1px solid rgba(56,189,248,0.14)" }}>
               <div style={{ fontSize: 7, textTransform: "uppercase", letterSpacing: "0.18em", color: T_DIM, marginBottom: 10 }}>Revenue postbacks</div>
@@ -1353,7 +1353,7 @@ function ProductPeekSection() {
           </motion.div>
 
           {/* ── Rules ── */}
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.2, duration: 0.7, ease: [0.16, 1, 0.3, 1] }} style={CARD_WRAP}>
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0 }} transition={{ delay: 0.2, duration: 0.7, ease: [0.16, 1, 0.3, 1] }} style={CARD_WRAP}>
             <div style={LABEL}>Rules</div>
             <div style={{ ...FRAG, border: "1px solid rgba(251,191,36,0.14)" }}>
               {([
@@ -1374,7 +1374,7 @@ function ProductPeekSection() {
           </motion.div>
 
           {/* ── Campaign detail ── */}
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.3, duration: 0.7, ease: [0.16, 1, 0.3, 1] }} style={CARD_WRAP}>
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0 }} transition={{ delay: 0.3, duration: 0.7, ease: [0.16, 1, 0.3, 1] }} style={CARD_WRAP}>
             <div style={LABEL}>Campaign detail</div>
             <div style={{ ...FRAG, border: "1px solid rgba(74,222,128,0.14)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
@@ -1602,7 +1602,7 @@ function PricingSection() {
           {/* ── Observer ── */}
           <motion.div
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }} transition={{ delay: 0, duration: 0.6 }}
+            viewport={{ once: true, amount: 0 }} transition={{ delay: 0, duration: 0.6 }}
             style={{ borderRadius: 20, padding: "26px 22px", border: BORDER, background: "rgba(255,255,255,0.015)" }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -1646,7 +1646,7 @@ function PricingSection() {
           {/* ── Operator — dominant, violet ── */}
           <motion.div
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }} transition={{ delay: 0.08, duration: 0.6 }}
+            viewport={{ once: true, amount: 0 }} transition={{ delay: 0.08, duration: 0.6 }}
             style={{
               borderRadius: 20, padding: "40px 26px 32px",
               border: `1px solid ${VI_BORDER}`,
@@ -1703,7 +1703,7 @@ function PricingSection() {
           {/* ── Dominion ── */}
           <motion.div
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }} transition={{ delay: 0.16, duration: 0.6 }}
+            viewport={{ once: true, amount: 0 }} transition={{ delay: 0.16, duration: 0.6 }}
             style={{
               borderRadius: 20, padding: "34px 24px",
               background: "rgba(100,116,139,0.12)",
@@ -1763,7 +1763,7 @@ function PricingSection() {
         {/* ── Command — 2 col layout ── */}
         <motion.div
           initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }} transition={{ delay: 0.2, duration: 0.6 }}
+          viewport={{ once: true, amount: 0 }} transition={{ delay: 0.2, duration: 0.6 }}
           style={{ marginTop: 16, borderRadius: 20, border: BORDER, background: "rgba(255,255,255,0.02)", padding: "48px 48px" }}
         >
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "start" }}>
@@ -1902,7 +1902,7 @@ function FAQSection() {
               key={i}
               initial={{ opacity: 0, y: 8 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+              viewport={{ once: true, amount: 0 }}
               transition={{ delay: i * 0.05, duration: 0.5 }}
               style={{
                 borderRadius: 16,
@@ -2008,7 +2008,7 @@ function RecommendVsAutoSection() {
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
+            viewport={{ once: true, amount: 0 }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             style={CARD}
           >
@@ -2094,7 +2094,7 @@ function RecommendVsAutoSection() {
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
+            viewport={{ once: true, amount: 0 }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             style={{ ...CARD, borderColor: "rgba(139,92,246,0.20)", background: "linear-gradient(180deg,rgba(18,12,30,0.96),rgba(10,8,18,0.98))" }}
           >
@@ -2228,7 +2228,7 @@ function TrustSection() {
               key={title}
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+              viewport={{ once: true, amount: 0 }}
               transition={{ delay: i * 0.08, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
               style={{
                 borderRadius: 20, border: `1px solid ${BORDER_FAINT}`,
@@ -2274,7 +2274,7 @@ function FinalCTA() {
         <motion.h2
           initial={{ opacity: 0, y: 22 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          viewport={{ once: true, amount: 0 }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
           style={{
             margin: "44px auto 0", maxWidth: "13ch",
@@ -2289,7 +2289,7 @@ function FinalCTA() {
         <motion.p
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          viewport={{ once: true, amount: 0 }}
           transition={{ duration: 0.9, delay: 0.1 }}
           style={{ margin: "22px auto 0", maxWidth: "34ch", fontSize: 19, lineHeight: "32px", color: T_MUTED }}
         >
@@ -2299,7 +2299,7 @@ function FinalCTA() {
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
+          viewport={{ once: true, amount: 0 }}
           transition={{ duration: 0.9, delay: 0.18 }}
           style={{ marginTop: 46, display: "flex", justifyContent: "center", gap: 14 }}
         >

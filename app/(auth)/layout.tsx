@@ -9,7 +9,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         minHeight: "100vh",
         background: "#08090e",
         position: "relative",
-        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
