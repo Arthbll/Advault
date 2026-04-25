@@ -7,6 +7,8 @@ import { TrafficStarsAdapter } from "@/lib/adapters/trafficstars";
 import { TrafficJunkyAdapter } from "@/lib/adapters/trafficjunky";
 import * as PropellerAds       from "@/lib/adapters/propellerads";
 import * as Adsterra           from "@/lib/adapters/adsterra";
+import * as Voluum             from "@/lib/adapters/voluum";
+import * as Bemob              from "@/lib/adapters/bemob";
 import { Network, CampaignStatus } from "@prisma/client";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
 import { assertCanMutate } from "@/lib/team-role";
@@ -65,6 +67,12 @@ export async function POST(
         await PropellerAds.pauseCampaign(apiKey, campaign.externalId);
       } else if (campaign.network === Network.ADSTERRA) {
         await Adsterra.pauseCampaign(apiKey, campaign.externalId);
+      } else if (campaign.network === Network.VOLUUM && sessionCookie) {
+        // Voluum: apiKey = accessId, sessionCookie = accessKey
+        await Voluum.pauseCampaign(apiKey, sessionCookie, campaign.externalId);
+      } else if (campaign.network === Network.BEMOB && sessionCookie) {
+        // Bemob: apiKey = accessKey, sessionCookie = secretKey
+        await Bemob.pauseCampaign(apiKey, sessionCookie, campaign.externalId);
       }
     } else if (!forceDbOnly && action === "resume") {
       if (campaign.network === Network.EXOCLICK) {
@@ -80,6 +88,10 @@ export async function POST(
         await PropellerAds.resumeCampaign(apiKey, campaign.externalId);
       } else if (campaign.network === Network.ADSTERRA) {
         await Adsterra.resumeCampaign(apiKey, campaign.externalId);
+      } else if (campaign.network === Network.VOLUUM && sessionCookie) {
+        await Voluum.resumeCampaign(apiKey, sessionCookie, campaign.externalId);
+      } else if (campaign.network === Network.BEMOB && sessionCookie) {
+        await Bemob.resumeCampaign(apiKey, sessionCookie, campaign.externalId);
       }
     } else if (!forceDbOnly && action === "scale") {
       // Scale = augmentation du bid CPM/CPC par défaut.

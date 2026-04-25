@@ -7,6 +7,8 @@ import { TrafficStarsAdapter } from "@/lib/adapters/trafficstars";
 import { TrafficJunkyAdapter } from "@/lib/adapters/trafficjunky";
 import * as PropellerAds       from "@/lib/adapters/propellerads";
 import * as Adsterra           from "@/lib/adapters/adsterra";
+import * as Voluum             from "@/lib/adapters/voluum";
+import * as Bemob              from "@/lib/adapters/bemob";
 import { Network, CampaignStatus } from "@prisma/client";
 import { cookies } from "next/headers";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
@@ -491,6 +493,149 @@ export async function POST(req: NextRequest) {
             type:     "SYNC",
             message:  `Adsterra sync: ${campaigns.length} campagnes × ${daysToSync.length} jour(s)`,
             metadata: { network: "ADSTERRA", campaigns: campaigns.length, days: daysToSync.length, mode: isBackfill ? "backfill" : "daily" },
+          },
+        });
+      }
+
+      // ── Voluum ────────────────────────────────────────────────────────────────
+      // Voluum is a tracker: accessId stored as apiKeyEnc, accessKey as apiSecretEnc
+      if (account.network === Network.VOLUUM && account.apiSecretEnc) {
+        const accessId  = decrypt(account.apiKeyEnc);
+        const accessKey = decrypt(account.apiSecretEnc);
+        const campaigns = await Voluum.getCampaigns(accessId, accessKey);
+
+        for (let di = 0; di < daysToSync.length; di++) {
+          const day = daysToSync[di];
+          if (isBackfill && di > 0) await sleep(400);
+          try {
+            const stats    = await Voluum.getCampaignStats(accessId, accessKey, day, day);
+            const statsMap: Record<string, typeof stats[0]> = {};
+            for (const s of stats) statsMap[s.campaign_id] = s;
+
+            for (const campaign of campaigns) {
+              const extId = campaign.id;
+              const stat  = statsMap[extId];
+              await prisma.campaign.upsert({
+                where: {
+                  accountId_externalId_dateFrom_dateTo: {
+                    accountId:  account.id,
+                    externalId: extId,
+                    dateFrom:   new Date(day),
+                    dateTo:     new Date(day),
+                  },
+                },
+                create: {
+                  userId:      userId,
+                  accountId:   account.id,
+                  externalId:  extId,
+                  name:        campaign.name,
+                  network:     Network.VOLUUM,
+                  status:      Voluum.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.cost        ?? 0,
+                  revenue:     stat?.revenue     ?? 0,
+                  impressions: stat?.visits      ?? 0,  // Voluum calls it "visits"
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  dateFrom:    new Date(day),
+                  dateTo:      new Date(day),
+                  syncedAt:    new Date(),
+                },
+                update: {
+                  name:        campaign.name,
+                  status:      Voluum.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.cost        ?? 0,
+                  revenue:     stat?.revenue     ?? 0,
+                  impressions: stat?.visits      ?? 0,
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  syncedAt:    new Date(),
+                },
+              });
+              totalSynced++;
+            }
+          } catch (dayErr) {
+            const msg = dayErr instanceof Error ? dayErr.message : String(dayErr);
+            errors.push(`VOLUUM day ${day}: ${msg}`);
+          }
+        }
+
+        await prisma.log.create({
+          data: {
+            userId:   userId,
+            type:     "SYNC",
+            message:  `Voluum sync: ${campaigns.length} campagnes × ${daysToSync.length} jour(s)`,
+            metadata: { network: "VOLUUM", campaigns: campaigns.length, days: daysToSync.length, mode: isBackfill ? "backfill" : "daily" },
+          },
+        });
+      }
+
+      // ── Bemob ─────────────────────────────────────────────────────────────────
+      // Bemob is a tracker: accessKey stored as apiKeyEnc, secretKey as apiSecretEnc
+      if (account.network === Network.BEMOB && account.apiSecretEnc) {
+        const accessKey = decrypt(account.apiKeyEnc);
+        const secretKey = decrypt(account.apiSecretEnc);
+        const campaigns = await Bemob.getCampaigns(accessKey, secretKey);
+
+        for (let di = 0; di < daysToSync.length; di++) {
+          const day = daysToSync[di];
+          if (isBackfill && di > 0) await sleep(400);
+          try {
+            const stats    = await Bemob.getCampaignStats(accessKey, secretKey, day, day);
+            const statsMap: Record<string, typeof stats[0]> = {};
+            for (const s of stats) statsMap[s.campaign_id] = s;
+
+            for (const campaign of campaigns) {
+              const extId = String(campaign.id);
+              const stat  = statsMap[extId];
+              await prisma.campaign.upsert({
+                where: {
+                  accountId_externalId_dateFrom_dateTo: {
+                    accountId:  account.id,
+                    externalId: extId,
+                    dateFrom:   new Date(day),
+                    dateTo:     new Date(day),
+                  },
+                },
+                create: {
+                  userId:      userId,
+                  accountId:   account.id,
+                  externalId:  extId,
+                  name:        campaign.name,
+                  network:     Network.BEMOB,
+                  status:      Bemob.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.cost        ?? 0,
+                  revenue:     stat?.revenue     ?? 0,
+                  impressions: 0,                       // Bemob does not expose impressions
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  dateFrom:    new Date(day),
+                  dateTo:      new Date(day),
+                  syncedAt:    new Date(),
+                },
+                update: {
+                  name:        campaign.name,
+                  status:      Bemob.mapStatus(campaign.status) === "ACTIVE" ? CampaignStatus.ACTIVE : CampaignStatus.PAUSED,
+                  spend:       stat?.cost        ?? 0,
+                  revenue:     stat?.revenue     ?? 0,
+                  clicks:      stat?.clicks      ?? 0,
+                  conversions: stat?.conversions ?? 0,
+                  syncedAt:    new Date(),
+                },
+              });
+              totalSynced++;
+            }
+          } catch (dayErr) {
+            const msg = dayErr instanceof Error ? dayErr.message : String(dayErr);
+            errors.push(`BEMOB day ${day}: ${msg}`);
+          }
+        }
+
+        await prisma.log.create({
+          data: {
+            userId:   userId,
+            type:     "SYNC",
+            message:  `Bemob sync: ${campaigns.length} campagnes × ${daysToSync.length} jour(s)`,
+            metadata: { network: "BEMOB", campaigns: campaigns.length, days: daysToSync.length, mode: isBackfill ? "backfill" : "daily" },
           },
         });
       }

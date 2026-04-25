@@ -27,6 +27,8 @@ const NETWORK_TONE: Record<string, { border: string; bg: string; text: string }>
   TRAFFICJUNKY: { border: "rgba(56,189,248,0.18)",  bg: "rgba(14,165,233,0.10)",  text: "rgba(186,230,253,1)"  },
   PROPELLERADS: { border: "rgba(249,115,22,0.18)",  bg: "rgba(249,115,22,0.10)",  text: "rgba(254,215,170,1)"  },
   ADSTERRA:     { border: "rgba(6,182,212,0.18)",   bg: "rgba(6,182,212,0.10)",   text: "rgba(165,243,252,1)"  },
+  VOLUUM:       { border: "rgba(99,102,241,0.18)",  bg: "rgba(99,102,241,0.10)",  text: "rgba(199,210,254,1)"  },
+  BEMOB:        { border: "rgba(20,184,166,0.18)",  bg: "rgba(20,184,166,0.10)",  text: "rgba(153,246,228,1)"  },
 };
 
 const CONNECTED_STYLE = {

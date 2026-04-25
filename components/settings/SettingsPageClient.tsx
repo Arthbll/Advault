@@ -75,12 +75,14 @@ interface Props {
 
 // ─── Network configs ────────────────────────────────────────────────────────────
 const NETWORK_CONFIGS = [
-  { network: "EXOCLICK",      label: "ExoClick",      description: "Adult & mainstream ad network",  color: "#c08835", glow: "rgba(192,136,53,0.14)",   hasSecret: false, keyLabel: "API Key" },
-  { network: "TRAFFICSTARS",  label: "TrafficStars",  description: "Premium display ad network",     color: "#7264a8", glow: "rgba(114,100,168,0.14)",  hasSecret: false, keyLabel: "API Key (Refresh Token)" },
-  { network: "TRAFFICJUNKY",  label: "TrafficJunky",  description: "Video & display advertising",   color: "#4a8fb4", glow: "rgba(74,143,180,0.14)",   hasSecret: false, keyLabel: "API Key" },
-  { network: "PROPELLERADS",  label: "PropellerAds",  description: "Push & popunder ad network",    color: "#f97316", glow: "rgba(249,115,22,0.14)",   hasSecret: false, keyLabel: "API Token" },
-  { network: "ADSTERRA",      label: "Adsterra",      description: "Multi-format ad network",       color: "#06b6d4", glow: "rgba(6,182,212,0.14)",    hasSecret: false, keyLabel: "API Key" },
-] as const;
+  { network: "EXOCLICK",      label: "ExoClick",      description: "Adult & mainstream ad network",  color: "#c08835", glow: "rgba(192,136,53,0.14)",   hasSecret: false, keyLabel: "API Key",    secretLabel: undefined },
+  { network: "TRAFFICSTARS",  label: "TrafficStars",  description: "Premium display ad network",     color: "#7264a8", glow: "rgba(114,100,168,0.14)",  hasSecret: false, keyLabel: "API Key (Refresh Token)", secretLabel: undefined },
+  { network: "TRAFFICJUNKY",  label: "TrafficJunky",  description: "Video & display advertising",    color: "#4a8fb4", glow: "rgba(74,143,180,0.14)",   hasSecret: false, keyLabel: "API Key",    secretLabel: undefined },
+  { network: "PROPELLERADS",  label: "PropellerAds",  description: "Push & popunder ad network",     color: "#f97316", glow: "rgba(249,115,22,0.14)",   hasSecret: false, keyLabel: "API Token",  secretLabel: undefined },
+  { network: "ADSTERRA",      label: "Adsterra",      description: "Multi-format ad network",        color: "#06b6d4", glow: "rgba(6,182,212,0.14)",    hasSecret: false, keyLabel: "API Key",    secretLabel: undefined },
+  { network: "VOLUUM",        label: "Voluum",        description: "Tracker & redirect platform",    color: "#6366f1", glow: "rgba(99,102,241,0.14)",   hasSecret: true,  keyLabel: "Access ID",  secretLabel: "Access Key" },
+  { network: "BEMOB",         label: "Bemob",         description: "Cloud-based tracking platform",  color: "#14b8a6", glow: "rgba(20,184,166,0.14)",   hasSecret: true,  keyLabel: "Access Key", secretLabel: "Secret Key" },
+];
 
 // ─── Tone tokens ────────────────────────────────────────────────────────────────
 const TONES = {
@@ -551,7 +553,7 @@ export default function SettingsPageClient({
                   glow={cfg.glow}
                   hasSecret={cfg.hasSecret}
                   keyLabel={cfg.keyLabel}
-                  secretLabel={undefined}
+                  secretLabel={cfg.secretLabel}
                   isConnected={acct?.isActive ?? false}
                   index={i}
                 />
@@ -559,6 +561,7 @@ export default function SettingsPageClient({
             );
           })}
         </div>
+
 
         {/* ── Disconnected networks error cards ─────────────────────────── */}
         {/* Only show for networks that WERE connected but became inactive — not for never-connected ones */}
@@ -831,17 +834,33 @@ export default function SettingsPageClient({
             <div style={{ marginTop: 8, fontSize: 12, color: "rgba(251,113,133,0.9)" }}>{planError}</div>
           )}
           {stripeData?.hasSubscription && (
-            <button
-              onClick={handleManageBilling}
-              disabled={planLoading === "billing"}
-              style={{
-                marginTop: 12, fontSize: 12, padding: "6px 14px", borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)",
-                color: "rgba(255,255,255,0.55)", cursor: "pointer",
-              }}
-            >
-              {planLoading === "billing" ? "Opening…" : "Manage billing & invoices →"}
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+              <button
+                onClick={handleManageBilling}
+                disabled={planLoading === "billing"}
+                style={{
+                  fontSize: 12, padding: "6px 14px", borderRadius: 10,
+                  border: "1px solid rgba(255,255,255,0.10)", background: "rgba(255,255,255,0.04)",
+                  color: "rgba(255,255,255,0.55)", cursor: "pointer",
+                }}
+              >
+                {planLoading === "billing" ? "Opening…" : "Manage billing & invoices →"}
+              </button>
+              <button
+                onClick={handleManageBilling}
+                disabled={planLoading === "billing"}
+                style={{
+                  fontSize: 12, padding: "6px 14px", borderRadius: 10,
+                  border: "1px solid rgba(251,113,133,0.16)",
+                  background: "rgba(244,63,94,0.05)",
+                  color: "rgba(251,113,133,0.70)",
+                  cursor: planLoading === "billing" ? "not-allowed" : "pointer",
+                  opacity: planLoading === "billing" ? 0.5 : 1,
+                }}
+              >
+                {planLoading === "billing" ? "Opening…" : "Cancel subscription →"}
+              </button>
+            </div>
           )}
         </div>
 

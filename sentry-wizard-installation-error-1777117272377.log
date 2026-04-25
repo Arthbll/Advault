@@ -1,0 +1,10 @@
+npm error code EEXIST
+npm error syscall rename
+npm error path /Users/arthurbonelli/.npm/_cacache/tmp/af7092b0
+npm error dest /Users/arthurbonelli/.npm/_cacache/content-v2/sha512/5a/39/5a84c807982269ab353c6c8072e2ab6c65d53d95195c644dcbbf27a3eade2db8ebafd6f939ece5b7301ae3ea15c1171fe73680bd30f31372be5803b3506e
+npm error errno -13
+npm error EACCES: permission denied, rename '/Users/arthurbonelli/.npm/_cacache/tmp/af7092b0' -> '/Users/arthurbonelli/.npm/_cacache/content-v2/sha512/5a/39/5a84c807982269ab353c6c8072e2ab6c65d53d95195c644dcbbf27a3eade2db8ebafd6f939ece5b7301ae3ea15c1171fe73680bd30f31372be5803b3506e'
+npm error File exists: /Users/arthurbonelli/.npm/_cacache/content-v2/sha512/5a/39/5a84c807982269ab353c6c8072e2ab6c65d53d95195c644dcbbf27a3eade2db8ebafd6f939ece5b7301ae3ea15c1171fe73680bd30f31372be5803b3506e
+npm error Remove the existing file and try again, or run npm
+npm error with --force to overwrite files recklessly.
+npm error A complete log of this run can be found in: /Users/arthurbonelli/.npm/_logs/2026-04-25T11_40_59_523Z-debug-0.log
