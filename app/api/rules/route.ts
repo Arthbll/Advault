@@ -9,7 +9,7 @@ import { resolveWorkspaceUserId } from "@/lib/workspace";
 
 const DEFAULTS = {
   preset:         "balanced",
-  engineMode:     "automatic",
+  engineMode:     "recommendation",
   killRoi:        -30,
   watchLow:       -15,
   watchHigh:      0,

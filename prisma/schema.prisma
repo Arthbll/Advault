@@ -251,7 +251,7 @@ model DecisionRule {
   preset String @default("balanced")
 
   // Engine operating mode (Bloc 5)
-  engineMode String @default("automatic") // "automatic" | "recommendation"
+  engineMode String @default("recommendation") // "automatic" | "recommendation"
 
   // Kill thresholds
   killRoi Float @default(-30) // ROI % floor — kill below this

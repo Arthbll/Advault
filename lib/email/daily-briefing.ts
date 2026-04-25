@@ -1,4 +1,5 @@
 import { getResendClient, getDefaultFromAddress } from "./resend-client";
+import { buildRealBriefingData } from "./briefing-data";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -387,25 +388,22 @@ export async function sendTestDailyBriefing(
 /**
  * Envoie le briefing quotidien à un user réel.
  *
- * ⚠️ Pour l'instant cette fonction utilise des données bidon. La vraie
- * intégration (fetch des données Campaign/Conversion/Log depuis Prisma,
- * scopée par userId) est la prochaine étape après validation de la
- * tuyauterie email.
- *
- * Toutes les requêtes DB devront être strictement filtrées par userId —
- * aucun mélange entre clients, c'est la règle SaaS N°1.
+ * Charge les données réelles depuis Prisma (campagnes, logs moteur, perf)
+ * filtrées STRICTEMENT par userId — aucun mélange entre clients.
  */
 export async function sendDailyBriefingSolo(
   userId: string,
   toEmail: string,
   firstName: string,
+  timezone = "UTC",
 ): Promise<SendResult> {
-  // TODO(marche-3b): remplacer par un vrai fetch Prisma filtré par userId.
-  // Pour l'instant on renvoie un briefing avec des données d'exemple pour
-  // valider l'infra d'envoi, le rendu Gmail, et le cron.
-  void userId;
-
-  const data = getSampleBriefingData(firstName);
+  const data = await buildRealBriefingData({
+    userId,
+    firstName,
+    timezone,
+    dashboardUrl:
+      process.env.NEXT_PUBLIC_SITE_URL ?? "https://profitdash.app",
+  });
   const html = buildDailyBriefingHtml(data);
 
   try {
