@@ -759,114 +759,105 @@ export default function BentoDashboard(props: Props) {
           ].join(", "),
           position: "relative", overflow: "hidden",
           borderRadius: 28,
-          display: "flex", flexDirection: "column", gap: 18,
+          display: "flex", flexDirection: "column", gap: 14,
         }}>
 
-          {/* ── Top row: identity + scan loop indicator ────────────── */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-            <div>
-              {/* System badge — compact, not decorative */}
-              <div style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                marginBottom: 10,
-              }}>
-                <Zap size={10} color="#52525b" strokeWidth={2} />
-                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "#52525b" }}>
-                  Decision Engine
-                </span>
-              </div>
-
-              {/* Operational status line */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <motion.div
-                  animate={{ opacity: [1, 0.25, 1] }}
-                  transition={{ duration: 1.6, repeat: Infinity }}
-                  style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80", flexShrink: 0 }}
-                />
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.42)", letterSpacing: "0.01em" }}>
-                  Running · 14s scan
-                  {engineCounts.rulesCount > 0 && ` · ${engineCounts.rulesCount} rules active`}
-                </span>
-              </div>
+          {/* ── Title row ─────────────────────────────────────────── */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Zap size={10} color="#52525b" strokeWidth={2} />
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" as const, color: "#52525b" }}>
+                Decision Engine
+              </span>
             </div>
-
-            {/* Scan cycle progress bar */}
             <ScanLoopIndicator intervalMs={14000} />
           </div>
 
-          {/* ── Divider ────────────────────────────────────────────── */}
-          <div style={{ height: 1, background: "rgba(255,255,255,0.05)" }} />
-
-          {/* ── State row: Kill / Watch / Scale ───────────────────── */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr", gap: 8 }}>
-            <EngineStateCell
-              label="Killed"
-              value={killed}
-              color="#f87171"
-              accentRgb="248,113,113"
-              sub={killed === 1 ? "1 campaign stopped" : `${killed} campaigns stopped`}
+          {/* ── Status row ─────────────────────────────────────────── */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const,
+            background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)",
+            borderRadius: 10, padding: "8px 12px",
+          }}>
+            <motion.div
+              animate={{ opacity: [1, 0.25, 1] }}
+              transition={{ duration: 1.6, repeat: Infinity }}
+              style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80", flexShrink: 0 }}
             />
-            <EngineStateCell
-              label="Watching"
-              value={watching}
-              color="#fbbf24"
-              accentRgb="251,191,36"
-              sub={watching === 1 ? "review zone" : "in review zone"}
-            />
-            <EngineStateCell
-              label="Scaling"
-              value={scaling}
-              color="#4ade80"
-              accentRgb="74,222,128"
-              sub={scaling === 1 ? "bid increased" : "bids increased"}
-            />
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>Running</span>
+            <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+              Last scan{" "}
+              <span style={{ color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>
+                {engineCounts.lastEventAt ? timeAgoClient(engineCounts.lastEventAt) : "—"}
+              </span>
+            </span>
+            <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+              <span style={{ color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>
+                {engineCounts.rulesCount > 0 ? engineCounts.rulesCount : "—"}
+              </span>{" "}rules active
+            </span>
+            {activeCampaigns > 0 && (
+              <>
+                <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                  <span style={{ color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>{activeCampaigns}</span>{" "}monitored
+                </span>
+              </>
+            )}
           </div>
 
-          {/* ── Operational metrics bar ────────────────────────────── */}
-          <div style={{
-            display: "flex", flexDirection: "column", gap: 10,
-            borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 16,
-          }}>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: isMobile ? 8 : 0 }}>
-              {[
-                { label: "Protected", value: engineCounts.protectedAmount > 0 ? fmtEuro(engineCounts.protectedAmount) : "—" },
-                { label: "Scanned",   value: activeCampaigns > 0 ? `${activeCampaigns} campaigns` : "—" },
-                { label: "Rules",     value: engineCounts.rulesCount > 0 ? `${engineCounts.rulesCount} active` : "—" },
-                { label: "Last scan", value: engineCounts.lastEventAt ? timeAgoClient(engineCounts.lastEventAt) : "—" },
-              ].map(({ label, value }, i) => (
-                <div key={label} style={{
-                  display: "flex", flexDirection: "column", gap: 4,
-                  paddingLeft: i > 0 ? 14 : 0,
-                  borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none",
+          {/* ── 4 mini stat cards ─────────────────────────────────── */}
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 8 }}>
+            {([
+              { label: "Killed today",  value: killed,          color: "#f87171",                  rgb: "248,113,113" },
+              { label: "Watching",      value: watching,        color: "#fbbf24",                  rgb: "251,191,36"  },
+              { label: "Scaling",       value: scaling,         color: "#4ade80",                  rgb: "74,222,128"  },
+              { label: "Protected",     value: activeCampaigns, color: "rgba(255,255,255,0.65)",   rgb: "255,255,255" },
+            ] as { label: string; value: number; color: string; rgb: string }[]).map(({ label, value, color, rgb }) => (
+              <div key={label} style={{
+                background: `rgba(${rgb},0.04)`,
+                border: `1px solid rgba(${rgb},0.10)`,
+                borderRadius: 14,
+                padding: "14px 14px 12px",
+                textAlign: "center" as const,
+              }}>
+                <div style={{
+                  fontSize: 30, fontWeight: 200, color,
+                  letterSpacing: "-0.05em", lineHeight: 1,
+                  fontVariantNumeric: "tabular-nums",
                 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "#3f3f46" }}>
-                    {label}
-                  </span>
-                  <span style={{ fontSize: 13, fontWeight: 400, color: "rgba(255,255,255,0.60)", letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums" }}>
-                    {value}
-                  </span>
+                  {value}
                 </div>
-              ))}
-            </div>
+                <div style={{
+                  fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const,
+                  letterSpacing: "0.10em", color: "#3f3f46", marginTop: 5,
+                }}>
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
 
-            {/* ── Engine status line ────────────────────────────────── */}
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "7px 12px",
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.04)",
-              borderRadius: 10,
-            }}>
-              <span style={{ fontSize: 10, color: "#3f3f46", letterSpacing: "0.01em" }}>
-                {engineCounts.today > 0
-                  ? <>{engineCounts.today} decision{engineCounts.today > 1 ? "s" : ""} today</>
-                  : "No decisions yet today"
-                }
-              </span>
-              <span style={{ fontSize: 10, color: "#27272a", letterSpacing: "0.01em" }}>
-                14s scan interval
-              </span>
-            </div>
+          {/* ── Bottom status line ─────────────────────────────────── */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "7px 12px",
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.04)",
+            borderRadius: 10,
+            marginTop: "auto",
+          }}>
+            <span style={{ fontSize: 10, color: "#3f3f46", letterSpacing: "0.01em" }}>
+              {engineCounts.today > 0
+                ? <>{engineCounts.today} decision{engineCounts.today > 1 ? "s" : ""} today</>
+                : "No decisions yet today"
+              }
+            </span>
+            <span style={{ fontSize: 10, color: "#27272a", letterSpacing: "0.01em" }}>
+              14s scan interval
+            </span>
           </div>
         </motion.div>
 
@@ -972,8 +963,8 @@ export default function BentoDashboard(props: Props) {
 
                     {/* Campaign name — sanitized, never shows raw IDs or placeholder strings */}
                     <p style={{
-                      fontSize: 12, fontWeight: 400, letterSpacing: "-0.02em",
-                      color: "rgba(255,255,255,0.82)", margin: "0 0 4px", lineHeight: 1.3,
+                      fontSize: 13, fontWeight: 500, letterSpacing: "-0.02em",
+                      color: "rgba(255,255,255,0.88)", margin: "0 0 5px", lineHeight: 1.3,
                       whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                     }}>
                       {cleanCampaignName(ev.campaign)}
@@ -1012,13 +1003,13 @@ export default function BentoDashboard(props: Props) {
                       }
                       // Fallback plain detail
                       return (
-                        <p style={{ fontSize: 11, color: accentColor, opacity: 0.65, margin: 0, letterSpacing: "0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.42)", margin: 0, letterSpacing: "0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {ev.detail}
                         </p>
                       );
                     })() : (
                       <p style={{
-                        fontSize: 11, color: accentColor, opacity: 0.65,
+                        fontSize: 11, color: "rgba(255,255,255,0.42)",
                         margin: 0, letterSpacing: "0.01em",
                         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                       }}>
@@ -1052,7 +1043,7 @@ export default function BentoDashboard(props: Props) {
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.14)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.55)"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.28)"; }}
               >
-                {showAllEvents ? "↑ Réduire" : `Voir les ${Math.min(engineEvents.length, 30)} derniers →`}
+                {showAllEvents ? "↑ Show less" : `View all ${Math.min(engineEvents.length, 30)} actions →`}
               </button>
             )}
           </div>
