@@ -903,9 +903,9 @@ function Step6({ onFinish }: { onFinish: (mode: "recommendation" | "automatic" |
     onFinish(selected);
   }
 
-  async function skip() {
-    // Mark as welcomed without saving a specific engine mode (defaults apply)
-    await fetch("/api/user/welcome", { method: "POST" }).catch(() => {});
+  function skip() {
+    // Fire-and-forget: mark as welcomed, redirect immediately without waiting
+    fetch("/api/user/welcome", { method: "POST" }).catch(() => {});
     onFinish("skipped");
   }
 
