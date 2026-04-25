@@ -306,7 +306,7 @@ function HeroSection() {
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && handleWaitlist()}
-                    placeholder="Enter your email — claim your spot"
+                    placeholder="Enter your email address"
                     style={{
                       flex: 1, height: 56, borderRadius: 16,
                       border: "1px solid rgba(255,255,255,0.10)",
@@ -329,7 +329,7 @@ function HeroSection() {
                       whiteSpace: "nowrap", transition: "background 0.2s, color 0.2s",
                     }}
                   >
-                    {submitState === "loading" ? "Joining..." : "Claim early access \u2192"}
+                    {submitState === "loading" ? "Joining..." : "Get started free \u2192"}
                   </button>
                 </>
               )}
@@ -341,9 +341,9 @@ function HeroSection() {
               transition={{ duration: 1, delay: 0.32 }}
               style={{ marginTop: 24, display: "flex", gap: 28, fontSize: 13, color: "rgba(255,255,255,0.28)" }}
             >
-              <span>✓ Free for first 100 users</span>
-              <span>✓ No credit card</span>
+              <span>✓ No credit card required</span>
               <span>✓ 2-minute setup</span>
+              <span>✓ Cancel anytime</span>
             </motion.div>
 
             <motion.p
@@ -2309,7 +2309,7 @@ function FinalCTA() {
               background: "#ffffff",
               padding: "0 36px", fontSize: 15, fontWeight: 600,
               color: "#000000", border: "none", cursor: "pointer",
-            }}>Get early access →</button>
+            }}>Get started free →</button>
           </a>
           <a href="#the-system" style={{ textDecoration: "none" }}>
             <button style={{
@@ -2473,7 +2473,7 @@ export default function LandingPage() {
               background: "#ffffff",
               padding: "0 22px", fontSize: 13, fontWeight: 600,
               color: "#000000", border: "none", cursor: "pointer",
-            }}>Get early access</button>
+            }}>Get started →</button>
           </a>
         </div>
       </header>

@@ -31,10 +31,10 @@ interface Preset {
   maxKills: number; maxScales: number;
 }
 const PRESETS: Record<PresetKey, Preset> = {
-  soft:       { label: "Prudent",       description: "Attend longtemps avant d'agir. Idéal pour débuter.",      kill: -35, watchLow: -20, scaleRoi: 35, scaleInc: 5,  minSpend: 30, minConv: 4, killHold: 45, scaleHold: 90, killCd: 4, scaleCd: 8, maxKills: 3, maxScales: 1 },
-  balanced:   { label: "Équilibré",     description: "Le bon compromis pour la plupart des annonceurs.",        kill: -30, watchLow: -15, scaleRoi: 30, scaleInc: 10, minSpend: 20, minConv: 3, killHold: 30, scaleHold: 60, killCd: 3, scaleCd: 6, maxKills: 5, maxScales: 2 },
-  aggressive: { label: "Agressif",      description: "Réagit vite. Pour les utilisateurs expérimentés.",        kill: -20, watchLow: -10, scaleRoi: 20, scaleInc: 20, minSpend: 25, minConv: 2, killHold: 25, scaleHold: 45, killCd: 2, scaleCd: 4, maxKills: 8, maxScales: 4 },
-  custom:     { label: "Personnalisé",  description: "Vous définissez vos propres seuils.",                     kill: -30, watchLow: -15, scaleRoi: 30, scaleInc: 10, minSpend: 20, minConv: 3, killHold: 30, scaleHold: 60, killCd: 3, scaleCd: 6, maxKills: 5, maxScales: 2 },
+  soft:       { label: "Careful",    description: "Waits longer before acting. Best for beginners.",          kill: -35, watchLow: -20, scaleRoi: 35, scaleInc: 5,  minSpend: 30, minConv: 4, killHold: 45, scaleHold: 90, killCd: 4, scaleCd: 8, maxKills: 3, maxScales: 1 },
+  balanced:   { label: "Balanced",   description: "The right balance for most advertisers.",                  kill: -30, watchLow: -15, scaleRoi: 30, scaleInc: 10, minSpend: 20, minConv: 3, killHold: 30, scaleHold: 60, killCd: 3, scaleCd: 6, maxKills: 5, maxScales: 2 },
+  aggressive: { label: "Aggressive", description: "Reacts fast. For experienced users.",                      kill: -20, watchLow: -10, scaleRoi: 20, scaleInc: 20, minSpend: 25, minConv: 2, killHold: 25, scaleHold: 45, killCd: 2, scaleCd: 4, maxKills: 8, maxScales: 4 },
+  custom:     { label: "Custom",     description: "You define your own thresholds.",                          kill: -30, watchLow: -15, scaleRoi: 30, scaleInc: 10, minSpend: 20, minConv: 3, killHold: 30, scaleHold: 60, killCd: 3, scaleCd: 6, maxKills: 5, maxScales: 2 },
 };
 
 const TONE = {
@@ -110,7 +110,7 @@ export default function DecisionRulesPage() {
   const [timeWindowEnabled, setTimeWindowEnabled] = useState(false);
   const [timeWindowStart,   setTimeWindowStart]   = useState<number>(8);
   const [timeWindowEnd,     setTimeWindowEnd]     = useState<number>(22);
-  const [customValues, setCustomValues] = useState<Preset>({ ...PRESETS.balanced, label: "Personnalisé", description: "Vous définissez vos propres seuils." });
+  const [customValues, setCustomValues] = useState<Preset>({ ...PRESETS.balanced, label: "Custom", description: "You define your own thresholds." });
   const [showCustomAdv, setShowCustomAdv] = useState(false);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [overlayMode,    setOverlayMode]    = useState<"automatic" | "recommendation">("automatic");
@@ -140,7 +140,7 @@ export default function DecisionRulesPage() {
         setTimeWindowStart(d.timeWindowStart ?? 8);
         setTimeWindowEnd(d.timeWindowEnd ?? 22);
         if (d.preset === "custom" && d.killRoi != null) {
-          setCustomValues({ label: "Personnalisé", description: "Vous définissez vos propres seuils.", kill: d.killRoi ?? -30, watchLow: d.watchLow ?? -15, scaleRoi: d.scaleRoi ?? 30, scaleInc: d.scaleIncrement ?? 10, minSpend: d.minSpend ?? 20, minConv: d.minConversions ?? 3, killHold: d.killHoldMin ?? 30, scaleHold: d.scaleHoldMin ?? 60, killCd: d.killCooldownH ?? 3, scaleCd: d.scaleCooldownH ?? 6, maxKills: d.maxKillsDay ?? 5, maxScales: d.maxScalesDay ?? 2 });
+          setCustomValues({ label: "Custom", description: "You define your own thresholds.", kill: d.killRoi ?? -30, watchLow: d.watchLow ?? -15, scaleRoi: d.scaleRoi ?? 30, scaleInc: d.scaleIncrement ?? 10, minSpend: d.minSpend ?? 20, minConv: d.minConversions ?? 3, killHold: d.killHoldMin ?? 30, scaleHold: d.scaleHoldMin ?? 60, killCd: d.killCooldownH ?? 3, scaleCd: d.scaleCooldownH ?? 6, maxKills: d.maxKillsDay ?? 5, maxScales: d.maxScalesDay ?? 2 });
         }
       }).catch(() => {});
 
@@ -193,7 +193,7 @@ export default function DecisionRulesPage() {
   function fmtPausedUntil(iso: string | null) {
     if (!iso) return "";
     const d = new Date(iso);
-    return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) + " le " + d.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+    return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) + " on " + d.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
   }
 
   function handleModeSwitch(m: "automatic" | "recommendation") {
@@ -221,7 +221,7 @@ export default function DecisionRulesPage() {
   function SaveBtn() {
     return (
       <button onClick={handleSave} disabled={saving} style={{ height: 40, padding: "0 18px", borderRadius: 12, border: "none", background: saved ? "linear-gradient(90deg,#10b981,#059669)" : "linear-gradient(90deg,#8b5cf6,#7c3aed)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", display: "flex", alignItems: "center", gap: 7, opacity: saving ? 0.65 : 1, boxShadow: saved ? "none" : "0 4px 18px rgba(139,92,246,0.24)", transition: "background 0.3s", whiteSpace: "nowrap" as const }}>
-        {saved ? <><CheckCircle2 size={14} />Sauvegardé</> : <><Save size={14} />{saving ? "Sauvegarde…" : "Sauvegarder"}</>}
+        {saved ? <><CheckCircle2 size={14} />Saved</> : <><Save size={14} />{saving ? "Saving…" : "Save"}</>}
       </button>
     );
   }
@@ -231,12 +231,12 @@ export default function DecisionRulesPage() {
     return (
       <div style={{ borderRadius: 18, border: `1px solid ${C(0.08)}`, overflow: "hidden", background: C(0.015) }}>
         <div style={{ padding: "12px 20px", borderBottom: `1px solid ${C(0.06)}` }}>
-          <ColLabel>Dernières actions du moteur</ColLabel>
+          <ColLabel>Latest engine actions</ColLabel>
         </div>
         <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column" as const, gap: 7 }}>
           {actions.length === 0 ? (
             <div style={{ padding: "18px 6px", fontSize: 12, color: C(0.28), textAlign: "center" as const }}>
-              Aucune action pour le moment — elles apparaîtront ici dès que le moteur aura traité vos campagnes.
+              No actions yet — they&apos;ll appear here once the engine has processed your campaigns.
             </div>
           ) : actions.slice(0, 5).map((r, i) => {
             const t = TONE[r.r];
@@ -266,49 +266,49 @@ export default function DecisionRulesPage() {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
             {engPaused ? <ShieldOff size={14} color="rgba(253,230,138,0.80)" /> : <Shield size={14} color={C(0.38)} />}
-            <span style={{ fontSize: 13, fontWeight: 600, color: engPaused ? "rgba(253,230,138,0.90)" : C(0.78) }}>{engPaused ? "Automatisation suspendue" : "Arrêt d'urgence"}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: engPaused ? "rgba(253,230,138,0.90)" : C(0.78) }}>{engPaused ? "Automation paused" : "Emergency stop"}</span>
           </div>
           <p style={{ fontSize: 12, color: engPaused ? "rgba(251,191,36,0.55)" : C(0.35), margin: 0, lineHeight: 1.6, maxWidth: 520 }}>
-            {engPaused ? `Toutes les actions sont suspendues jusqu'à ${fmtPausedUntil(pausedUntil)}.` : "Suspend immédiatement toutes les actions Kill et Scale pour 24h. Les alertes continuent à fonctionner."}
+            {engPaused ? `All actions are suspended until ${fmtPausedUntil(pausedUntil)}.` : "Immediately suspends all Kill and Scale actions for 24h. Alerts will keep running."}
           </p>
         </div>
         <button onClick={handleEmergencyStop} disabled={pauseLoading} style={{ height: 40, padding: "0 20px", borderRadius: 12, border: engPaused ? "1px solid rgba(251,191,36,0.30)" : "1px solid rgba(248,113,133,0.28)", background: engPaused ? "rgba(245,158,11,0.10)" : "rgba(244,63,94,0.08)", color: engPaused ? "rgba(253,230,138,0.85)" : "#fca5a5", fontSize: 12, fontWeight: 600, cursor: pauseLoading ? "default" : "pointer", opacity: pauseLoading ? 0.5 : 1, display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
-          {engPaused ? <><Shield size={13} />Reprendre</> : <><ShieldOff size={13} />Tout suspendre</>}
+          {engPaused ? <><Shield size={13} />Resume</> : <><ShieldOff size={13} />Suspend all</>}
         </button>
       </div>
     );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // ── ÉTAT 1 — MODE PROTECTION (pas de signal de revenu) ───────────────────
+  // ── STATE 1 — PROTECTION MODE (no revenue signal) ────────────────────────
   // ─────────────────────────────────────────────────────────────────────────
   function ProtectionMode() {
     return (
       <div style={{ display: "flex", flexDirection: "column" as const, gap: 20 }}>
 
-        {/* Hero — explique l'état actuel */}
+        {/* Hero */}
         <motion.div {...s(1)}>
           <div style={{ borderRadius: 22, border: "1px solid rgba(251,191,36,0.20)", background: "linear-gradient(135deg,rgba(245,158,11,0.07),rgba(245,158,11,0.02))", padding: isMobile ? "24px 20px" : "32px 36px", display: "flex", flexDirection: isMobile ? "column" as const : "row" as const, alignItems: isMobile ? "flex-start" : "center", gap: 28 }}>
             <div style={{ width: 56, height: 56, borderRadius: 18, border: "1px solid rgba(251,191,36,0.25)", background: "rgba(251,191,36,0.10)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Shield size={24} color="rgba(251,191,36,0.80)" strokeWidth={1.5} />
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.22em", color: "rgba(251,191,36,0.55)", marginBottom: 8 }}>Mode actif</div>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.22em", color: "rgba(251,191,36,0.55)", marginBottom: 8 }}>Active mode</div>
               <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 300, letterSpacing: "-0.04em", color: C(0.92), marginBottom: 8 }}>
-                Protection du budget
+                Budget protection
               </div>
               <div style={{ fontSize: 13, color: C(0.45), lineHeight: 1.7, maxWidth: 560 }}>
-                Sans signal de revenu, le robot ne peut pas mesurer si une campagne est rentable. Il surveille uniquement <strong style={{ color: C(0.65) }}>votre dépense</strong> et protège votre budget en pausant les campagnes qui dépassent le plafond que vous fixez.
+                Without a revenue signal, the engine can&apos;t measure campaign profitability. It monitors your <strong style={{ color: C(0.65) }}>spend only</strong> and protects your budget by pausing campaigns that exceed the cap you set.
               </div>
             </div>
           </div>
         </motion.div>
 
-        {/* Config protection budget */}
+        {/* Budget protection config */}
         <motion.div {...s(2)}>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
 
-            {/* Moteur ON/OFF + dépense max */}
+            {/* Engine ON/OFF + max spend */}
             <SCard>
               <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.18em", color: C(0.28), marginBottom: 16 }}>Configuration</div>
 
@@ -316,52 +316,52 @@ export default function DecisionRulesPage() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "14px 16px", borderRadius: 14, border: killEnabled ? "1px solid rgba(74,222,128,0.25)" : `1px solid ${LINE}`, background: killEnabled ? "rgba(74,222,128,0.06)" : "rgba(255,255,255,0.02)", marginBottom: 12, transition: "all 0.25s" }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: killEnabled ? "rgba(134,239,172,0.90)" : C(0.75), marginBottom: 2 }}>
-                    {killEnabled ? "Moteur actif" : "Moteur éteint"}
+                    {killEnabled ? "Engine active" : "Engine off"}
                   </div>
                   <div style={{ fontSize: 11, color: C(0.35) }}>
-                    {killEnabled ? "Surveille la dépense en ce moment" : "Aucune action automatique"}
+                    {killEnabled ? "Monitoring spend right now" : "No automatic actions"}
                   </div>
                 </div>
                 <button onClick={() => setKillEnabled(v => !v)} style={{ height: 36, padding: "0 14px", borderRadius: 10, border: killEnabled ? "1px solid rgba(74,222,128,0.28)" : `1px solid ${LINE}`, background: killEnabled ? "rgba(74,222,128,0.10)" : "rgba(255,255,255,0.04)", color: killEnabled ? "#86efac" : C(0.50), fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <Power size={12} strokeWidth={2} />{killEnabled ? "Désactiver" : "Activer"}
+                  <Power size={12} strokeWidth={2} />{killEnabled ? "Disable" : "Enable"}
                 </button>
               </div>
 
-              {/* Dépense max */}
+              {/* Max spend */}
               <div style={{ padding: "14px 16px", borderRadius: 14, border: `1px solid ${LINE}`, background: "rgba(255,255,255,0.02)", marginBottom: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.16em", color: C(0.28), marginBottom: 10 }}>Dépense max par campagne</div>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.16em", color: C(0.28), marginBottom: 10 }}>Max spend per campaign</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <span style={{ fontSize: 13, color: C(0.40) }}>€</span>
-                  <input type="number" min={0} step={1} value={maxSpend ?? ""} placeholder="Sans limite"
+                  <input type="number" min={0} step={1} value={maxSpend ?? ""} placeholder="No limit"
                     onChange={e => { const v = e.target.value; setMaxSpend(v === "" ? null : Number(v)); }}
                     style={{ width: 110, padding: "6px 10px", borderRadius: 8, fontSize: 13, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", color: C(0.85), outline: "none", colorScheme: "dark" as const }}
                     onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.22)"; }}
                     onBlur={e  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.10)"; }}
                   />
                 </div>
-                <div style={{ fontSize: 11, color: C(0.28), lineHeight: 1.5 }}>Le robot pause automatiquement toute campagne qui dépasse ce montant.</div>
+                <div style={{ fontSize: 11, color: C(0.28), lineHeight: 1.5 }}>The engine automatically pauses any campaign exceeding this amount.</div>
               </div>
 
               {/* Spend-only toggle */}
               <div style={{ padding: "13px 16px", borderRadius: 14, border: spendOnly ? "1px solid rgba(251,191,36,0.18)" : `1px solid ${LINE}`, background: spendOnly ? "rgba(245,158,11,0.04)" : "rgba(255,255,255,0.02)", display: "flex", alignItems: "flex-start", gap: 12, transition: "all 0.25s" }}>
                 <Toggle on={spendOnly} onChange={() => setSpendOnly(v => !v)} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: spendOnly ? "rgba(253,230,138,0.90)" : C(0.70), marginBottom: 3 }}>Mode dépense uniquement</div>
-                  <div style={{ fontSize: 11, color: C(0.30), lineHeight: 1.5 }}>Pour les réseaux qui ne transmettent pas de données de conversion. Le robot se base uniquement sur le budget dépensé.</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: spendOnly ? "rgba(253,230,138,0.90)" : C(0.70), marginBottom: 3 }}>Spend-only mode</div>
+                  <div style={{ fontSize: 11, color: C(0.30), lineHeight: 1.5 }}>For networks that don&apos;t pass conversion data. The engine relies on spend only.</div>
                 </div>
               </div>
             </SCard>
 
-            {/* Horaires + infos */}
+            {/* Active hours + checklist */}
             <SCard>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.18em", color: C(0.28), marginBottom: 16 }}>Horaires d&apos;activité</div>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.18em", color: C(0.28), marginBottom: 16 }}>Active hours</div>
 
               <div style={{ padding: "13px 16px", borderRadius: 14, border: timeWindowEnabled ? "1px solid rgba(99,102,241,0.22)" : `1px solid ${LINE}`, background: timeWindowEnabled ? "rgba(99,102,241,0.04)" : "rgba(255,255,255,0.02)", marginBottom: 12, transition: "all 0.25s" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: timeWindowEnabled ? 12 : 0 }}>
                   <Toggle on={timeWindowEnabled} onChange={() => setTimeWindowEnabled(v => !v)} />
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: timeWindowEnabled ? "rgba(165,180,252,0.90)" : C(0.70) }}>Restreindre les horaires</div>
-                    {!timeWindowEnabled && <div style={{ fontSize: 11, color: C(0.30) }}>Le moteur tourne 24h/24 par défaut</div>}
+                    <div style={{ fontSize: 12, fontWeight: 600, color: timeWindowEnabled ? "rgba(165,180,252,0.90)" : C(0.70) }}>Restrict active hours</div>
+                    {!timeWindowEnabled && <div style={{ fontSize: 11, color: C(0.30) }}>Engine runs 24/7 by default</div>}
                   </div>
                 </div>
                 {timeWindowEnabled && (
@@ -377,19 +377,19 @@ export default function DecisionRulesPage() {
                 )}
               </div>
 
-              {/* Ce que le robot peut faire */}
+              {/* What the engine does right now */}
               <div style={{ padding: "14px 16px", borderRadius: 14, border: `1px solid ${LINE}`, background: "rgba(255,255,255,0.015)" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.16em", color: C(0.25), marginBottom: 12 }}>Ce que le robot fait en ce moment</div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.16em", color: C(0.25), marginBottom: 12 }}>What the engine does right now</div>
                 {[
-                  { icon: <Shield size={13} color="rgba(251,191,36,0.70)" />, text: "Pause si dépense > plafond fixé", active: true },
-                  { icon: <XCircle size={13} color={C(0.20)} />,              text: "Kill si ROI < seuil", active: false },
-                  { icon: <Eye size={13} color={C(0.20)} />,                  text: "Surveillance du ROI", active: false },
-                  { icon: <ArrowUpCircle size={13} color={C(0.20)} />,        text: "Scale si ROI > seuil", active: false },
+                  { icon: <Shield size={13} color="rgba(251,191,36,0.70)" />, text: "Pause if spend > cap", active: true },
+                  { icon: <XCircle size={13} color={C(0.20)} />,              text: "Kill if ROI < threshold", active: false },
+                  { icon: <Eye size={13} color={C(0.20)} />,                  text: "ROI monitoring", active: false },
+                  { icon: <ArrowUpCircle size={13} color={C(0.20)} />,        text: "Scale if ROI > threshold", active: false },
                 ].map((row, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: i < 3 ? 9 : 0 }}>
                     {row.icon}
                     <span style={{ fontSize: 12, color: row.active ? C(0.70) : C(0.28) }}>{row.text}</span>
-                    {!row.active && <span style={{ marginLeft: "auto", fontSize: 10, color: C(0.22), fontWeight: 600, letterSpacing: "0.08em" }}>Verrouillé</span>}
+                    {!row.active && <span style={{ marginLeft: "auto", fontSize: 10, color: C(0.22), fontWeight: 600, letterSpacing: "0.08em" }}>Locked</span>}
                   </div>
                 ))}
               </div>
@@ -397,22 +397,22 @@ export default function DecisionRulesPage() {
           </div>
         </motion.div>
 
-        {/* CTA — connecter un signal de revenu */}
+        {/* CTA — connect a revenue signal */}
         <motion.div {...s(3)}>
           <div style={{ borderRadius: 22, border: "1px solid rgba(99,102,241,0.22)", background: "linear-gradient(135deg,rgba(99,102,241,0.07),rgba(99,102,241,0.02))", padding: isMobile ? "24px 20px" : "28px 32px" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, flexWrap: "wrap" as const, marginBottom: 24 }}>
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.22em", color: "rgba(165,180,252,0.55)", marginBottom: 8 }}>Débloquer le moteur complet</div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.22em", color: "rgba(165,180,252,0.55)", marginBottom: 8 }}>Unlock the full engine</div>
                 <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 300, letterSpacing: "-0.03em", color: C(0.90), marginBottom: 6 }}>
-                  Connecte un signal de revenu
+                  Connect a revenue signal
                 </div>
                 <div style={{ fontSize: 13, color: C(0.42), lineHeight: 1.7, maxWidth: 520 }}>
-                  Dès que le robot sait combien tu gagnes par campagne, il peut décider de pauser les campagnes qui perdent de l&apos;argent, surveiller celles qui stagnent, et scaler celles qui cartonnent — avec ton ROI réel, pas juste ta dépense.
+                  Once the engine knows how much you earn per campaign, it can decide to pause losing campaigns, monitor stagnant ones, and scale winners — using real ROI, not just spend.
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 12, border: "1px solid rgba(52,211,153,0.20)", background: "rgba(52,211,153,0.06)", flexShrink: 0 }}>
                 <TrendingUp size={14} color="rgba(52,211,153,0.70)" strokeWidth={1.5} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(167,243,208,0.80)" }}>Kill · Watch · Scale débloqués</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(167,243,208,0.80)" }}>Kill · Watch · Scale unlocked</span>
               </div>
             </div>
 
@@ -421,10 +421,10 @@ export default function DecisionRulesPage() {
               {[
                 {
                   icon: <Radio size={16} color="rgba(125,211,252,0.80)" strokeWidth={1.5} />,
-                  title: "Postback direct",
-                  desc: "Tu utilises un tracker externe (Binom, RedTrack…). Configure l'URL de postback dans Paramètres et les conversions arrivent automatiquement.",
+                  title: "Direct postback",
+                  desc: "Using an external tracker (Binom, RedTrack…)? Set up your postback URL in Settings and conversions will flow in automatically.",
                   href: "/dashboard/settings?tab=postbacks",
-                  cta: "Configurer le postback",
+                  cta: "Set up postback",
                   color: "rgba(14,165,233,0.80)",
                   border: "rgba(14,165,233,0.18)",
                   bg: "rgba(14,165,233,0.05)",
@@ -432,9 +432,9 @@ export default function DecisionRulesPage() {
                 {
                   icon: <div style={{ width: 16, height: 16, borderRadius: 4, background: "rgba(139,92,246,0.30)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#c4b5fd" }}>V</div>,
                   title: "Voluum",
-                  desc: "Tu utilises déjà Voluum comme tracker ? Connecte ton compte et ProfitDash récupère tes données de conversion directement.",
+                  desc: "Already using Voluum? Connect your account and ProfitDash pulls your conversion data directly.",
                   href: "/dashboard/settings?tab=connections",
-                  cta: "Connecter Voluum",
+                  cta: "Connect Voluum",
                   color: "rgba(139,92,246,0.80)",
                   border: "rgba(139,92,246,0.18)",
                   bg: "rgba(139,92,246,0.05)",
@@ -442,9 +442,9 @@ export default function DecisionRulesPage() {
                 {
                   icon: <div style={{ width: 16, height: 16, borderRadius: 4, background: "rgba(52,211,153,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "#6ee7b7" }}>B</div>,
                   title: "Bemob",
-                  desc: "Tu utilises déjà Bemob ? Même logique — connecte ton compte et tes conversions alimentent le moteur automatiquement.",
+                  desc: "Already using Bemob? Same deal — connect your account and your conversions feed the engine automatically.",
                   href: "/dashboard/settings?tab=connections",
-                  cta: "Connecter Bemob",
+                  cta: "Connect Bemob",
                   color: "rgba(52,211,153,0.80)",
                   border: "rgba(52,211,153,0.18)",
                   bg: "rgba(52,211,153,0.05)",
@@ -472,19 +472,19 @@ export default function DecisionRulesPage() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // ── ÉTAT 2 — MOTEUR DE PROFIT (signal de revenu actif) ───────────────────
+  // ── STATE 2 — PROFIT ENGINE (revenue signal active) ───────────────────────
   // ─────────────────────────────────────────────────────────────────────────
   function ProfitEngineMode() {
     const safetyRows: [string, string][] = [
-      ["Dépense min avant décision", `€${p.minSpend}`],
-      ["Conversions min avant scale", String(p.minConv)],
-      ["Attente avant kill", `${p.killHold} min`],
-      ["Attente avant scale", `${p.scaleHold} min`],
-      ["Cooldown kill", `${p.killCd}h`],
-      ["Cooldown scale", `${p.scaleCd}h`],
-      ["Kills max / jour", String(p.maxKills)],
-      ["Scales max / jour", String(p.maxScales)],
-      ["Incrément de bid", `+${p.scaleInc}%`],
+      ["Min spend before action",    `€${p.minSpend}`],
+      ["Min conversions to scale",   String(p.minConv)],
+      ["Kill hold time",             `${p.killHold} min`],
+      ["Scale hold time",            `${p.scaleHold} min`],
+      ["Kill cooldown",              `${p.killCd}h`],
+      ["Scale cooldown",             `${p.scaleCd}h`],
+      ["Max kills / day",            String(p.maxKills)],
+      ["Max scales / day",           String(p.maxScales)],
+      ["Bid increment",              `+${p.scaleInc}%`],
     ];
 
     return (
@@ -496,14 +496,14 @@ export default function DecisionRulesPage() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" as const }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: killEnabled ? "rgba(134,239,172,0.90)" : C(0.75), marginBottom: 4 }}>
-                  {killEnabled ? "Moteur de profit actif" : "Moteur éteint"}
+                  {killEnabled ? "Profit engine active" : "Engine off"}
                 </div>
                 <div style={{ fontSize: 12, color: C(0.38), lineHeight: 1.55, maxWidth: 480 }}>
-                  {killEnabled ? "ProfitDash surveille vos campagnes avec les données ROI en temps réel." : "Activez le moteur pour que ProfitDash commence à surveiller et agir."}
+                  {killEnabled ? "ProfitDash is monitoring your campaigns with real-time ROI data." : "Enable the engine so ProfitDash starts monitoring and acting."}
                 </div>
               </div>
               <button onClick={() => setKillEnabled(v => !v)} style={{ height: 44, padding: "0 20px", borderRadius: 14, border: killEnabled ? "1px solid rgba(74,222,128,0.30)" : `1px solid ${LINE}`, background: killEnabled ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.06)", color: killEnabled ? "#86efac" : C(0.65), fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.22s", display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
-                <Power size={14} strokeWidth={2} />{killEnabled ? "Désactiver" : "Activer le moteur"}
+                <Power size={14} strokeWidth={2} />{killEnabled ? "Disable" : "Enable engine"}
               </button>
             </div>
 
@@ -511,7 +511,7 @@ export default function DecisionRulesPage() {
               {killEnabled && (
                 <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: "auto", marginTop: 20 }} exit={{ opacity: 0, height: 0, marginTop: 0 }} transition={{ duration: 0.28, ease: EASE }} style={{ overflow: "hidden" }}>
                   <div style={{ borderTop: `1px solid rgba(255,255,255,0.06)`, paddingTop: 20 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: C(0.40), marginBottom: 12, textTransform: "uppercase" as const, letterSpacing: "0.14em" }}>Comment le robot doit-il agir ?</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C(0.40), marginBottom: 12, textTransform: "uppercase" as const, letterSpacing: "0.14em" }}>How should the engine act?</div>
                     <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
                       {(["recommendation", "automatic"] as const).map(m => {
                         const isAuto   = m === "automatic";
@@ -522,11 +522,11 @@ export default function DecisionRulesPage() {
                             {locked && <Link href="/dashboard/settings?tab=plan" onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 10, right: 10, display: "flex", alignItems: "center", gap: 3, padding: "2px 7px", borderRadius: 99, background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.25)", fontSize: 9, fontWeight: 700, color: "rgba(196,181,253,0.9)", textDecoration: "none", letterSpacing: "0.06em", textTransform: "uppercase" as const }}><Lock size={7} /> Dominion</Link>}
                             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                               {isAuto ? <Zap size={14} color={isActive ? "rgba(134,239,172,0.90)" : C(0.40)} strokeWidth={1.5} /> : <BookOpen size={14} color={isActive ? "rgba(196,181,253,0.90)" : C(0.40)} strokeWidth={1.5} />}
-                              <span style={{ fontSize: 13, fontWeight: 600, color: isActive ? (isAuto ? "rgba(134,239,172,0.95)" : "rgba(196,181,253,0.95)") : C(0.70) }}>{isAuto ? "Mode automatique" : "Mode suggestions"}</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: isActive ? (isAuto ? "rgba(134,239,172,0.95)" : "rgba(196,181,253,0.95)") : C(0.70) }}>{isAuto ? "Automatic mode" : "Suggestion mode"}</span>
                               {isActive && <span style={{ marginLeft: "auto", width: 7, height: 7, borderRadius: "50%", background: isAuto ? "#6ee7b7" : "#a78bfa", flexShrink: 0 }} />}
                             </div>
                             <div style={{ fontSize: 12, color: C(0.38), lineHeight: 1.6 }}>
-                              {isAuto ? <>Le robot <strong style={{ color: C(0.60) }}>agit seul</strong> — il pause et scale vos campagnes sans vous demander.</> : <>Le robot <strong style={{ color: C(0.60) }}>vous dit ce qu&apos;il ferait</strong>, mais n&apos;agit pas. Vous gardez le contrôle.</>}
+                              {isAuto ? <>The engine <strong style={{ color: C(0.60) }}>acts on its own</strong> — it pauses and scales your campaigns without asking.</> : <>The engine <strong style={{ color: C(0.60) }}>tells you what it would do</strong>, but doesn&apos;t act. You stay in control.</>}
                             </div>
                           </button>
                         );
@@ -542,7 +542,7 @@ export default function DecisionRulesPage() {
         {/* 2. Presets */}
         <motion.div {...s(2)}>
           <div style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: C(0.55) }}>Niveau d&apos;agressivité</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C(0.55) }}>Aggressiveness level</div>
             <div style={{ height: 1, flex: 1, background: `linear-gradient(to right, ${LINE}, transparent)` }} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 10 }}>
@@ -561,12 +561,12 @@ export default function DecisionRulesPage() {
         <motion.div {...s(3)}>
           <div style={{ borderRadius: 18, border: `1px solid ${LINE}`, overflow: "hidden", background: "linear-gradient(180deg,rgba(14,15,23,0.96),rgba(8,9,14,0.98))" }}>
             <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 1fr 90px", gap: 12, padding: "10px 16px", borderBottom: `1px solid ${LINE}` }}>
-              <ColLabel>Décision</ColLabel><ColLabel>Déclencheur</ColLabel><ColLabel>Action</ColLabel><ColLabel>Mode</ColLabel>
+              <ColLabel>Decision</ColLabel><ColLabel>Trigger</ColLabel><ColLabel>Action</ColLabel><ColLabel>Mode</ColLabel>
             </div>
             {[
-              { label: "Kill",  color: "#f87171", tone: TONE.rose,    trigger: `ROI < ${p.kill}%`,          action: engineMode === "automatic" ? "Pause campagne" : "Suggère pause", role: "kill"  as const },
-              { label: "Watch", color: "#fbbf24", tone: TONE.amber,   trigger: `ROI ${p.watchLow}% → 0%`,   action: "Alerte manuelle",                                                role: "watch" as const },
-              { label: "Scale", color: "#34d399", tone: TONE.emerald, trigger: `ROI > +${p.scaleRoi}%`,     action: engineMode === "automatic" ? `Bid +${p.scaleInc}%` : "Suggère scale", role: "scale" as const },
+              { label: "Kill",  color: "#f87171", tone: TONE.rose,    trigger: `ROI < ${p.kill}%`,          action: engineMode === "automatic" ? "Pause campaign" : "Suggest pause", role: "kill"  as const },
+              { label: "Watch", color: "#fbbf24", tone: TONE.amber,   trigger: `ROI ${p.watchLow}% → 0%`,   action: "Manual alert",                                                   role: "watch" as const },
+              { label: "Scale", color: "#34d399", tone: TONE.emerald, trigger: `ROI > +${p.scaleRoi}%`,     action: engineMode === "automatic" ? `Bid +${p.scaleInc}%` : "Suggest scale", role: "scale" as const },
             ].map((row, i) => (
               <div key={row.label} style={{ display: "grid", gridTemplateColumns: "90px 1fr 1fr 90px", gap: 12, padding: "14px 16px", alignItems: "center", borderBottom: i < 2 ? `1px solid ${LINE}` : "none", background: row.tone.rowBg }}>
                 <DecisionBadge label={row.label} color={row.color} />
@@ -583,33 +583,33 @@ export default function DecisionRulesPage() {
           {key === "custom" && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.28, ease: EASE }} style={{ borderRadius: 18, border: `1px solid ${C(0.08)}`, overflow: "hidden", background: "linear-gradient(180deg,rgba(14,15,23,0.96),rgba(8,9,14,0.98))" }}>
               <div style={{ padding: "12px 24px", borderBottom: `1px solid ${C(0.05)}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255,255,255,0.015)" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.22em", color: C(0.28) }}>Seuils personnalisés</div>
-                <div style={{ fontSize: 11, color: C(0.25) }}>Sauvegardé avec « Sauvegarder »</div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.22em", color: C(0.28) }}>Custom thresholds</div>
+                <div style={{ fontSize: 11, color: C(0.25) }}>Saved with the Save button</div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr" }}>
                 <div style={{ padding: "22px 28px 24px", borderRight: isMobile ? "none" : `1px solid ${C(0.05)}`, background: "rgba(244,63,94,0.022)" }}>
                   <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.24em", color: "rgba(248,113,113,0.55)", marginBottom: 20 }}>Kill</div>
-                  <CustomFieldInline label="Seuil ROI" value={customValues.kill} unit="%" labelColor="rgba(248,113,113,0.45)" borderColor="rgba(248,113,113,0.20)" min={-100} max={-1} onChange={v => setCustomValues(prev => ({ ...prev, kill: v }))} />
+                  <CustomFieldInline label="ROI threshold" value={customValues.kill} unit="%" labelColor="rgba(248,113,113,0.45)" borderColor="rgba(248,113,113,0.20)" min={-100} max={-1} onChange={v => setCustomValues(prev => ({ ...prev, kill: v }))} />
                 </div>
                 <div style={{ padding: "22px 28px 24px", borderRight: isMobile ? "none" : `1px solid ${C(0.05)}`, background: "rgba(245,158,11,0.018)" }}>
                   <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.24em", color: "rgba(251,191,36,0.55)", marginBottom: 20 }}>Watch</div>
-                  <CustomFieldInline label="Seuil bas ROI" value={customValues.watchLow} unit="%" labelColor="rgba(251,191,36,0.45)" borderColor="rgba(251,191,36,0.18)" min={-100} max={-1} onChange={v => setCustomValues(prev => ({ ...prev, watchLow: v }))} />
+                  <CustomFieldInline label="Watch ROI floor" value={customValues.watchLow} unit="%" labelColor="rgba(251,191,36,0.45)" borderColor="rgba(251,191,36,0.18)" min={-100} max={-1} onChange={v => setCustomValues(prev => ({ ...prev, watchLow: v }))} />
                 </div>
                 <div style={{ padding: "22px 28px 24px", background: "rgba(16,185,129,0.022)" }}>
                   <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.24em", color: "rgba(52,211,153,0.55)", marginBottom: 20 }}>Scale</div>
                   <div style={{ display: "flex", flexDirection: "column" as const, gap: 18 }}>
-                    <CustomFieldInline label="Seuil ROI" value={customValues.scaleRoi} unit="%" labelColor="rgba(52,211,153,0.45)" borderColor="rgba(52,211,153,0.18)" min={1} max={500} onChange={v => setCustomValues(prev => ({ ...prev, scaleRoi: v }))} />
-                    <CustomFieldInline label="Incrément bid" value={customValues.scaleInc} unit="%" labelColor="rgba(52,211,153,0.45)" borderColor="rgba(52,211,153,0.18)" min={1} max={200} onChange={v => setCustomValues(prev => ({ ...prev, scaleInc: v }))} />
+                    <CustomFieldInline label="ROI threshold" value={customValues.scaleRoi} unit="%" labelColor="rgba(52,211,153,0.45)" borderColor="rgba(52,211,153,0.18)" min={1} max={500} onChange={v => setCustomValues(prev => ({ ...prev, scaleRoi: v }))} />
+                    <CustomFieldInline label="Bid increment" value={customValues.scaleInc} unit="%" labelColor="rgba(52,211,153,0.45)" borderColor="rgba(52,211,153,0.18)" min={1} max={200} onChange={v => setCustomValues(prev => ({ ...prev, scaleInc: v }))} />
                   </div>
                 </div>
               </div>
               <button onClick={() => setShowCustomAdv(v => !v)} style={{ width: "100%", padding: "13px 28px", borderTop: `1px solid ${C(0.07)}`, background: showCustomAdv ? "rgba(139,92,246,0.07)" : "rgba(255,255,255,0.025)", border: "none", borderRadius: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                   <motion.div animate={{ rotate: showCustomAdv ? 180 : 0 }} transition={{ duration: 0.22, ease: EASE }}><ChevronDown size={14} color={showCustomAdv ? "rgba(196,181,253,0.9)" : C(0.45)} /></motion.div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: showCustomAdv ? "rgba(196,181,253,0.80)" : C(0.50) }}>Paramètres avancés</span>
-                  <span style={{ fontSize: 11, color: C(0.25) }}>— timings, cooldowns, limites journalières</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: showCustomAdv ? "rgba(196,181,253,0.80)" : C(0.50) }}>Advanced settings</span>
+                  <span style={{ fontSize: 11, color: C(0.25) }}>— timings, cooldowns, daily limits</span>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 600, color: C(0.22), textTransform: "uppercase" as const, letterSpacing: "0.14em" }}>{showCustomAdv ? "Réduire" : "8 champs"}</span>
+                <span style={{ fontSize: 10, fontWeight: 600, color: C(0.22), textTransform: "uppercase" as const, letterSpacing: "0.14em" }}>{showCustomAdv ? "Collapse" : "8 fields"}</span>
               </button>
               <AnimatePresence>
                 {showCustomAdv && (
@@ -618,24 +618,24 @@ export default function DecisionRulesPage() {
                       <div style={{ padding: "20px 28px 24px", borderRight: isMobile ? "none" : `1px solid ${C(0.06)}`, background: "rgba(244,63,94,0.05)", borderTop: "2px solid rgba(248,113,113,0.25)" }}>
                         <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.20em", textTransform: "uppercase" as const, color: "rgba(248,113,113,0.50)", marginBottom: 18 }}>Kill — timings</div>
                         <div style={{ display: "flex", flexDirection: "column" as const, gap: 20 }}>
-                          <CustomFieldInline label="Attente" value={customValues.killHold} unit="min" labelColor="rgba(248,113,113,0.55)" borderColor="rgba(248,113,113,0.28)" min={1} max={360} onChange={v => setCustomValues(prev => ({ ...prev, killHold: v }))} />
+                          <CustomFieldInline label="Hold" value={customValues.killHold} unit="min" labelColor="rgba(248,113,113,0.55)" borderColor="rgba(248,113,113,0.28)" min={1} max={360} onChange={v => setCustomValues(prev => ({ ...prev, killHold: v }))} />
                           <CustomFieldInline label="Cooldown" value={customValues.killCd} unit="h" labelColor="rgba(248,113,113,0.55)" borderColor="rgba(248,113,113,0.28)" min={0} max={168} onChange={v => setCustomValues(prev => ({ ...prev, killCd: v }))} />
-                          <CustomFieldInline label="Max / jour" value={customValues.maxKills} unit="" labelColor="rgba(248,113,113,0.55)" borderColor="rgba(248,113,113,0.28)" min={1} max={100} onChange={v => setCustomValues(prev => ({ ...prev, maxKills: v }))} />
+                          <CustomFieldInline label="Max / day" value={customValues.maxKills} unit="" labelColor="rgba(248,113,113,0.55)" borderColor="rgba(248,113,113,0.28)" min={1} max={100} onChange={v => setCustomValues(prev => ({ ...prev, maxKills: v }))} />
                         </div>
                       </div>
                       <div style={{ padding: "20px 28px 24px", borderRight: isMobile ? "none" : `1px solid ${C(0.06)}`, background: C(0.03), borderTop: `2px solid ${C(0.10)}` }}>
-                        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.20em", textTransform: "uppercase" as const, color: C(0.30), marginBottom: 18 }}>Sécurité</div>
+                        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.20em", textTransform: "uppercase" as const, color: C(0.30), marginBottom: 18 }}>Safety</div>
                         <div style={{ display: "flex", flexDirection: "column" as const, gap: 20 }}>
-                          <CustomFieldInline label="Dépense min" value={customValues.minSpend} unit="€" unitBefore labelColor={C(0.45)} borderColor={C(0.18)} min={0} max={9999} onChange={v => setCustomValues(prev => ({ ...prev, minSpend: v }))} />
-                          <CustomFieldInline label="Conversions min" value={customValues.minConv} unit="" labelColor={C(0.45)} borderColor={C(0.18)} min={0} max={999} onChange={v => setCustomValues(prev => ({ ...prev, minConv: v }))} />
+                          <CustomFieldInline label="Min spend" value={customValues.minSpend} unit="€" unitBefore labelColor={C(0.45)} borderColor={C(0.18)} min={0} max={9999} onChange={v => setCustomValues(prev => ({ ...prev, minSpend: v }))} />
+                          <CustomFieldInline label="Min conv." value={customValues.minConv} unit="" labelColor={C(0.45)} borderColor={C(0.18)} min={0} max={999} onChange={v => setCustomValues(prev => ({ ...prev, minConv: v }))} />
                         </div>
                       </div>
                       <div style={{ padding: "20px 28px 24px", background: "rgba(16,185,129,0.05)", borderTop: "2px solid rgba(52,211,153,0.22)" }}>
                         <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.20em", textTransform: "uppercase" as const, color: "rgba(52,211,153,0.50)", marginBottom: 18 }}>Scale — timings</div>
                         <div style={{ display: "flex", flexDirection: "column" as const, gap: 20 }}>
-                          <CustomFieldInline label="Attente" value={customValues.scaleHold} unit="min" labelColor="rgba(52,211,153,0.55)" borderColor="rgba(52,211,153,0.25)" min={1} max={360} onChange={v => setCustomValues(prev => ({ ...prev, scaleHold: v }))} />
+                          <CustomFieldInline label="Hold" value={customValues.scaleHold} unit="min" labelColor="rgba(52,211,153,0.55)" borderColor="rgba(52,211,153,0.25)" min={1} max={360} onChange={v => setCustomValues(prev => ({ ...prev, scaleHold: v }))} />
                           <CustomFieldInline label="Cooldown" value={customValues.scaleCd} unit="h" labelColor="rgba(52,211,153,0.55)" borderColor="rgba(52,211,153,0.25)" min={0} max={168} onChange={v => setCustomValues(prev => ({ ...prev, scaleCd: v }))} />
-                          <CustomFieldInline label="Max / jour" value={customValues.maxScales} unit="" labelColor="rgba(52,211,153,0.55)" borderColor="rgba(52,211,153,0.25)" min={1} max={100} onChange={v => setCustomValues(prev => ({ ...prev, maxScales: v }))} />
+                          <CustomFieldInline label="Max / day" value={customValues.maxScales} unit="" labelColor="rgba(52,211,153,0.55)" borderColor="rgba(52,211,153,0.25)" min={1} max={100} onChange={v => setCustomValues(prev => ({ ...prev, maxScales: v }))} />
                         </div>
                       </div>
                     </div>
@@ -650,8 +650,8 @@ export default function DecisionRulesPage() {
         <motion.div {...s(4)}>
           <div style={{ borderRadius: 16, border: `1px solid ${LINE}`, overflow: "hidden", background: "rgba(255,255,255,0.015)" }}>
             <div style={{ padding: "10px 16px", borderBottom: `1px solid ${LINE}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <ColLabel>Garde-fous actifs</ColLabel>
-              <span style={{ fontSize: 11, color: C(0.28) }}>Le robot ne peut pas dépasser ces limites</span>
+              <ColLabel>Active guardrails</ColLabel>
+              <span style={{ fontSize: 11, color: C(0.28) }}>The engine cannot exceed these limits</span>
             </div>
             <div style={{ padding: "12px 14px", display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 7 }}>
               {safetyRows.map(([lbl, val]) => (
@@ -667,14 +667,14 @@ export default function DecisionRulesPage() {
         {/* 6. Preview */}
         <motion.div key={`preview-${engineMode}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28, ease: EASE }} style={{ borderRadius: 18, border: engineMode === "automatic" ? "1px solid rgba(52,211,153,0.12)" : "1px solid rgba(139,92,246,0.12)", background: engineMode === "automatic" ? "rgba(16,185,129,0.025)" : "rgba(139,92,246,0.025)", overflow: "hidden" }}>
           <div style={{ padding: "12px 20px", borderBottom: `1px solid ${C(0.05)}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <ColLabel style={{ color: engineMode === "automatic" ? "rgba(167,243,208,0.55)" : "rgba(196,181,253,0.55)" }}>{engineMode === "automatic" ? "Ce que le moteur va exécuter" : "Ce que le moteur suggérerait"}</ColLabel>
-            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: engineMode === "automatic" ? "rgba(167,243,208,0.40)" : "rgba(196,181,253,0.40)" }}>{engineMode === "automatic" ? "Exécution réelle" : "Simulation · Aucune action"}</span>
+            <ColLabel style={{ color: engineMode === "automatic" ? "rgba(167,243,208,0.55)" : "rgba(196,181,253,0.55)" }}>{engineMode === "automatic" ? "What the engine will execute" : "What the engine would suggest"}</ColLabel>
+            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: engineMode === "automatic" ? "rgba(167,243,208,0.40)" : "rgba(196,181,253,0.40)" }}>{engineMode === "automatic" ? "Live execution" : "Simulation · No action"}</span>
           </div>
           <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column" as const, gap: 8 }}>
             {[
-              { tone: TONE.rose,    text: engineMode === "automatic" ? <>Si ROI reste sous <strong style={{ color: TONE.rose.text }}>{p.kill}%</strong> pendant <strong style={{ color: C(0.88) }}>{p.killHold} min</strong>, le moteur va <strong style={{ color: C(0.92) }}>mettre la campagne en pause</strong>.</> : <>Si ROI reste sous <strong style={{ color: TONE.rose.text }}>{p.kill}%</strong> pendant <strong style={{ color: C(0.88) }}>{p.killHold} min</strong>, le moteur <strong style={{ color: C(0.92) }}>suggère de pauser</strong>. <span style={{ color: C(0.36) }}>Aucune action automatique.</span></> },
-              { tone: TONE.amber,   text: <>Si ROI entre <strong style={{ color: TONE.amber.text }}>{p.watchLow}%</strong> et <strong style={{ color: TONE.amber.text }}>0%</strong>, le moteur <strong style={{ color: C(0.92) }}>vous alerte</strong> pour vérifier. <span style={{ color: C(0.36) }}>Signal uniquement, dans les deux modes.</span></> },
-              { tone: TONE.emerald, text: engineMode === "automatic" ? <>Si ROI dépasse <strong style={{ color: TONE.emerald.text }}>+{p.scaleRoi}%</strong> et dépense {'>'} <strong style={{ color: C(0.88) }}>€{p.minSpend * 2.5}</strong>, le moteur va <strong style={{ color: C(0.92) }}>augmenter le bid de +{p.scaleInc}%</strong>.</> : <>Si ROI dépasse <strong style={{ color: TONE.emerald.text }}>+{p.scaleRoi}%</strong>, le moteur <strong style={{ color: C(0.92) }}>suggère d&apos;augmenter le bid de +{p.scaleInc}%</strong>. <span style={{ color: C(0.36) }}>Aucune action automatique.</span></> },
+              { tone: TONE.rose,    text: engineMode === "automatic" ? <>If ROI stays below <strong style={{ color: TONE.rose.text }}>{p.kill}%</strong> for <strong style={{ color: C(0.88) }}>{p.killHold} min</strong>, the engine will <strong style={{ color: C(0.92) }}>pause the campaign</strong>.</> : <>If ROI stays below <strong style={{ color: TONE.rose.text }}>{p.kill}%</strong> for <strong style={{ color: C(0.88) }}>{p.killHold} min</strong>, the engine <strong style={{ color: C(0.92) }}>suggests pausing</strong>. <span style={{ color: C(0.36) }}>No automatic action.</span></> },
+              { tone: TONE.amber,   text: <>If ROI is between <strong style={{ color: TONE.amber.text }}>{p.watchLow}%</strong> and <strong style={{ color: TONE.amber.text }}>0%</strong>, the engine <strong style={{ color: C(0.92) }}>fires an alert</strong> for review. <span style={{ color: C(0.36) }}>Signal only, in both modes.</span></> },
+              { tone: TONE.emerald, text: engineMode === "automatic" ? <>If ROI exceeds <strong style={{ color: TONE.emerald.text }}>+{p.scaleRoi}%</strong> and spend {'>'} <strong style={{ color: C(0.88) }}>€{p.minSpend * 2.5}</strong>, the engine will <strong style={{ color: C(0.92) }}>raise the bid by +{p.scaleInc}%</strong>.</> : <>If ROI exceeds <strong style={{ color: TONE.emerald.text }}>+{p.scaleRoi}%</strong>, the engine <strong style={{ color: C(0.92) }}>suggests raising the bid by +{p.scaleInc}%</strong>. <span style={{ color: C(0.36) }}>No automatic action.</span></> },
             ].map((row, i) => (
               <motion.div key={`preview-${i}-${key}-${engineMode}`} {...s(i)} style={{ borderRadius: 11, border: row.tone.border, background: row.tone.bg, padding: "11px 14px", fontSize: 13, lineHeight: 1.75, color: C(0.72) }}>
                 {row.text}
@@ -687,11 +687,11 @@ export default function DecisionRulesPage() {
         <motion.div {...s(5)}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "16px 20px", borderRadius: 14, border: `1px solid ${LINE}`, background: "rgba(255,255,255,0.02)" }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: C(0.75), marginBottom: 3 }}>Lancer un scan manuel</div>
-              <div style={{ fontSize: 12, color: C(0.35) }}>Force le robot à analyser toutes vos campagnes maintenant, sans attendre le prochain cycle automatique.</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C(0.75), marginBottom: 3 }}>Run a manual scan</div>
+              <div style={{ fontSize: 12, color: C(0.35) }}>Forces the engine to analyze all your campaigns now, without waiting for the next automatic cycle.</div>
             </div>
             <button onClick={handleRunScan} disabled={scanning} style={{ height: 40, padding: "0 16px", borderRadius: 12, border: scanError ? "1px solid rgba(251,113,133,0.30)" : scanResult ? "1px solid rgba(52,211,153,0.30)" : `1px solid ${LINE}`, background: scanError ? "rgba(244,63,94,0.08)" : scanResult ? "rgba(16,185,129,0.10)" : "rgba(255,255,255,0.04)", color: scanError ? "#fca5a5" : scanResult ? "rgba(167,243,208,0.95)" : C(0.55), fontSize: 12, fontWeight: 600, cursor: scanning ? "default" : "pointer", display: "flex", alignItems: "center", gap: 7, opacity: scanning ? 0.6 : 1, whiteSpace: "nowrap" as const, flexShrink: 0 }}>
-              {scanError ? <><AlertCircle size={13} />Erreur</> : scanning ? <><motion.div animate={{ rotate: 360 }} transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }} style={{ display: "flex" }}><RefreshCw size={13} /></motion.div>Analyse…</> : scanResult ? <><CheckCircle2 size={13} />{scanResult.checked} vérifiées · {scanResult.killed} actées</> : <><Play size={11} />{engineMode === "automatic" ? "Lancer un scan" : "Prévisualiser"}</>}
+              {scanError ? <><AlertCircle size={13} />Error</> : scanning ? <><motion.div animate={{ rotate: 360 }} transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }} style={{ display: "flex" }}><RefreshCw size={13} /></motion.div>Scanning…</> : scanResult ? <><CheckCircle2 size={13} />{scanResult.checked} checked · {scanResult.killed} actioned</> : <><Play size={11} />{engineMode === "automatic" ? "Run scan" : "Preview"}</>}
             </button>
           </div>
         </motion.div>
@@ -718,9 +718,9 @@ export default function DecisionRulesPage() {
               <div style={{ position: "absolute", inset: 0, backdropFilter: "blur(4px)", background: "rgba(4,5,10,0.52)" }} />
               <motion.div initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98, y: -8 }} transition={{ duration: 0.22, ease: EASE }}
                 style={{ position: "relative", borderRadius: 32, border: overlayMode === "automatic" ? "1px solid rgba(52,211,153,0.22)" : "1px solid rgba(139,92,246,0.24)", background: "linear-gradient(180deg,rgba(13,15,24,0.96),rgba(8,10,17,0.96))", padding: isMobile ? "24px 20px" : "44px 64px", textAlign: "center", backdropFilter: "blur(32px)", boxShadow: "0 40px 100px rgba(0,0,0,0.65)", minWidth: isMobile ? "calc(100vw - 32px)" : 460 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.28em", marginBottom: 18, color: overlayMode === "automatic" ? "rgba(110,231,183,0.60)" : "rgba(167,139,250,0.60)" }}>Mode du moteur</div>
-                <div style={{ fontSize: isMobile ? 36 : 56, fontWeight: 200, letterSpacing: "-0.07em", lineHeight: 1, color: overlayMode === "automatic" ? "rgba(167,243,208,0.96)" : "rgba(196,181,253,0.96)" }}>{overlayMode === "automatic" ? "Automatique" : "Suggestions"}</div>
-                <div style={{ marginTop: 16, fontSize: 14, color: C(0.40) }}>{overlayMode === "automatic" ? "Le robot agit seul" : "Le robot suggère seulement"}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.28em", marginBottom: 18, color: overlayMode === "automatic" ? "rgba(110,231,183,0.60)" : "rgba(167,139,250,0.60)" }}>Engine mode</div>
+                <div style={{ fontSize: isMobile ? 36 : 56, fontWeight: 200, letterSpacing: "-0.07em", lineHeight: 1, color: overlayMode === "automatic" ? "rgba(167,243,208,0.96)" : "rgba(196,181,253,0.96)" }}>{overlayMode === "automatic" ? "Automatic" : "Suggestions"}</div>
+                <div style={{ marginTop: 16, fontSize: 14, color: C(0.40) }}>{overlayMode === "automatic" ? "The engine acts on its own" : "The engine suggests only"}</div>
               </motion.div>
             </motion.div>
           )}
@@ -733,23 +733,22 @@ export default function DecisionRulesPage() {
         {/* Header */}
         <div style={{ padding: "28px 32px", borderBottom: `1px solid ${C(0.06)}`, background: "radial-gradient(circle at 16% 0%,rgba(99,102,241,0.08),transparent 28%),radial-gradient(circle at 84% 0%,rgba(16,185,129,0.06),transparent 22%)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: isMobile ? 8 : 24, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: C(0.22) }}>Règles de décision</div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: C(0.22) }}>Decision rules</div>
             <h1 style={{ margin: "10px 0 4px", fontSize: isMobile ? 22 : 32, fontWeight: 300, letterSpacing: "-0.05em", lineHeight: 1.15, color: C(0.92) }}>
-              {isLoading ? "Chargement…" : hasRevenue ? "Moteur de profit" : "Mode protection"}
+              {isLoading ? "Loading…" : hasRevenue ? "Profit engine" : "Protection mode"}
             </h1>
             <p style={{ margin: 0, fontSize: 13, color: C(0.38) }}>
               {isLoading ? "" : hasRevenue
-                ? "Signal de revenu connecté — Kill, Watch et Scale sont actifs."
-                : "Pas de signal de revenu — seule la protection du budget est disponible."}
+                ? "Revenue signal connected — Kill, Watch and Scale are active."
+                : "No revenue signal — budget protection only."}
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-            {/* Badge état signal */}
             {!isLoading && (
               <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 99, border: hasRevenue ? "1px solid rgba(52,211,153,0.25)" : "1px solid rgba(251,191,36,0.25)", background: hasRevenue ? "rgba(52,211,153,0.08)" : "rgba(251,191,36,0.08)" }}>
                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: hasRevenue ? "#6ee7b7" : "#fbbf24", flexShrink: 0 }} />
                 <span style={{ fontSize: 11, fontWeight: 600, color: hasRevenue ? "rgba(167,243,208,0.85)" : "rgba(253,230,138,0.85)", whiteSpace: "nowrap" as const }}>
-                  {hasRevenue ? "Revenu connecté" : "Protection uniquement"}
+                  {hasRevenue ? "Revenue connected" : "Protection only"}
                 </span>
               </div>
             )}
@@ -760,7 +759,7 @@ export default function DecisionRulesPage() {
         {/* Body */}
         <div style={{ padding: "24px 32px 32px" }}>
           {isLoading ? (
-            <div style={{ padding: "60px 0", textAlign: "center", fontSize: 13, color: C(0.30) }}>Chargement…</div>
+            <div style={{ padding: "60px 0", textAlign: "center", fontSize: 13, color: C(0.30) }}>Loading…</div>
           ) : hasRevenue ? (
             <ProfitEngineMode />
           ) : (
