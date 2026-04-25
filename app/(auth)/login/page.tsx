@@ -503,7 +503,7 @@ function LoginPageInner() {
           onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.85)")}
           onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.50)")}
         >
-          Request early access →
+          Create an account →
         </Link>
       </p>
     </motion.div>
