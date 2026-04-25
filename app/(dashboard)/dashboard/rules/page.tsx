@@ -804,11 +804,56 @@ export default function DecisionRulesPage() {
             </SCard>
           </motion.div>
 
-          {/* ── 3. Budget Protection + Profit Engine ──────────────────────── */}
+          {/* ── 3. Preset selection — toujours visible ────────────────────── */}
+          <motion.div {...s(3)}>
+            <div style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C(0.55) }}>
+                Niveau d&apos;agressivité
+              </div>
+              <div style={{ height: 1, flex: 1, background: `linear-gradient(to right, rgba(255,255,255,0.08), transparent)` }} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 10 }}>
+              {(["soft", "balanced", "aggressive", "custom"] as PresetKey[]).map(k => (
+                <button
+                  key={k}
+                  onClick={() => setKey(k)}
+                  style={{
+                    borderRadius: 16,
+                    border: key === k ? "1px solid rgba(139,92,246,0.35)" : "1px solid rgba(255,255,255,0.08)",
+                    background: key === k ? "rgba(139,92,246,0.12)" : "rgba(255,255,255,0.02)",
+                    padding: "14px 16px", cursor: "pointer",
+                    textAlign: "left" as const,
+                    transition: "all 0.18s ease",
+                    position: "relative" as const,
+                  }}
+                >
+                  {key === k && (
+                    <span style={{
+                      position: "absolute", top: 10, right: 10,
+                      width: 7, height: 7, borderRadius: "50%", background: "#a78bfa",
+                    }} />
+                  )}
+                  <div style={{ fontSize: 14, fontWeight: 600, color: key === k ? "rgba(196,181,253,0.95)" : C(0.75), marginBottom: 5 }}>
+                    {PRESETS[k].label}
+                  </div>
+                  <div style={{ fontSize: 11, color: C(0.35), lineHeight: 1.5 }}>
+                    {PRESETS[k].description}
+                  </div>
+                  {key === k && (
+                    <div style={{ marginTop: 10, fontSize: 10, color: "rgba(196,181,253,0.55)", letterSpacing: "0.04em" }}>
+                      Kill {PRESETS[k].kill}% · Scale +{PRESETS[k].scaleRoi}%
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* ── 4. Budget Protection + Profit Engine ──────────────────────── */}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
 
             {/* ── Budget Protection ──────────────────────────────────────── */}
-            <motion.div {...s(3)}>
+            <motion.div {...s(4)}>
               <SCard style={{
                 background: "linear-gradient(180deg,rgba(251,191,36,0.05),rgba(251,191,36,0.01))",
                 border: "1px solid rgba(251,191,36,0.16)",
@@ -935,7 +980,7 @@ export default function DecisionRulesPage() {
             </motion.div>
 
             {/* ── Profit Engine ──────────────────────────────────────────── */}
-            <motion.div {...s(4)}>
+            <motion.div {...s(5)}>
               <SCard style={{
                 background: hasRevenue
                   ? "linear-gradient(180deg,rgba(52,211,153,0.05),rgba(52,211,153,0.01))"
@@ -1024,37 +1069,6 @@ export default function DecisionRulesPage() {
                 ) : (
                   /* ── Active state ── */
                   <>
-                    {/* Preset selection */}
-                    <div>
-                      <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.16em", color: C(0.28), marginBottom: 10 }}>
-                        Niveau d&apos;agressivité
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
-                        {(["soft", "balanced", "aggressive", "custom"] as PresetKey[]).map(k => (
-                          <button key={k} onClick={() => setKey(k)} style={{
-                            borderRadius: 12,
-                            border: key === k ? "1px solid rgba(139,92,246,0.30)" : `1px solid ${LINE}`,
-                            background: key === k ? "rgba(139,92,246,0.10)" : "rgba(255,255,255,0.02)",
-                            padding: "11px 14px", cursor: "pointer", textAlign: "left" as const,
-                            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-                            transition: "all 0.18s ease",
-                          }}>
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: key === k ? "rgba(196,181,253,0.95)" : C(0.75), marginBottom: 2 }}>
-                                {PRESETS[k].label}
-                              </div>
-                              <div style={{ fontSize: 11, color: C(0.35) }}>
-                                {PRESETS[k].description}
-                              </div>
-                            </div>
-                            {key === k && (
-                              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#a78bfa", flexShrink: 0 }} />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
                     {/* Active rules table */}
                     <div style={{ borderRadius: 14, border: `1px solid ${LINE}`, overflow: "hidden", background: "linear-gradient(180deg,rgba(14,15,23,0.96),rgba(8,9,14,0.98))" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 80px", gap: 12, padding: "9px 14px", borderBottom: `1px solid ${LINE}` }}>
