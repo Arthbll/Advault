@@ -24,11 +24,11 @@ const NAV = [
 const NAV_HREFS = NAV.map(n => n.href);
 const EASE: [number, number, number, number] = [0.23, 1, 0.32, 1];
 
-// Premium page transitions — subtle y + opacity + blur, no horizontal slamming
+// Premium page transitions — subtle y + opacity, no blur (blur causes black-screen on dark bg)
 const pageVariants = {
-  initial: { opacity: 0, y: 10, filter: "blur(4px)" },
-  animate: { opacity: 1, y: 0,  filter: "blur(0px)" },
-  exit:    { opacity: 0, y: -6, filter: "blur(3px)" },
+  initial: { opacity: 0, y: 6 },
+  animate: { opacity: 1, y: 0 },
+  exit:    { opacity: 0, y: -4 },
 };
 
 interface MeData { name: string; initials: string; plan: string; role: string; }
@@ -298,7 +298,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             initial="initial"
             animate="animate"
             exit="exit"
-            transition={{ duration: 0.38, ease: [0.23, 1, 0.32, 1] }}
+            transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
           >
             {children}
           </motion.div>
