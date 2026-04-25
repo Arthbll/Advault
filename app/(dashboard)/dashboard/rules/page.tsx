@@ -456,9 +456,9 @@ export default function DecisionRulesPage() {
                     <span style={{ fontSize: 13, fontWeight: 600, color: C(0.80) }}>{opt.title}</span>
                   </div>
                   <div style={{ fontSize: 12, color: C(0.38), lineHeight: 1.65, marginBottom: 14 }}>{opt.desc}</div>
-                  <Link href={opt.href} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, color: opt.color, border: `1px solid ${opt.border}`, background: opt.bg, borderRadius: 8, padding: "7px 12px", textDecoration: "none" }}>
+                  <a href={opt.href} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, color: opt.color, border: `1px solid ${opt.border}`, background: opt.bg, borderRadius: 8, padding: "7px 12px", textDecoration: "none", cursor: "pointer" }}>
                     {opt.cta} <ExternalLink size={10} />
-                  </Link>
+                  </a>
                 </div>
               ))}
             </div>

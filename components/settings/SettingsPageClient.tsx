@@ -74,15 +74,20 @@ interface Props {
 }
 
 // ─── Network configs ────────────────────────────────────────────────────────────
-const NETWORK_CONFIGS = [
+const AD_NETWORK_CONFIGS = [
   { network: "EXOCLICK",      label: "ExoClick",      description: "Adult & mainstream ad network",  color: "#c08835", glow: "rgba(192,136,53,0.14)",   hasSecret: false, keyLabel: "API Key",    secretLabel: undefined },
   { network: "TRAFFICSTARS",  label: "TrafficStars",  description: "Premium display ad network",     color: "#7264a8", glow: "rgba(114,100,168,0.14)",  hasSecret: false, keyLabel: "API Key (Refresh Token)", secretLabel: undefined },
   { network: "TRAFFICJUNKY",  label: "TrafficJunky",  description: "Video & display advertising",    color: "#4a8fb4", glow: "rgba(74,143,180,0.14)",   hasSecret: false, keyLabel: "API Key",    secretLabel: undefined },
   { network: "PROPELLERADS",  label: "PropellerAds",  description: "Push & popunder ad network",     color: "#f97316", glow: "rgba(249,115,22,0.14)",   hasSecret: false, keyLabel: "API Token",  secretLabel: undefined },
   { network: "ADSTERRA",      label: "Adsterra",      description: "Multi-format ad network",        color: "#06b6d4", glow: "rgba(6,182,212,0.14)",    hasSecret: false, keyLabel: "API Key",    secretLabel: undefined },
-  { network: "VOLUUM",        label: "Voluum",        description: "Tracker & redirect platform",    color: "#6366f1", glow: "rgba(99,102,241,0.14)",   hasSecret: true,  keyLabel: "Access ID",  secretLabel: "Access Key" },
+];
+
+const TRACKER_CONFIGS = [
+  { network: "VOLUUM",        label: "Voluum",        description: "Conversion tracking platform",   color: "#6366f1", glow: "rgba(99,102,241,0.14)",   hasSecret: true,  keyLabel: "Access ID",  secretLabel: "Access Key" },
   { network: "BEMOB",         label: "Bemob",         description: "Cloud-based tracking platform",  color: "#14b8a6", glow: "rgba(20,184,166,0.14)",   hasSecret: true,  keyLabel: "Access Key", secretLabel: "Secret Key" },
 ];
+
+const NETWORK_CONFIGS = [...AD_NETWORK_CONFIGS, ...TRACKER_CONFIGS];
 
 // ─── Tone tokens ────────────────────────────────────────────────────────────────
 const TONES = {
@@ -527,39 +532,81 @@ export default function SettingsPageClient({
   // ── Connections ───────────────────────────────────────────────────────────────
   function renderConnections() {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.24)" }}>Ad network APIs</div>
-            <div style={{ fontSize: 28, fontWeight: 200, letterSpacing: "-0.04em", marginTop: 6 }}>Campaign data sources</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+
+        {/* ── Ad Networks ── */}
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.24)" }}>Ad Networks</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.38)", marginTop: 3 }}>Connect your ad buying accounts — the engine reads campaigns and acts on bids.</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {AD_NETWORK_CONFIGS.map((cfg, i) => {
+              const acct = accounts.find(a => a.network === cfg.network);
+              return (
+                <motion.div
+                  key={cfg.network}
+                  initial={{ opacity: 0, y: 16, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  transition={{ duration: 0.45, delay: i * 0.08, ease: [0.23, 1, 0.32, 1] }}
+                >
+                  <NetworkCard
+                    network={cfg.network as import("@prisma/client").Network}
+                    label={cfg.label}
+                    description={cfg.description}
+                    color={cfg.color}
+                    glow={cfg.glow}
+                    hasSecret={cfg.hasSecret}
+                    keyLabel={cfg.keyLabel}
+                    secretLabel={cfg.secretLabel}
+                    isConnected={acct?.isActive ?? false}
+                    index={i}
+                  />
+                </motion.div>
+              );
+            })}
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {NETWORK_CONFIGS.map((cfg, i) => {
-            const acct = accounts.find(a => a.network === cfg.network);
-            return (
-              <motion.div
-                key={cfg.network}
-                initial={{ opacity: 0, y: 16, filter: "blur(4px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                transition={{ duration: 0.45, delay: i * 0.1, ease: [0.23, 1, 0.32, 1] }}
-              >
-                <NetworkCard
-                  network={cfg.network as import("@prisma/client").Network}
-                  label={cfg.label}
-                  description={cfg.description}
-                  color={cfg.color}
-                  glow={cfg.glow}
-                  hasSecret={cfg.hasSecret}
-                  keyLabel={cfg.keyLabel}
-                  secretLabel={cfg.secretLabel}
-                  isConnected={acct?.isActive ?? false}
-                  index={i}
-                />
-              </motion.div>
-            );
-          })}
+        {/* ── Divider ── */}
+        <div style={{ height: 1, background: "rgba(255,255,255,0.06)" }} />
+
+        {/* ── Revenue Trackers ── */}
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(167,243,208,0.45)" }}>Revenue Trackers</div>
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.38)", marginTop: 3 }}>Connect your conversion tracker — the engine reads real ROI to make kill/watch/scale decisions.</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {TRACKER_CONFIGS.map((cfg, i) => {
+              const acct = accounts.find(a => a.network === cfg.network);
+              return (
+                <motion.div
+                  key={cfg.network}
+                  initial={{ opacity: 0, y: 16, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  transition={{ duration: 0.45, delay: i * 0.08, ease: [0.23, 1, 0.32, 1] }}
+                >
+                  <NetworkCard
+                    network={cfg.network as import("@prisma/client").Network}
+                    label={cfg.label}
+                    description={cfg.description}
+                    color={cfg.color}
+                    glow={cfg.glow}
+                    hasSecret={cfg.hasSecret}
+                    keyLabel={cfg.keyLabel}
+                    secretLabel={cfg.secretLabel}
+                    isConnected={acct?.isActive ?? false}
+                    index={i}
+                  />
+                </motion.div>
+              );
+            })}
+          </div>
         </div>
 
 
