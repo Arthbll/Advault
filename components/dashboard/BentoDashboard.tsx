@@ -625,10 +625,16 @@ export default function BentoDashboard(props: Props) {
   const { totals, chartData, networkBreakdown, activeCampaigns } = data;
   const profitPos = totals.totalProfit >= 0;
 
-  // Engine summary counts — driven by live API data
-  const killed   = engineCounts.killed;
-  const watching = engineCounts.watch;
-  const scaling  = engineCounts.scaled;
+  // Demo overrides — when ?demo=auto or ?demo=reco, bypass real API data
+  const displayCounts      = isDemoAuto ? DEMO_COUNTS_AUTO : isDemoReco ? DEMO_COUNTS_RECO : engineCounts;
+  const displayEvents      = isDemoAuto ? DEMO_FEED_AUTO   : isDemoReco ? DEMO_FEED_RECO   : engineEvents;
+  const displayActiveCamps = isDemo ? 10 : activeCampaigns;
+  const displayLoading     = isDemo ? false : engineLoading;
+
+  // Engine summary counts — driven by display data (real or demo)
+  const killed   = displayCounts.killed;
+  const watching = displayCounts.watch;
+  const scaling  = displayCounts.scaled;
 
   // Campaign table data
   const rawCampaigns: CampaignRow[] = props.topCampaigns?.length
@@ -827,24 +833,22 @@ export default function BentoDashboard(props: Props) {
       </motion.div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          SECTION 1 — DECISION ENGINE (7fr) + ENGINE LIVE STREAM (5fr)
+          SECTION 1 — DECISION ENGINE + EVENT STREAM (single column)
       ═══════════════════════════════════════════════════════════════════ */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "7fr 5fr", gap: 14 }}>
+      <motion.div {...s(1)} style={{
+        ...CARD, borderRadius: 28,
+        background: [
+          "radial-gradient(circle at 80% 10%, rgba(37,99,235,0.09), transparent 30%)",
+          "radial-gradient(circle at 10% 70%, rgba(139,92,246,0.06), transparent 25%)",
+          "#17171e",
+        ].join(", "),
+        display: "flex", flexDirection: "column",
+      }}>
 
-        {/* ── Decision Engine — system module, not marketing ────────── */}
-        <motion.div {...s(1)} style={{
-          ...CARD, padding: "24px 26px",
-          background: [
-            "radial-gradient(circle at 80% 15%, rgba(37,99,235,0.10), transparent 28%)",
-            "radial-gradient(circle at 10% 80%, rgba(139,92,246,0.07), transparent 24%)",
-            "#17171e",
-          ].join(", "),
-          position: "relative", overflow: "hidden",
-          borderRadius: 28,
-          display: "flex", flexDirection: "column", gap: 14,
-        }}>
+        {/* ── Top: Decision Engine ───────────────────────────────────────── */}
+        <div style={{ padding: "24px 26px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
 
-          {/* ── Title row ─────────────────────────────────────────── */}
+          {/* Title + scan loop */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Zap size={10} color="#52525b" strokeWidth={2} />
@@ -855,7 +859,7 @@ export default function BentoDashboard(props: Props) {
             <ScanLoopIndicator intervalMs={14000} />
           </div>
 
-          {/* ── Status row ─────────────────────────────────────────── */}
+          {/* Status bar */}
           <div style={{
             display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const,
             background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)",
@@ -864,106 +868,76 @@ export default function BentoDashboard(props: Props) {
             <motion.div
               animate={{ opacity: [1, 0.25, 1] }}
               transition={{ duration: 1.6, repeat: Infinity }}
-              style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80", flexShrink: 0 }}
+              style={{ width: 5, height: 5, borderRadius: "50%", background: isDemoReco ? "#a78bfa" : "#4ade80", flexShrink: 0 }}
             />
             <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)" }}>Running</span>
             <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
             <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
               Last scan{" "}
               <span style={{ color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>
-                {engineCounts.lastEventAt ? timeAgoClient(engineCounts.lastEventAt) : "—"}
+                {displayCounts.lastEventAt ? timeAgoClient(displayCounts.lastEventAt) : "—"}
               </span>
             </span>
             <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
             <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
               <span style={{ color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>
-                {engineCounts.rulesCount > 0 ? engineCounts.rulesCount : "—"}
+                {displayCounts.rulesCount > 0 ? displayCounts.rulesCount : "—"}
               </span>{" "}rules active
             </span>
-            {activeCampaigns > 0 && (
+            {displayActiveCamps > 0 && (
               <>
                 <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                  <span style={{ color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>{activeCampaigns}</span>{" "}monitored
+                  <span style={{ color: "rgba(255,255,255,0.65)", fontWeight: 500 }}>{displayActiveCamps}</span>{" "}monitored
                 </span>
+              </>
+            )}
+            {isDemoReco && (
+              <>
+                <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: "#c4b5fd", fontWeight: 500 }}>Recommendation mode</span>
               </>
             )}
           </div>
 
-          {/* ── 4 mini stat cards ─────────────────────────────────── */}
+          {/* 4 mini stat cards */}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 8 }}>
             {([
-              { label: "Killed today",  value: killed,          color: "#f87171",                  rgb: "248,113,113" },
-              { label: "Watching",      value: watching,        color: "#fbbf24",                  rgb: "251,191,36"  },
-              { label: "Scaling",       value: scaling,         color: "#4ade80",                  rgb: "74,222,128"  },
-              { label: "Protected",     value: activeCampaigns, color: "rgba(255,255,255,0.65)",   rgb: "255,255,255" },
+              { label: isDemoReco ? "Suggested kills" : "Killed today",   value: killed,             color: "#f87171",                 rgb: "248,113,113" },
+              { label: "Watching",                                          value: watching,           color: "#fbbf24",                 rgb: "251,191,36"  },
+              { label: isDemoReco ? "Suggested scales" : "Scaling",        value: scaling,            color: "#4ade80",                 rgb: "74,222,128"  },
+              { label: "Protected",                                         value: displayActiveCamps, color: "rgba(255,255,255,0.65)",  rgb: "255,255,255" },
             ] as { label: string; value: number; color: string; rgb: string }[]).map(({ label, value, color, rgb }) => (
               <div key={label} style={{
                 background: `rgba(${rgb},0.04)`,
                 border: `1px solid rgba(${rgb},0.10)`,
-                borderRadius: 14,
-                padding: "14px 14px 12px",
+                borderRadius: 14, padding: "14px 14px 12px",
                 textAlign: "center" as const,
               }}>
-                <div style={{
-                  fontSize: 30, fontWeight: 200, color,
-                  letterSpacing: "-0.05em", lineHeight: 1,
-                  fontVariantNumeric: "tabular-nums",
-                }}>
+                <div style={{ fontSize: 30, fontWeight: 200, color, letterSpacing: "-0.05em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
                   {value}
                 </div>
-                <div style={{
-                  fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const,
-                  letterSpacing: "0.10em", color: "#3f3f46", marginTop: 5,
-                }}>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.10em", color: "#3f3f46", marginTop: 5 }}>
                   {label}
                 </div>
               </div>
             ))}
           </div>
+        </div>
 
-          {/* ── Bottom status line ─────────────────────────────────── */}
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "7px 12px",
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.04)",
-            borderRadius: 10,
-            marginTop: "auto",
-          }}>
-            <span style={{ fontSize: 10, color: "#3f3f46", letterSpacing: "0.01em" }}>
-              {engineCounts.today > 0
-                ? <>{engineCounts.today} decision{engineCounts.today > 1 ? "s" : ""} today</>
-                : "No decisions yet today"
-              }
-            </span>
-            <span style={{ fontSize: 10, color: "#27272a", letterSpacing: "0.01em" }}>
-              14s scan interval
-            </span>
-          </div>
-        </motion.div>
+        {/* ── Divider ────────────────────────────────────────────────────── */}
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 26px" }} />
 
-        {/* ── Engine live stream ────────────────────────────────────── */}
-        <motion.div {...s(2)} style={{
-          ...CARD,
-          background: [
-            "radial-gradient(circle at 14% 10%, rgba(37,99,235,0.07), transparent 30%)",
-            "#17171e",
-          ].join(", "),
-          display: "flex", flexDirection: "column",
-          borderRadius: 28,
-        }}>
-          {/* Header */}
-          <div style={{
-            padding: "13px 18px 10px",
-            borderBottom: "1px solid rgba(255,255,255,0.05)",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-          }}>
+        {/* ── Bottom: Event Stream ───────────────────────────────────────── */}
+        <div style={{ padding: "20px 26px 26px", display: "flex", flexDirection: "column", gap: 10 }}>
+
+          {/* Stream header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={LABEL}>Event stream</span>
-              {engineCounts.today > 0 && (
+              <span style={LABEL}>{isDemoReco ? "What the robot recommends" : "What the robot did"}</span>
+              {displayCounts.today > 0 && (
                 <span style={{ fontSize: 9, color: "#3f3f46", fontVariantNumeric: "tabular-nums" }}>
-                  {engineCounts.today} event{engineCounts.today > 1 ? "s" : ""} today
+                  {displayCounts.today} {isDemoReco ? "pending" : `event${displayCounts.today > 1 ? "s" : ""} today`}
                 </span>
               )}
             </div>
@@ -971,197 +945,123 @@ export default function BentoDashboard(props: Props) {
               <motion.div
                 animate={{ opacity: [1, 0.2, 1] }}
                 transition={{ duration: 1.4, repeat: Infinity }}
-                style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80" }}
+                style={{ width: 5, height: 5, borderRadius: "50%", background: isDemoReco ? "#a78bfa" : "#4ade80" }}
               />
-              <span style={{ fontSize: 9, color: "#4ade80", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                Live
+              <span style={{ fontSize: 9, color: isDemoReco ? "#a78bfa" : "#4ade80", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" as const }}>
+                {isDemoReco ? "Pending" : "Live"}
               </span>
             </div>
           </div>
 
-          {/* Event cards — left accent bar signals state, card is the unit */}
-          <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "8px 12px 8px", gap: 5 }}>
-            {engineLoading && engineEvents === PLACEHOLDER_FEED && engineEvents.map((ev, i) => (
-              <div key={ev.id} style={{
-                height: 62, borderRadius: 12,
-                background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.05)",
-                animation: `pulse 1.6s ease-in-out ${i * 0.15}s infinite`,
-              }} />
-            ))}
-            {!engineLoading && engineEvents.length === 0 && (
-              <div style={{
-                flex: 1, display: "flex", flexDirection: "column",
-                alignItems: "center", justifyContent: "center", gap: 8,
-                padding: "24px 0",
-              }}>
-                <Activity size={18} color="#2d2d35" strokeWidth={1.5} />
-                <span style={{ fontSize: 11, color: "#3f3f46", letterSpacing: "0.03em" }}>Waiting for decisions</span>
-                <span style={{ fontSize: 10, color: "#27272a", textAlign: "center", maxWidth: 150, lineHeight: 1.6 }}>
-                  The engine is running. Decisions will appear here as campaigns are evaluated.
-                </span>
-              </div>
-            )}
-            {!engineLoading && engineEvents.length > 0 && engineEvents.slice(0, showAllEvents ? 30 : 5).map((ev, i) => {
-              const netKey = ev.network.toUpperCase().replace(/\s/g, "");
-              const netColor = NET_META[netKey]?.color ?? "#52525b";
-              const accentColor = toneText(ev.tone);
-              return (
-                <motion.div
-                  key={ev.id}
-                  initial={{ opacity: 0, x: 8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.06 + i * 0.07, duration: 0.38, ease: [0.23, 1, 0.32, 1] }}
-                  style={{
-                    position: "relative", overflow: "hidden",
-                    display: "flex", gap: 0,
-                    background: "rgba(255,255,255,0.02)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    borderRadius: 12,
-                  }}
-                >
-                  {/* Left accent bar — the primary state signal */}
-                  <div style={{
-                    width: 3, flexShrink: 0,
-                    background: accentColor,
-                    opacity: 0.55,
-                    borderRadius: "12px 0 0 12px",
-                  }} />
+          {/* Loading skeletons */}
+          {displayLoading && [0,1,2].map(i => (
+            <div key={i} style={{ height: 60, borderRadius: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }} />
+          ))}
 
-                  <div style={{ flex: 1, padding: "9px 11px" }}>
-                    {/* Top row: badge + network + time */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
-                      {ev.isRecommend ? (
-                        <span style={{
-                          ...toneBadge(ev.tone),
-                          background: "transparent",
-                          border: `1px dashed ${toneText(ev.tone)}`,
-                          opacity: 0.75,
-                        }}>
-                          {ev.state}?
-                        </span>
-                      ) : (
-                        <span style={toneBadge(ev.tone)}>{ev.state}</span>
-                      )}
-                      {isValidNetwork(ev.network) && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <div style={{ width: 4, height: 4, borderRadius: "50%", background: netColor }} />
-                          <span style={{ fontSize: 9, color: "#52525b" }}>{ev.network}</span>
-                        </div>
-                      )}
-                      <span style={{ marginLeft: "auto", fontSize: 9, color: "#3f3f46", letterSpacing: "0.02em" }}>
-                        {ev.time}
+          {/* Empty state */}
+          {!displayLoading && displayEvents.length === 0 && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: "32px 0" }}>
+              <Activity size={18} color="#2d2d35" strokeWidth={1.5} />
+              <span style={{ fontSize: 11, color: "#3f3f46" }}>Waiting for decisions</span>
+              <span style={{ fontSize: 10, color: "#27272a", textAlign: "center", maxWidth: 220, lineHeight: 1.6 }}>
+                The engine is running. Decisions will appear here as campaigns are evaluated.
+              </span>
+            </div>
+          )}
+
+          {/* Event cards — full width, 2-line layout */}
+          {!displayLoading && displayEvents.length > 0 && displayEvents.slice(0, showAllEvents ? 30 : 7).map((ev, i) => {
+            const netKey    = ev.network.toUpperCase().replace(/\s/g, "");
+            const netColor  = NET_META[netKey]?.color ?? "#52525b";
+            const accentColor = toneText(ev.tone);
+            return (
+              <motion.div
+                key={ev.id}
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.05 + i * 0.05, duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                style={{
+                  display: "flex", gap: 0,
+                  background: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: 12, overflow: "hidden",
+                }}
+              >
+                {/* Left accent bar */}
+                <div style={{
+                  width: 3, flexShrink: 0,
+                  background: accentColor,
+                  opacity: ev.isRecommend ? 0.35 : 0.55,
+                  borderRadius: "12px 0 0 12px",
+                }} />
+
+                <div style={{ flex: 1, padding: "10px 14px" }}>
+                  {/* Row 1: badge + campaign name + network + time */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                    {ev.isRecommend ? (
+                      <span style={{ ...toneBadge(ev.tone), background: "transparent", border: `1px dashed ${toneText(ev.tone)}`, opacity: 0.75 }}>
+                        {ev.state}?
                       </span>
-                    </div>
-
-                    {/* Campaign name — sanitized, never shows raw IDs or placeholder strings */}
-                    <p style={{
-                      fontSize: 13, fontWeight: 500, letterSpacing: "-0.02em",
-                      color: "rgba(255,255,255,0.88)", margin: "0 0 5px", lineHeight: 1.3,
-                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                    }}>
-                      {cleanCampaignName(ev.campaign)}
-                    </p>
-
-                    {/* Campaign name */}
-                    {ev.tone === "emerald" ? (() => {
-                      // Parse "€310 → €388 (+€77 injecté)" out of detail
-                      const injMatch = ev.detail.match(/\+€([\d.]+)\s*injecté/);
-                      const arrowMatch = ev.detail.match(/€([\d.]+)\s*→\s*€([\d.]+)/);
-                      const pctMatch = ev.detail.match(/\+([\d.]+)%/);
-                      if (injMatch && arrowMatch) {
-                        const injected = injMatch[1];
-                        const from     = arrowMatch[1];
-                        const to       = arrowMatch[2];
-                        const pct      = pctMatch?.[1];
-                        return (
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            {/* Injected pill */}
-                            <span style={{
-                              fontSize: 10, fontWeight: 700,
-                              background: "rgba(74,222,128,0.12)",
-                              border: "1px solid rgba(74,222,128,0.22)",
-                              color: "#4ade80", borderRadius: 99,
-                              padding: "2px 8px", letterSpacing: "0.04em",
-                              flexShrink: 0,
-                            }}>
-                              +€{injected}{pct ? ` · +${pct}%` : ""}
-                            </span>
-                            {/* Arrow */}
-                            <span style={{ fontSize: 10, color: "#3f3f46", flexShrink: 0 }}>
-                              €{from} → €{to}
-                            </span>
-                          </div>
-                        );
-                      }
-                      // Fallback plain detail
-                      return (
-                        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.42)", margin: 0, letterSpacing: "0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {ev.detail}
-                        </p>
-                      );
-                    })() : (
-                      <p style={{
-                        fontSize: 11, color: "rgba(255,255,255,0.42)",
-                        margin: 0, letterSpacing: "0.01em",
-                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      }}>
-                        {ev.detail}
-                      </p>
+                    ) : (
+                      <span style={toneBadge(ev.tone)}>{ev.state}</span>
                     )}
+                    <span style={{ fontSize: 13, fontWeight: 500, letterSpacing: "-0.02em", color: "rgba(255,255,255,0.88)", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {cleanCampaignName(ev.campaign)}
+                    </span>
+                    {isValidNetwork(ev.network) && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                        <div style={{ width: 5, height: 5, borderRadius: "50%", background: netColor }} />
+                        <span style={{ fontSize: 10, color: "#52525b" }}>{ev.network}</span>
+                      </div>
+                    )}
+                    <span style={{ fontSize: 10, color: "#3f3f46", flexShrink: 0, marginLeft: 4 }}>{ev.time}</span>
+                  </div>
 
-                    {/* Approve / Ignore buttons — recommendation mode only */}
+                  {/* Row 2: detail + approve/ignore */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.40)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {ev.detail}
+                    </span>
                     {ev.isRecommend && (
-                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                        <button style={{
-                          fontSize: 10, fontWeight: 600, padding: "4px 12px", borderRadius: 6,
-                          background: "rgba(139,92,246,0.12)", color: "#c4b5fd",
-                          border: "1px solid rgba(139,92,246,0.25)", cursor: "pointer",
-                        }}>
+                      <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                        <button style={{ fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: "rgba(139,92,246,0.12)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.25)", cursor: "pointer" }}>
                           Approve
                         </button>
-                        <button style={{
-                          fontSize: 10, padding: "4px 10px", borderRadius: 6,
-                          background: "transparent", color: "rgba(255,255,255,0.28)",
-                          border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer",
-                        }}>
+                        <button style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "transparent", color: "rgba(255,255,255,0.28)", border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer" }}>
                           Ignore
                         </button>
                       </div>
                     )}
                   </div>
-                </motion.div>
-              );
-            })}
+                </div>
+              </motion.div>
+            );
+          })}
 
-            {/* Bouton voir plus / réduire */}
-            {!engineLoading && engineEvents.length > 5 && (
-              <button
-                onClick={() => setShowAllEvents(v => !v)}
-                style={{
-                  marginTop: 4,
-                  width: "100%",
-                  padding: "8px 0",
-                  background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                  borderRadius: 10,
-                  cursor: "pointer",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: "0.10em",
-                  textTransform: "uppercase" as const,
-                  color: "rgba(255,255,255,0.28)",
-                  transition: "all 0.18s",
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.14)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.55)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.28)"; }}
-              >
-                {showAllEvents ? "↑ Show less" : `View all ${Math.min(engineEvents.length, 30)} actions →`}
-              </button>
-            )}
+          {/* See more / show less */}
+          {!displayLoading && displayEvents.length > 7 && (
+            <button
+              onClick={() => setShowAllEvents(v => !v)}
+              style={{ marginTop: 2, width: "100%", padding: "8px 0", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, cursor: "pointer", fontSize: 10, fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.28)", transition: "all 0.18s" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.14)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.55)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.28)"; }}
+            >
+              {showAllEvents ? "↑ Show less" : `View all ${Math.min(displayEvents.length, 30)} actions →`}
+            </button>
+          )}
+
+          {/* Bottom status line */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 12px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 10 }}>
+            <span style={{ fontSize: 10, color: "#3f3f46" }}>
+              {displayCounts.today > 0
+                ? <>{displayCounts.today} {isDemoReco ? "suggestion" : "decision"}{displayCounts.today > 1 ? "s" : ""} today</>
+                : "No decisions yet today"
+              }
+            </span>
+            <span style={{ fontSize: 10, color: "#27272a" }}>14s scan interval</span>
           </div>
-        </motion.div>
-      </div>
+        </div>
+      </motion.div>
 
       {/* ═══════════════════════════════════════════════════════════════════
           SECTION 2 — CAMPAIGN P&L
