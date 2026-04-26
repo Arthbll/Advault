@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, RefreshCw, TrendingUp, TrendingDown, Activity, Globe2, Zap } from "lucide-react";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
@@ -260,25 +261,51 @@ function toneText(t: Tone): string {
 // ─── Engine event type ────────────────────────────────────────────────────────
 
 interface EngineEvent {
-  id:        string;
-  state:     string;
-  tone:      Tone;
-  campaign:  string;
-  network:   string;
-  detail:    string;
-  time:      string;
-  createdAt: string;
+  id:          string;
+  state:       string;
+  tone:        Tone;
+  campaign:    string;
+  network:     string;
+  detail:      string;
+  time:        string;
+  createdAt:   string;
+  isRecommend?: boolean;
 }
 
 // ─── Placeholder affiché tant que le fetch initial n'est pas revenu ──────────
-// Ces données ne sont jamais visibles par les vrais clients — elles servent
-// uniquement de skeleton avant que l'API réponde (< 500ms en prod).
 
 const PLACEHOLDER_FEED: EngineEvent[] = [
   { id: "ph-1", state: "KILL",  tone: "rose",    campaign: "—",  network: "—", detail: "Loading…", time: "—", createdAt: "" },
   { id: "ph-2", state: "WATCH", tone: "amber",   campaign: "—",  network: "—", detail: "Loading…", time: "—", createdAt: "" },
   { id: "ph-3", state: "SCALE", tone: "emerald", campaign: "—",  network: "—", detail: "Loading…", time: "—", createdAt: "" },
 ];
+
+// ─── Demo feeds ───────────────────────────────────────────────────────────────
+// Activated via ?demo=auto or ?demo=reco in the URL.
+// 100% client-side — zero DB writes, zero impact on other pages.
+
+const DEMO_FEED_AUTO: EngineEvent[] = [
+  { id: "d1",  state: "KILL",  tone: "rose",    campaign: "Mainstream_EU_banner_v2", network: "ExoClick",     detail: "ROI -100.0% · $45 spent, 0 conversions",           time: "2h ago",  createdAt: new Date(Date.now() - 2*3600_000).toISOString(),  isRecommend: false },
+  { id: "d2",  state: "SCALE", tone: "emerald", campaign: "Dating_US_push",          network: "PropellerAds", detail: "ROI +68.0% · €310 → €388 (+€78 · +25%)",          time: "3h ago",  createdAt: new Date(Date.now() - 3*3600_000).toISOString(),  isRecommend: false },
+  { id: "d3",  state: "WATCH", tone: "amber",   campaign: "Display_BR_native",       network: "TrafficJunky", detail: "ROI -18.0% · below threshold but improving",       time: "4h ago",  createdAt: new Date(Date.now() - 4*3600_000).toISOString(),  isRecommend: false },
+  { id: "d4",  state: "KILL",  tone: "rose",    campaign: "Summer_Push_Tier2",       network: "Adsterra",     detail: "ROI -42.0% · rule triggered: 3 consecutive scans", time: "5h ago",  createdAt: new Date(Date.now() - 5*3600_000).toISOString(),  isRecommend: false },
+  { id: "d5",  state: "SCALE", tone: "emerald", campaign: "Adult_DE_banner",         network: "TrafficStars", detail: "ROI +55.0% · €180 → €225 (+€45 · +25%)",          time: "6h ago",  createdAt: new Date(Date.now() - 6*3600_000).toISOString(),  isRecommend: false },
+  { id: "d6",  state: "WATCH", tone: "amber",   campaign: "Pop_FR_tier1",            network: "ExoClick",     detail: "ROI -8.0% · holding — 1 more scan before kill",    time: "7h ago",  createdAt: new Date(Date.now() - 7*3600_000).toISOString(),  isRecommend: false },
+  { id: "d7",  state: "KILL",  tone: "rose",    campaign: "Push_IT_lowbid",          network: "PropellerAds", detail: "ROI -67.0% · spend limit reached ($120 lost)",     time: "9h ago",  createdAt: new Date(Date.now() - 9*3600_000).toISOString(),  isRecommend: false },
+];
+
+const DEMO_FEED_RECO: EngineEvent[] = [
+  { id: "r1",  state: "KILL",  tone: "rose",    campaign: "Mainstream_EU_banner_v2", network: "ExoClick",     detail: "ROI -100.0% · $45 spent, 0 conversions",           time: "2h ago",  createdAt: new Date(Date.now() - 2*3600_000).toISOString(),  isRecommend: true  },
+  { id: "r2",  state: "SCALE", tone: "emerald", campaign: "Dating_US_push",          network: "PropellerAds", detail: "ROI +68.0% · recommends bid +25%",                 time: "3h ago",  createdAt: new Date(Date.now() - 3*3600_000).toISOString(),  isRecommend: true  },
+  { id: "r3",  state: "WATCH", tone: "amber",   campaign: "Display_BR_native",       network: "TrafficJunky", detail: "ROI -18.0% · recommends holding 1 more scan",      time: "4h ago",  createdAt: new Date(Date.now() - 4*3600_000).toISOString(),  isRecommend: true  },
+  { id: "r4",  state: "KILL",  tone: "rose",    campaign: "Summer_Push_Tier2",       network: "Adsterra",     detail: "ROI -42.0% · kill rule would apply",               time: "5h ago",  createdAt: new Date(Date.now() - 5*3600_000).toISOString(),  isRecommend: true  },
+  { id: "r5",  state: "SCALE", tone: "emerald", campaign: "Adult_DE_banner",         network: "TrafficStars", detail: "ROI +55.0% · recommends bid +25%",                 time: "6h ago",  createdAt: new Date(Date.now() - 6*3600_000).toISOString(),  isRecommend: true  },
+  { id: "r6",  state: "WATCH", tone: "amber",   campaign: "Pop_FR_tier1",            network: "ExoClick",     detail: "ROI -8.0% · recommends holding — improving trend", time: "7h ago",  createdAt: new Date(Date.now() - 7*3600_000).toISOString(),  isRecommend: true  },
+  { id: "r7",  state: "KILL",  tone: "rose",    campaign: "Push_IT_lowbid",          network: "PropellerAds", detail: "ROI -67.0% · spend limit rule would trigger",      time: "9h ago",  createdAt: new Date(Date.now() - 9*3600_000).toISOString(),  isRecommend: true  },
+];
+
+const DEMO_COUNTS_AUTO = { killed: 3, watch: 2, scaled: 2, today: 7, rulesCount: 3, protectedAmount: 312, lastEventAt: new Date(Date.now() - 2*3600_000).toISOString() };
+const DEMO_COUNTS_RECO = { killed: 0, watch: 0, scaled: 0, today: 0, rulesCount: 3, protectedAmount: 0,   lastEventAt: new Date(Date.now() - 2*3600_000).toISOString() };
 
 // ─── Client-side time helpers ─────────────────────────────────────────────────
 
@@ -460,6 +487,12 @@ function ImpBar({ label, value, share, color }: { label: string; value: string; 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function BentoDashboard(props: Props) {
+  const searchParams   = useSearchParams();
+  const demoParam      = searchParams.get("demo"); // "auto" | "reco" | null
+  const isDemoAuto     = demoParam === "auto";
+  const isDemoReco     = demoParam === "reco";
+  const isDemo         = isDemoAuto || isDemoReco;
+
   const [dateRange,     setDateRange]     = useState<DateRange>({ from: daysAgo(30), to: isoToday(), label: "30D" });
   const [data,          setData]          = useState<DashboardData>({
     totals:           props.totals,
@@ -474,9 +507,9 @@ export default function BentoDashboard(props: Props) {
   const isMobile = useIsMobile();
 
   // ── Engine live feed ──────────────────────────────────────────────────────
-  const [engineEvents,  setEngineEvents]  = useState<EngineEvent[]>(PLACEHOLDER_FEED);
-  const [engineLoading, setEngineLoading] = useState(true);
-  const [engineCounts,  setEngineCounts]  = useState({ killed: 0, watch: 0, scaled: 0, today: 0, rulesCount: 0, protectedAmount: 0, lastEventAt: null as string | null });
+  const [engineEvents,  setEngineEvents]  = useState<EngineEvent[]>(isDemo ? (isDemoReco ? DEMO_FEED_RECO : DEMO_FEED_AUTO) : PLACEHOLDER_FEED);
+  const [engineLoading, setEngineLoading] = useState(!isDemo);
+  const [engineCounts,  setEngineCounts]  = useState(isDemo ? (isDemoReco ? DEMO_COUNTS_RECO : DEMO_COUNTS_AUTO) : { killed: 0, watch: 0, scaled: 0, today: 0, rulesCount: 0, protectedAmount: 0, lastEventAt: null as string | null });
   const [showAllEvents, setShowAllEvents] = useState(false);
   const realtimeRef = useRef<ReturnType<typeof createSupabaseClient> | null>(null);
 
@@ -512,10 +545,10 @@ export default function BentoDashboard(props: Props) {
   }, []);
 
   // ── Supabase Realtime : écoute les INSERT sur Log ────────────────────────
-  // Dès qu'un nouveau log moteur est inséré, on refresh le feed sans polling.
-  // ⚠️  Prérequis Supabase : activer Realtime sur la table "Log" dans
-  //     Database → Replication → Source tables.
   useEffect(() => {
+    // En mode démo : pas de fetch réseau, données déjà chargées
+    if (isDemo) return;
+
     // Chargement initial
     void fetchEngineActions();
 
@@ -677,6 +710,54 @@ export default function BentoDashboard(props: Props) {
       ].join(", "),
     }}>
 
+      {/* ── Demo mode banner ──────────────────────────────────────────────── */}
+      {isDemo && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+            padding: "10px 18px", borderRadius: 14,
+            border: isDemoReco ? "1px solid rgba(139,92,246,0.25)" : "1px solid rgba(74,222,128,0.20)",
+            background: isDemoReco ? "rgba(139,92,246,0.06)" : "rgba(16,185,129,0.05)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 13 }}>🎭</span>
+            <div>
+              <span style={{ fontSize: 12, fontWeight: 600, color: isDemoReco ? "#c4b5fd" : "#86efac" }}>
+                Demo mode — {isDemoReco ? "Recommendation" : "Automatic"}
+              </span>
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.38)", marginLeft: 8 }}>
+                {isDemoReco
+                  ? "The engine flags actions — you decide. No real campaigns are affected."
+                  : "The engine acts automatically. No real campaigns are affected."}
+              </span>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+            <a href="?demo=auto" style={{
+              fontSize: 11, padding: "4px 12px", borderRadius: 8, cursor: "pointer", textDecoration: "none",
+              background: !isDemoReco ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.04)",
+              color: !isDemoReco ? "#86efac" : "rgba(255,255,255,0.35)",
+              border: !isDemoReco ? "1px solid rgba(74,222,128,0.25)" : "1px solid rgba(255,255,255,0.08)",
+            }}>Automatic</a>
+            <a href="?demo=reco" style={{
+              fontSize: 11, padding: "4px 12px", borderRadius: 8, cursor: "pointer", textDecoration: "none",
+              background: isDemoReco ? "rgba(139,92,246,0.15)" : "rgba(255,255,255,0.04)",
+              color: isDemoReco ? "#c4b5fd" : "rgba(255,255,255,0.35)",
+              border: isDemoReco ? "1px solid rgba(139,92,246,0.25)" : "1px solid rgba(255,255,255,0.08)",
+            }}>Recommendation</a>
+            <a href="/dashboard" style={{
+              fontSize: 11, padding: "4px 12px", borderRadius: 8, cursor: "pointer", textDecoration: "none",
+              background: "transparent", color: "rgba(255,255,255,0.25)",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}>Exit demo</a>
+          </div>
+        </motion.div>
+      )}
+
       {/* ── Revenue signal warning ─────────────────────────────────────────── */}
       {totals.totalRevenue === 0 && totals.totalSpend > 0 && (
         <motion.div
@@ -730,16 +811,17 @@ export default function BentoDashboard(props: Props) {
         {/* Engine live pill — product-facing, not decorative */}
         <div style={{
           display: "inline-flex", alignItems: "center", gap: 8,
-          background: "rgba(16,185,129,0.07)", border: "1px solid rgba(74,222,128,0.16)",
+          background: isDemoReco ? "rgba(139,92,246,0.07)" : "rgba(16,185,129,0.07)",
+          border: isDemoReco ? "1px solid rgba(139,92,246,0.20)" : "1px solid rgba(74,222,128,0.16)",
           borderRadius: 99, padding: "7px 16px",
         }}>
           <motion.div
             animate={{ opacity: [1, 0.2, 1] }}
             transition={{ duration: 1.8, repeat: Infinity }}
-            style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80" }}
+            style={{ width: 6, height: 6, borderRadius: "50%", background: isDemoReco ? "#a78bfa" : "#4ade80" }}
           />
-          <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "#86efac" }}>
-            Engine live · 14s scan loop
+          <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: isDemoReco ? "#c4b5fd" : "#86efac" }}>
+            {isDemoReco ? "Engine live · Recommendation" : "Engine live · 14s scan loop"}
           </span>
         </div>
       </motion.div>
@@ -949,7 +1031,18 @@ export default function BentoDashboard(props: Props) {
                   <div style={{ flex: 1, padding: "9px 11px" }}>
                     {/* Top row: badge + network + time */}
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
-                      <span style={toneBadge(ev.tone)}>{ev.state}</span>
+                      {ev.isRecommend ? (
+                        <span style={{
+                          ...toneBadge(ev.tone),
+                          background: "transparent",
+                          border: `1px dashed ${toneText(ev.tone)}`,
+                          opacity: 0.75,
+                        }}>
+                          {ev.state}?
+                        </span>
+                      ) : (
+                        <span style={toneBadge(ev.tone)}>{ev.state}</span>
+                      )}
                       {isValidNetwork(ev.network) && (
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           <div style={{ width: 4, height: 4, borderRadius: "50%", background: netColor }} />
@@ -970,7 +1063,7 @@ export default function BentoDashboard(props: Props) {
                       {cleanCampaignName(ev.campaign)}
                     </p>
 
-                    {/* Detail — SCALE gets a dedicated injection display */}
+                    {/* Campaign name */}
                     {ev.tone === "emerald" ? (() => {
                       // Parse "€310 → €388 (+€77 injecté)" out of detail
                       const injMatch = ev.detail.match(/\+€([\d.]+)\s*injecté/);
@@ -1015,6 +1108,26 @@ export default function BentoDashboard(props: Props) {
                       }}>
                         {ev.detail}
                       </p>
+                    )}
+
+                    {/* Approve / Ignore buttons — recommendation mode only */}
+                    {ev.isRecommend && (
+                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                        <button style={{
+                          fontSize: 10, fontWeight: 600, padding: "4px 12px", borderRadius: 6,
+                          background: "rgba(139,92,246,0.12)", color: "#c4b5fd",
+                          border: "1px solid rgba(139,92,246,0.25)", cursor: "pointer",
+                        }}>
+                          Approve
+                        </button>
+                        <button style={{
+                          fontSize: 10, padding: "4px 10px", borderRadius: 6,
+                          background: "transparent", color: "rgba(255,255,255,0.28)",
+                          border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer",
+                        }}>
+                          Ignore
+                        </button>
+                      </div>
                     )}
                   </div>
                 </motion.div>
