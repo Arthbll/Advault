@@ -906,7 +906,7 @@ export default function BentoDashboard(props: Props) {
               { label: isDemoReco ? "Suggested kills" : "Killed today",   value: killed,             color: "#f87171",                 rgb: "248,113,113" },
               { label: "Watching",                                          value: watching,           color: "#fbbf24",                 rgb: "251,191,36"  },
               { label: isDemoReco ? "Suggested scales" : "Scaling",        value: scaling,            color: "#4ade80",                 rgb: "74,222,128"  },
-              { label: "Protected",                                         value: displayActiveCamps, color: "rgba(255,255,255,0.65)",  rgb: "255,255,255" },
+              { label: "Protected",                                         value: isDemoReco ? 0 : displayActiveCamps, color: "rgba(255,255,255,0.65)",  rgb: "255,255,255" },
             ] as { label: string; value: number; color: string; rgb: string }[]).map(({ label, value, color, rgb }) => (
               <div key={label} style={{
                 background: `rgba(${rgb},0.04)`,
@@ -970,83 +970,127 @@ export default function BentoDashboard(props: Props) {
           )}
 
           {/* Event cards — full width, 2-line layout */}
-          {!displayLoading && displayEvents.length > 0 && displayEvents.slice(0, showAllEvents ? 30 : 7).map((ev, i) => {
-            const netKey    = ev.network.toUpperCase().replace(/\s/g, "");
-            const netColor  = NET_META[netKey]?.color ?? "#52525b";
-            const accentColor = toneText(ev.tone);
-            return (
-              <motion.div
-                key={ev.id}
-                initial={{ opacity: 0, x: 8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.05 + i * 0.05, duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-                style={{
-                  display: "flex", gap: 0,
-                  background: "rgba(255,255,255,0.02)",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                  borderRadius: 12, overflow: "hidden",
-                }}
-              >
-                {/* Left accent bar */}
-                <div style={{
-                  width: 3, flexShrink: 0,
-                  background: accentColor,
-                  opacity: ev.isRecommend ? 0.35 : 0.55,
-                  borderRadius: "12px 0 0 12px",
-                }} />
+          {/* WATCH events are "Under surveillance" — not actions. Show KILL + SCALE first, then WATCH separately. */}
+          {!displayLoading && displayEvents.length > 0 && (() => {
+            const actionEvents = displayEvents.filter(ev => ev.state !== "WATCH");
+            const watchEvents  = displayEvents.filter(ev => ev.state === "WATCH");
+            const visibleActions = actionEvents.slice(0, showAllEvents ? 30 : 7);
 
-                <div style={{ flex: 1, padding: "10px 14px" }}>
-                  {/* Row 1: badge + campaign name + network + time */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                    {ev.isRecommend ? (
-                      <span style={{ ...toneBadge(ev.tone), background: "transparent", border: `1px dashed ${toneText(ev.tone)}`, opacity: 0.75 }}>
-                        {ev.state}?
+            function renderEvent(ev: EngineEvent, i: number, isWatchSection = false) {
+              const netKey     = ev.network.toUpperCase().replace(/\s/g, "");
+              const netColor   = NET_META[netKey]?.color ?? "#52525b";
+              const accentColor = toneText(ev.tone);
+              return (
+                <motion.div
+                  key={ev.id}
+                  initial={{ opacity: 0, x: 8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.05 + i * 0.05, duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
+                  style={{
+                    display: "flex", gap: 0,
+                    background: isWatchSection ? "rgba(255,255,255,0.015)" : "rgba(255,255,255,0.025)",
+                    border: isWatchSection ? "1px solid rgba(255,255,255,0.05)" : "1px solid rgba(255,255,255,0.07)",
+                    borderRadius: 12, overflow: "hidden",
+                  }}
+                >
+                  {/* Left accent bar */}
+                  <div style={{
+                    width: 3, flexShrink: 0,
+                    background: accentColor,
+                    opacity: isWatchSection ? 0.25 : (ev.isRecommend ? 0.45 : 0.65),
+                    borderRadius: "12px 0 0 12px",
+                  }} />
+
+                  <div style={{ flex: 1, padding: "12px 16px" }}>
+                    {/* Row 1: badge + campaign name + network + time */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      {ev.isRecommend ? (
+                        <span style={{ ...toneBadge(ev.tone), background: "transparent", border: `1px dashed ${toneText(ev.tone)}`, opacity: 0.75 }}>
+                          {ev.state}?
+                        </span>
+                      ) : (
+                        <span style={toneBadge(ev.tone)}>{isWatchSection ? "MONITORING" : ev.state}</span>
+                      )}
+                      <span style={{ fontSize: 13, fontWeight: 500, letterSpacing: "-0.02em", color: isWatchSection ? "rgba(255,255,255,0.60)" : "rgba(255,255,255,0.88)", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {cleanCampaignName(ev.campaign)}
                       </span>
-                    ) : (
-                      <span style={toneBadge(ev.tone)}>{ev.state}</span>
-                    )}
-                    <span style={{ fontSize: 13, fontWeight: 500, letterSpacing: "-0.02em", color: "rgba(255,255,255,0.88)", flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {cleanCampaignName(ev.campaign)}
-                    </span>
-                    {isValidNetwork(ev.network) && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                        <div style={{ width: 5, height: 5, borderRadius: "50%", background: netColor }} />
-                        <span style={{ fontSize: 10, color: "#52525b" }}>{ev.network}</span>
-                      </div>
-                    )}
-                    <span style={{ fontSize: 10, color: "#3f3f46", flexShrink: 0, marginLeft: 4 }}>{ev.time}</span>
-                  </div>
+                      {isValidNetwork(ev.network) && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                          <div style={{ width: 5, height: 5, borderRadius: "50%", background: netColor }} />
+                          <span style={{ fontSize: 10, color: "#52525b" }}>{ev.network}</span>
+                        </div>
+                      )}
+                      <span style={{ fontSize: 10, color: "#3f3f46", flexShrink: 0, marginLeft: 4 }}>{ev.time}</span>
+                    </div>
 
-                  {/* Row 2: detail + approve/ignore */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.40)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {ev.detail}
-                    </span>
-                    {ev.isRecommend && (
-                      <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                        <button style={{ fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 6, background: "rgba(139,92,246,0.12)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.25)", cursor: "pointer" }}>
-                          Approve
+                    {/* Row 2: detail + action buttons */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.38)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                        {ev.detail}
+                      </span>
+                      {ev.isRecommend ? (
+                        <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                          <button style={{ fontSize: 10, fontWeight: 600, padding: "4px 12px", borderRadius: 6, background: "rgba(139,92,246,0.14)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.28)", cursor: "pointer" }}>
+                            Approve
+                          </button>
+                          <button style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, background: "transparent", color: "rgba(255,255,255,0.30)", border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer" }}>
+                            Ignore
+                          </button>
+                        </div>
+                      ) : !isWatchSection ? (
+                        <button style={{ fontSize: 9, fontWeight: 600, padding: "3px 9px", borderRadius: 6, background: "transparent", color: "rgba(255,255,255,0.20)", border: "1px solid rgba(255,255,255,0.08)", cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase" as const, flexShrink: 0 }}>
+                          Restore
                         </button>
-                        <button style={{ fontSize: 10, padding: "3px 8px", borderRadius: 6, background: "transparent", color: "rgba(255,255,255,0.28)", border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer" }}>
-                          Ignore
-                        </button>
-                      </div>
-                    )}
+                      ) : (
+                        <span style={{ fontSize: 9, fontWeight: 600, color: "#fbbf24", letterSpacing: "0.08em", textTransform: "uppercase" as const, flexShrink: 0, opacity: 0.6 }}>
+                          Next scan →
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </motion.div>
+                </motion.div>
+              );
+            }
+
+            return (
+              <>
+                {/* Actions: KILL + SCALE */}
+                {visibleActions.map((ev, i) => renderEvent(ev, i))}
+
+                {/* See more for actions */}
+                {!showAllEvents && actionEvents.length > 7 && (
+                  <button
+                    onClick={() => setShowAllEvents(true)}
+                    style={{ width: "100%", padding: "7px 0", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, cursor: "pointer", fontSize: 10, fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.28)" }}
+                  >
+                    View all {actionEvents.length} actions →
+                  </button>
+                )}
+
+                {/* Under surveillance: WATCH events */}
+                {watchEvents.length > 0 && (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                      <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.04)" }} />
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "#3f3f46" }}>
+                        Under surveillance · {watchEvents.length}
+                      </span>
+                      <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.04)" }} />
+                    </div>
+                    {watchEvents.map((ev, i) => renderEvent(ev, i, true))}
+                  </>
+                )}
+              </>
             );
-          })}
+          })()}
 
-          {/* See more / show less */}
-          {!displayLoading && displayEvents.length > 7 && (
+          {/* Show less (only visible when expanded) */}
+          {!displayLoading && showAllEvents && (
             <button
-              onClick={() => setShowAllEvents(v => !v)}
-              style={{ marginTop: 2, width: "100%", padding: "8px 0", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, cursor: "pointer", fontSize: 10, fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.28)", transition: "all 0.18s" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.14)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.55)"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.06)"; (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.28)"; }}
+              onClick={() => setShowAllEvents(false)}
+              style={{ marginTop: 2, width: "100%", padding: "8px 0", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, cursor: "pointer", fontSize: 10, fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.28)" }}
             >
-              {showAllEvents ? "↑ Show less" : `View all ${Math.min(displayEvents.length, 30)} actions →`}
+              ↑ Show less
             </button>
           )}
 
