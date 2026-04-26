@@ -510,8 +510,23 @@ export default function BentoDashboard(props: Props) {
   const [engineEvents,  setEngineEvents]  = useState<EngineEvent[]>(isDemo ? (isDemoReco ? DEMO_FEED_RECO : DEMO_FEED_AUTO) : PLACEHOLDER_FEED);
   const [engineLoading, setEngineLoading] = useState(!isDemo);
   const [engineCounts,  setEngineCounts]  = useState(isDemo ? (isDemoReco ? DEMO_COUNTS_RECO : DEMO_COUNTS_AUTO) : { killed: 0, watch: 0, scaled: 0, today: 0, rulesCount: 0, protectedAmount: 0, lastEventAt: null as string | null });
-  const [showAllEvents, setShowAllEvents] = useState(false);
+  const [showAllEvents,   setShowAllEvents]   = useState(false);
+  const [approvedEvents,  setApprovedEvents]  = useState<Set<string>>(new Set());
+  const [ignoredEvents,   setIgnoredEvents]   = useState<Set<string>>(new Set());
   const realtimeRef = useRef<ReturnType<typeof createSupabaseClient> | null>(null);
+
+  function handleApprove(eventId: string) {
+    setApprovedEvents(prev => new Set([...prev, eventId]));
+    // In real mode: POST /api/engine/recommendations/{eventId}/approve
+    // After 1.8s, remove the card entirely
+    setTimeout(() => {
+      setIgnoredEvents(prev => new Set([...prev, eventId])); // reuse ignore set to remove card
+    }, 1800);
+  }
+
+  function handleIgnore(eventId: string) {
+    setIgnoredEvents(prev => new Set([...prev, eventId]));
+  }
 
   const fetchEngineActions = useCallback(async () => {
     try {
@@ -972,8 +987,8 @@ export default function BentoDashboard(props: Props) {
           {/* Event cards — full width, 2-line layout */}
           {/* WATCH events are "Under surveillance" — not actions. Show KILL + SCALE first, then WATCH separately. */}
           {!displayLoading && displayEvents.length > 0 && (() => {
-            const actionEvents = displayEvents.filter(ev => ev.state !== "WATCH");
-            const watchEvents  = displayEvents.filter(ev => ev.state === "WATCH");
+            const actionEvents   = displayEvents.filter(ev => ev.state !== "WATCH" && !ignoredEvents.has(ev.id));
+            const watchEvents    = displayEvents.filter(ev => ev.state === "WATCH"  && !ignoredEvents.has(ev.id));
             const visibleActions = actionEvents.slice(0, showAllEvents ? 30 : 7);
 
             function renderEvent(ev: EngineEvent, i: number, isWatchSection = false) {
@@ -1029,14 +1044,37 @@ export default function BentoDashboard(props: Props) {
                         {ev.detail}
                       </span>
                       {ev.isRecommend ? (
-                        <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                          <button style={{ fontSize: 10, fontWeight: 600, padding: "4px 12px", borderRadius: 6, background: "rgba(139,92,246,0.14)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.28)", cursor: "pointer" }}>
-                            Approve
-                          </button>
-                          <button style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, background: "transparent", color: "rgba(255,255,255,0.30)", border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer" }}>
-                            Ignore
-                          </button>
-                        </div>
+                        approvedEvents.has(ev.id) ? (
+                          /* Approved state — shows briefly before card disappears */
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                            <motion.div
+                              initial={{ scale: 0.7, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 12px", borderRadius: 6, background: "rgba(74,222,128,0.14)", border: "1px solid rgba(74,222,128,0.30)" }}
+                            >
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#4ade80", letterSpacing: "0.05em" }}>✓ Approved</span>
+                            </motion.div>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                            <button
+                              onClick={() => handleApprove(ev.id)}
+                              style={{ fontSize: 10, fontWeight: 600, padding: "4px 12px", borderRadius: 6, background: "rgba(139,92,246,0.14)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.28)", cursor: "pointer", transition: "all 0.15s" }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(139,92,246,0.28)"; (e.currentTarget as HTMLButtonElement).style.color = "#e9d5ff"; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(139,92,246,0.14)"; (e.currentTarget as HTMLButtonElement).style.color = "#c4b5fd"; }}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleIgnore(ev.id)}
+                              style={{ fontSize: 10, padding: "4px 10px", borderRadius: 6, background: "transparent", color: "rgba(255,255,255,0.30)", border: "1px solid rgba(255,255,255,0.09)", cursor: "pointer", transition: "all 0.15s" }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.55)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.20)"; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.30)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.09)"; }}
+                            >
+                              Ignore
+                            </button>
+                          </div>
+                        )
                       ) : !isWatchSection ? (
                         <button style={{ fontSize: 9, fontWeight: 600, padding: "3px 9px", borderRadius: 6, background: "transparent", color: "rgba(255,255,255,0.20)", border: "1px solid rgba(255,255,255,0.08)", cursor: "pointer", letterSpacing: "0.05em", textTransform: "uppercase" as const, flexShrink: 0 }}>
                           Restore
