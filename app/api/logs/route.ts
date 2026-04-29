@@ -3,10 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma }       from "@/lib/prisma";
 import { LogType }      from "@prisma/client";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
+import { getSessionPlanId } from "@/lib/plan-access";
+import { PLANS } from "@/lib/plans";
 
 /**
  * GET /api/logs?type=KILL_SWITCH_TRIGGERED&limit=30
  * Returns recent log entries for the authenticated user.
+ * Free plan (observer) → data capped to last 7 days (dataRetentionDays).
  */
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -14,6 +17,8 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = await resolveWorkspaceUserId(user.id);
+  const planId = await getSessionPlanId();
+  const { dataRetentionDays } = PLANS[planId];
 
   const sp      = new URL(req.url).searchParams;
   const typeRaw = sp.get("type");
@@ -28,11 +33,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `Invalid log type: ${typeRaw}` }, { status: 400 });
   }
 
+  // Retention window: null = unlimited, N = last N days
+  const retentionFilter = dataRetentionDays !== null
+    ? { createdAt: { gte: new Date(Date.now() - dataRetentionDays * 86_400_000) } }
+    : {};
+
   try {
     const logs = await prisma.log.findMany({
       where: {
-        userId: userId,
+        userId,
         ...(type ? { type } : {}),
+        ...retentionFilter,
       },
       orderBy: { createdAt: "desc" },
       take:    limit,
@@ -46,7 +57,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ logs });
+    return NextResponse.json({ logs, retentionDays: dataRetentionDays });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 500 });

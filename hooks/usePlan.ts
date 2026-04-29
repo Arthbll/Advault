@@ -7,7 +7,7 @@
  * et expose des helpers pour vérifier les droits d'accès.
  *
  * Usage :
- *   const { planId, plan, canUseAutomatic, atCampaignLimit } = usePlan();
+ *   const { planId, canUseAutomatic, canUseScale, scanIntervalMinutes } = usePlan();
  */
 
 import { useState, useEffect } from "react";
@@ -16,16 +16,31 @@ import { PlanId, PLANS, normalizePlanId, hasAccess } from "@/lib/plans";
 interface PlanState {
   planId: PlanId;
   plan: (typeof PLANS)[PlanId];
-  /** L'utilisateur peut activer le mode automatique */
-  canUseAutomatic: boolean;
-  /** L'utilisateur peut voir la page Analytics */
-  canViewAnalytics: boolean;
-  /** L'utilisateur peut exporter en CSV */
-  canExportCsv: boolean;
-  /** L'utilisateur a accès aux filtres drill-down */
-  canUseDrillDown: boolean;
-  /** Limite de campagnes (Infinity pour Dominion) */
+
+  // ── Campagnes & réseaux ──────────────────────────────────────────────────────
   campaignLimit: number;
+  networkConnectionLimit: number | null;
+  vaultAssetLimit: number | null;
+
+  // ── Decision Engine ──────────────────────────────────────────────────────────
+  canUseAutomatic: boolean;
+  canUseScale: boolean;
+  canUseKillSwitch: boolean;
+  scanIntervalMinutes: number;
+
+  // ── Data & Analytics ─────────────────────────────────────────────────────────
+  canViewAnalytics: boolean;
+  canUseDrillDown: boolean;
+  canExportCsv: boolean;
+  dataRetentionDays: number | null;
+
+  // ── Postbacks ────────────────────────────────────────────────────────────────
+  postbacksPerDay: number | null;
+
+  // ── Communication ────────────────────────────────────────────────────────────
+  canReceiveBriefing: boolean;
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
   /** Vérifie si le plan donne accès à un plan requis */
   hasAccess: (required: PlanId) => boolean;
   /** Chargement en cours */
@@ -51,12 +66,26 @@ export function usePlan(): PlanState {
   return {
     planId,
     plan,
-    canUseAutomatic:  plan.canUseAutomatic,
-    canViewAnalytics: plan.canViewAnalytics,
-    canExportCsv:     plan.canExportCsv,
-    canUseDrillDown:  plan.canUseDrillDown,
-    campaignLimit:    plan.campaignLimit,
-    hasAccess:        (required: PlanId) => hasAccess(planId, required),
+
+    campaignLimit:          plan.campaignLimit,
+    networkConnectionLimit: plan.networkConnectionLimit,
+    vaultAssetLimit:        plan.vaultAssetLimit,
+
+    canUseAutomatic:     plan.canUseAutomatic,
+    canUseScale:         plan.canUseScale,
+    canUseKillSwitch:    plan.canUseKillSwitch,
+    scanIntervalMinutes: plan.scanIntervalMinutes,
+
+    canViewAnalytics:  plan.canViewAnalytics,
+    canUseDrillDown:   plan.canUseDrillDown,
+    canExportCsv:      plan.canExportCsv,
+    dataRetentionDays: plan.dataRetentionDays,
+
+    postbacksPerDay: plan.postbacksPerDay,
+
+    canReceiveBriefing: plan.canReceiveBriefing,
+
+    hasAccess: (required: PlanId) => hasAccess(planId, required),
     loading,
   };
 }

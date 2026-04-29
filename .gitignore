@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# research / private working files (not part of the code)
+research/
+helmperf-research/
+landing-mockup.html
+*.docx

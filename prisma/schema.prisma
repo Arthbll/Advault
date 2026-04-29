@@ -48,6 +48,8 @@ enum LogType {
   SAFETY_DOWNGRADE // Engine basculé en mode recommendation — aucun postback reçu après 48h
   DAILY_BRIEFING_SENT // Briefing quotidien envoyé avec succès
   DAILY_BRIEFING_ERROR // Échec d'envoi du briefing quotidien (pour retry/debug)
+  RECOMMENDATION_APPROVED // Utilisateur a approuvé une recommandation → action exécutée sur le réseau
+  RECOMMENDATION_IGNORED  // Utilisateur a ignoré une recommandation → aucune action
 }
 
 // User tier — influence le format du briefing et les seuils d'alerte auto-calibrés

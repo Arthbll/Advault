@@ -248,6 +248,128 @@ Every page must know:
 
 ---
 
+## Performance page — current state (avril 2026)
+
+### Architecture
+Single-column layout in `components/dashboard/BentoDashboard.tsx`:
+1. Demo banner (if ?demo=auto or ?demo=reco)
+2. Header — "Performance" + Engine live pill
+3. **Decision Engine card** — status bar + 4 mini-stats + Event Stream (all in one card)
+4. Campaign P&L table
+5. Analytics (chart, network breakdown, world map, etc.)
+
+### Demo mode
+- URL params: `?demo=auto` or `?demo=reco` — 100% client-side, zero DB writes
+- `DEMO_FEED_AUTO` / `DEMO_FEED_RECO` — 7 fake events each
+- `DEMO_COUNTS_AUTO` / `DEMO_COUNTS_RECO` — fake engine stats
+- Demo banner with toggle between modes + "Exit demo" link
+
+### Event Stream — UX rules
+- **KILL / SCALE events** = action cards — full card with accent bar + badge + Approve/Ignore (reco) or Restore (auto)
+- **WATCH events** = NOT actions — rendered as compact "Monitoring" info rows under a "Under surveillance" separator. Never shown as action cards.
+- **Approve flow**: button → "✓ Approved" green state (1.8s) → card slides right off screen
+- **Ignore flow**: card slides right off immediately
+- **AnimatePresence mode="popLayout"** handles the exit animations; `layout` prop makes remaining cards fill the gap smoothly
+- **Live pending counter** in stream header: pill badge showing remaining count, animates on change
+- **All clear state**: when all reco action events are processed → green ✓ "Nothing pending · Engine is watching"
+- **Live counter update**: approving a KILL increments "Suggested kills", approving a SCALE increments "Suggested scales" in the mini-stats
+
+### Recommendation mode specifics
+- Badges show as dashed border + "KILL?" instead of solid "KILL"
+- Accent bar opacity 0.45 (vs 0.65 for auto)
+- Header: "What the robot recommends" vs "What the robot did"
+- "Pending" indicator (purple) vs "Live" (green)
+- Protected stat = 0 (nothing protected until user approves)
+- `approvedKilled` / `approvedScaled` state increments live as user approves
+
+### What's NOT built yet
+- Real Approve/Ignore API endpoint (`POST /api/engine/recommendations/{id}/approve`) — buttons work visually but don't hit the server in real mode
+
+### What IS already built (don't re-do)
+- Daily briefing email → fully built at `app/api/cron/daily-briefing/run/route.ts` — sends real emails via Resend, 3 modes: demo / production / test fallback
+- Decision Rules page → fully built at `app/(dashboard)/dashboard/rules/page.tsx` — presets (Careful / Balanced / Aggressive / Custom) + all thresholds configurable
+- Engine actions API → `app/api/engine/actions/route.ts` — returns real engine events with kill/watch/scale/recommend flags
+
+---
+
+## Plans — structure officielle (avril 2026)
+
+Source de vérité : `lib/plans.ts` + `hooks/usePlan.ts`
+
+| Feature | Free (observer) | Operator (~$99/mo) | Dominion (~$200/mo) |
+|---|---|---|---|
+| Campagnes actives | 3 | 50 | Illimité |
+| Connexions réseau | 1 | Toutes | Toutes |
+| Vault assets | 5 | Illimité | Illimité |
+| Mode auto (kill/scale réel) | ✗ | ✓ | ✓ |
+| Règle Scale | ✗ | ✓ | ✓ |
+| Kill-Switch d'urgence | ✗ | ✓ | ✓ |
+| Scan engine | 30 min | 10 min | **1 min** |
+| Analytics | ✗ | Basique | Complet |
+| Drill-down (réseau, geo) | ✗ | ✓ | ✓ |
+| Export CSV | ✗ | ✗ | ✓ |
+| Briefing email quotidien | ✗ | ✓ | ✓ |
+| Historique logs/transactions | 7 jours | Illimité | Illimité |
+| Postbacks/jour | 500 | Illimité | Illimité |
+| Support | — | Email | Prioritaire |
+
+**Agence** = tarif custom (hors app, devis sur mesure)
+
+**Argument béton Dominion vs Operator :** scan à 1 min vs 10 min.
+Sur une campagne qui brûle $50/heure : 10 min = $8 perdus avant que le robot réagisse. 1 min = $0.80.
+
+**Ce qui N'EST PAS encore implémenté côté backend** (décisions prises, code à faire) :
+- Limite 1 réseau sur Free (`networkConnectionLimit`) — vérification à ajouter dans `/api/accounts`
+- Scan interval par plan — cron à adapter pour lire `PLANS[planId].scanIntervalMinutes`
+- Limite 500 postbacks/jour sur Free — rate limit à ajouter dans `/api/track`
+- Rétention 7 jours — filtre à ajouter dans les queries logs/transactions pour Free
+- `canUseKillSwitch` — vérification dans `/api/kill-switch/run`
+- `canReceiveBriefing` — check dans le cron daily-briefing
+
+### Email quotidien — limitation timezone (V1)
+
+Le cron tourne une seule fois par jour à 7h UTC (plan Vercel gratuit = 1 cron/jour max).
+Le fuseau horaire de l'utilisateur est bien stocké (`UserSettings.timezone`) et affiché dans l'email,
+mais l'envoi se fait à 7h UTC pour tout le monde — pas à 9h dans le fuseau local de chaque client.
+
+**Impact** : utilisateurs européens (UTC+1/+2) → reçoivent l'email entre 8h et 9h ✅
+Utilisateurs US/Asie → reçoivent l'email tôt le matin ou la nuit ❌
+
+**Fix V2** (nécessite plan Vercel Pro) : passer le cron à `"0 * * * *"` (toutes les heures),
+et dans `sendProductionBriefings()`, ajouter un check :
+```ts
+const userHour = new Intl.DateTimeFormat("en", { hour: "numeric", hour12: false, timeZone: timezone }).format(new Date());
+if (Number(userHour) < 8 || Number(userHour) >= 10) continue; // skip — not 9am yet
+```
+Avec idempotence déjà en place (`lastDailyBriefingSentAt`), chaque user ne reçoit qu'un seul email par jour même si le cron tourne 24 fois.
+
+---
+
+## Decision Engine — architecture actuelle (V1, avril 2026)
+
+### Ce qui EST implémenté
+
+- Règles moteur = **globales par utilisateur** — table `DecisionRule` (`userId @unique`)
+- Tous les campagnes d'un utilisateur partagent les mêmes seuils (kill/watch/scale)
+- Contrôle par campagne = **deux flags uniquement** sur le modèle `Campaign` :
+  - `excludeFromEngine` (boolean) — exclut complètement la campagne du moteur
+  - `automationPaused` (boolean) — pause temporaire de l'automation
+- Le wizard Step 7 expose `excludeFromEngine` et explique que les règles sont globales
+- Les règles globales se configurent dans Settings → Rules
+
+### V2 — Règles par campagne (à implémenter plus tard)
+
+Quand on veut que chaque campagne ait ses propres seuils :
+1. Ajouter les champs kill/watch/scale sur le modèle `Campaign` dans `prisma/schema.prisma`
+2. Faire une migration Prisma
+3. Mettre à jour l'API `/api/campaigns/create` pour sauvegarder ces champs
+4. Mettre à jour `lib/kill-switch.ts` pour que `runKillSwitchForUser()` lise les règles par campagne plutôt que la `DecisionRule` globale (fallback sur global si non défini par campagne)
+5. Mettre à jour le wizard Step 7 pour ré-exposer les inputs kill/watch/scale
+
+**Ne pas implémenter en V1** — complexité inutile tant qu'un seul jeu de règles suffit.
+
+---
+
 ## ProfitDash is a SaaS — not a personal project
 
 This is the most important engineering context rule.

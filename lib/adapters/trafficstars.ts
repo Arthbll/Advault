@@ -79,7 +79,7 @@ export class TrafficStarsAdapter {
   }
 
   /** Exchange refresh token → access token (cached, refreshed before expiry) */
-  private async getAccessToken(): Promise<string> {
+  async getAccessToken(): Promise<string> {
     const cached = tokenCache.get(this.refreshToken);
     // Keep a 60s buffer before expiry
     if (cached && cached.expiresAt > Date.now() + 60_000) {

@@ -163,10 +163,14 @@ async function sendProductionBriefings(): Promise<NextResponse> {
   todayUtc.setUTCHours(0, 0, 0, 0);
 
   // Récupère tous les vrais utilisateurs (hors démo) qui n'ont pas encore
-  // reçu leur briefing aujourd'hui
+  // reçu leur briefing aujourd'hui ET dont le plan autorise le briefing
+  // (Free / observer → canReceiveBriefing: false → exclus du cron)
+  const PLANS_WITH_BRIEFING = ["operator", "dominion"] as const;
+
   const users = await prisma.user.findMany({
     where: {
       email: { not: DEMO_USER_EMAIL },
+      planId: { in: PLANS_WITH_BRIEFING as unknown as string[] },
       OR: [
         { lastDailyBriefingSentAt: null },
         { lastDailyBriefingSentAt: { lt: todayUtc } },

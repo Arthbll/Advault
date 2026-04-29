@@ -510,22 +510,47 @@ export default function BentoDashboard(props: Props) {
   const [engineEvents,  setEngineEvents]  = useState<EngineEvent[]>(isDemo ? (isDemoReco ? DEMO_FEED_RECO : DEMO_FEED_AUTO) : PLACEHOLDER_FEED);
   const [engineLoading, setEngineLoading] = useState(!isDemo);
   const [engineCounts,  setEngineCounts]  = useState(isDemo ? (isDemoReco ? DEMO_COUNTS_RECO : DEMO_COUNTS_AUTO) : { killed: 0, watch: 0, scaled: 0, today: 0, rulesCount: 0, protectedAmount: 0, lastEventAt: null as string | null });
-  const [showAllEvents,   setShowAllEvents]   = useState(false);
-  const [approvedEvents,  setApprovedEvents]  = useState<Set<string>>(new Set());
-  const [ignoredEvents,   setIgnoredEvents]   = useState<Set<string>>(new Set());
+  const [showAllEvents,      setShowAllEvents]      = useState(false);
+  const [approvedEvents,     setApprovedEvents]     = useState<Set<string>>(new Set());
+  const [ignoredEvents,      setIgnoredEvents]      = useState<Set<string>>(new Set());
+  // Live counter increments driven by user approvals (reco mode)
+  const [approvedKilled,     setApprovedKilled]     = useState(0);
+  const [approvedScaled,     setApprovedScaled]     = useState(0);
   const realtimeRef = useRef<ReturnType<typeof createSupabaseClient> | null>(null);
 
   function handleApprove(eventId: string) {
+    const ev = [...DEMO_FEED_RECO, ...DEMO_FEED_AUTO].find(e => e.id === eventId)
+      ?? displayEvents.find(e => e.id === eventId);
+    if (ev?.state === "KILL")  setApprovedKilled(n => n + 1);
+    if (ev?.state === "SCALE") setApprovedScaled(n => n + 1);
+
+    // Optimistic UI — show ✓ immediately, then slide out
     setApprovedEvents(prev => new Set([...prev, eventId]));
-    // In real mode: POST /api/engine/recommendations/{eventId}/approve
-    // After 1.8s, remove the card entirely
     setTimeout(() => {
-      setIgnoredEvents(prev => new Set([...prev, eventId])); // reuse ignore set to remove card
+      setIgnoredEvents(prev => new Set([...prev, eventId]));
     }, 1800);
+
+    // Real API call in production (skipped in demo mode — logId is a real UUID)
+    if (!isDemo) {
+      fetch(`/api/engine/recommendations/${eventId}`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ decision: "approve" }),
+      }).catch(() => { /* silent — UI already updated optimistically */ });
+    }
   }
 
   function handleIgnore(eventId: string) {
     setIgnoredEvents(prev => new Set([...prev, eventId]));
+
+    // Real API call in production
+    if (!isDemo) {
+      fetch(`/api/engine/recommendations/${eventId}`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ decision: "ignore" }),
+      }).catch(() => { /* silent */ });
+    }
   }
 
   const fetchEngineActions = useCallback(async () => {
@@ -647,9 +672,10 @@ export default function BentoDashboard(props: Props) {
   const displayLoading     = isDemo ? false : engineLoading;
 
   // Engine summary counts — driven by display data (real or demo)
-  const killed   = displayCounts.killed;
+  // In reco mode: approvedKilled / approvedScaled increment live as user approves
+  const killed   = displayCounts.killed  + (isDemoReco ? approvedKilled : 0);
   const watching = displayCounts.watch;
-  const scaling  = displayCounts.scaled;
+  const scaling  = displayCounts.scaled  + (isDemoReco ? approvedScaled : 0);
 
   // Campaign table data
   const rawCampaigns: CampaignRow[] = props.topCampaigns?.length
@@ -947,26 +973,48 @@ export default function BentoDashboard(props: Props) {
         <div style={{ padding: "20px 26px 26px", display: "flex", flexDirection: "column", gap: 10 }}>
 
           {/* Stream header */}
+          {(() => {
+            const pendingCount = isDemoReco
+              ? displayEvents.filter(ev => ev.state !== "WATCH" && !ignoredEvents.has(ev.id)).length
+              : displayCounts.today;
+            return (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={LABEL}>{isDemoReco ? "What the robot recommends" : "What the robot did"}</span>
-              {displayCounts.today > 0 && (
-                <span style={{ fontSize: 9, color: "#3f3f46", fontVariantNumeric: "tabular-nums" }}>
-                  {displayCounts.today} {isDemoReco ? "pending" : `event${displayCounts.today > 1 ? "s" : ""} today`}
-                </span>
-              )}
+              <AnimatePresence mode="wait">
+                {pendingCount > 0 && (
+                  <motion.span
+                    key={pendingCount}
+                    initial={{ opacity: 0, scale: 0.7 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.7 }}
+                    transition={{ duration: 0.2 }}
+                    style={{
+                      fontSize: 9, fontVariantNumeric: "tabular-nums",
+                      background: isDemoReco ? "rgba(139,92,246,0.15)" : "rgba(255,255,255,0.05)",
+                      color: isDemoReco ? "#c4b5fd" : "#3f3f46",
+                      border: isDemoReco ? "1px solid rgba(139,92,246,0.25)" : "1px solid rgba(255,255,255,0.07)",
+                      borderRadius: 99, padding: "2px 8px", fontWeight: 600,
+                    }}
+                  >
+                    {pendingCount} {isDemoReco ? "pending" : `today`}
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <motion.div
                 animate={{ opacity: [1, 0.2, 1] }}
                 transition={{ duration: 1.4, repeat: Infinity }}
-                style={{ width: 5, height: 5, borderRadius: "50%", background: isDemoReco ? "#a78bfa" : "#4ade80" }}
+                style={{ width: 5, height: 5, borderRadius: "50%", background: isDemoReco ? (pendingCount > 0 ? "#a78bfa" : "#4ade80") : "#4ade80" }}
               />
-              <span style={{ fontSize: 9, color: isDemoReco ? "#a78bfa" : "#4ade80", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" as const }}>
-                {isDemoReco ? "Pending" : "Live"}
+              <span style={{ fontSize: 9, color: isDemoReco ? (pendingCount > 0 ? "#a78bfa" : "#4ade80") : "#4ade80", fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" as const }}>
+                {isDemoReco ? (pendingCount > 0 ? "Pending" : "All clear") : "Live"}
               </span>
             </div>
           </div>
+          );
+          })()}
 
           {/* Loading skeletons */}
           {displayLoading && [0,1,2].map(i => (
@@ -989,6 +1037,47 @@ export default function BentoDashboard(props: Props) {
           {!displayLoading && displayEvents.length > 0 && (() => {
             const actionEvents   = displayEvents.filter(ev => ev.state !== "WATCH" && !ignoredEvents.has(ev.id));
             const watchEvents    = displayEvents.filter(ev => ev.state === "WATCH"  && !ignoredEvents.has(ev.id));
+
+            // ── All clear state — all action events have been processed ───────
+            if (isDemoReco && actionEvents.length === 0) {
+              return (
+                <AnimatePresence>
+                  <motion.div
+                    key="all-clear"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+                    style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                      gap: 10, padding: "36px 0 28px",
+                    }}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.15, duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+                      style={{
+                        width: 42, height: 42, borderRadius: "50%",
+                        background: "rgba(74,222,128,0.10)",
+                        border: "1px solid rgba(74,222,128,0.22)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 18,
+                      }}
+                    >
+                      ✓
+                    </motion.div>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "#4ade80", marginBottom: 4 }}>
+                        Nothing pending
+                      </div>
+                      <div style={{ fontSize: 11, color: "#3f3f46", lineHeight: 1.6 }}>
+                        Engine is watching · Next scan in a few seconds
+                      </div>
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+              );
+            }
             const visibleActions = actionEvents.slice(0, showAllEvents ? 30 : 7);
 
             function renderEvent(ev: EngineEvent, i: number, isWatchSection = false) {
@@ -1000,6 +1089,8 @@ export default function BentoDashboard(props: Props) {
                   key={ev.id}
                   initial={{ opacity: 0, x: 8 }}
                   animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 120, transition: { duration: 0.45, ease: [0.4, 0, 1, 1] } }}
+                  layout
                   transition={{ delay: 0.05 + i * 0.05, duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
                   style={{
                     display: "flex", gap: 0,
@@ -1092,8 +1183,10 @@ export default function BentoDashboard(props: Props) {
 
             return (
               <>
-                {/* Actions: KILL + SCALE */}
-                {visibleActions.map((ev, i) => renderEvent(ev, i))}
+                {/* Actions: KILL + SCALE — AnimatePresence tracks exits for slide animation */}
+                <AnimatePresence mode="popLayout">
+                  {visibleActions.map((ev, i) => renderEvent(ev, i))}
+                </AnimatePresence>
 
                 {/* See more for actions */}
                 {!showAllEvents && actionEvents.length > 7 && (
@@ -1115,7 +1208,9 @@ export default function BentoDashboard(props: Props) {
                       </span>
                       <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.04)" }} />
                     </div>
-                    {watchEvents.map((ev, i) => renderEvent(ev, i, true))}
+                    <AnimatePresence mode="popLayout">
+                      {watchEvents.map((ev, i) => renderEvent(ev, i, true))}
+                    </AnimatePresence>
                   </>
                 )}
               </>

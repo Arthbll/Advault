@@ -1189,7 +1189,7 @@ const STEPS = [
 
 function SetupSection() {
   return (
-    <section style={{
+    <section id="how-it-works" style={{
       ...SEC,
       background: [
         "radial-gradient(ellipse at 60% 0%, rgba(99,102,241,0.07), transparent 20%)",
@@ -1288,7 +1288,7 @@ function ProductPeekSection() {
   const SUBTITLE: React.CSSProperties = { marginTop: 18, fontSize: 22, fontWeight: 300, letterSpacing: "-0.04em", color: T_PRIMARY };
 
   return (
-    <section style={{
+    <section id="features" style={{
       ...SEC,
       background: [
         "radial-gradient(circle at 50% 0%, rgba(99,102,241,0.10), transparent 18%)",
@@ -1506,17 +1506,28 @@ function StatsSection() {
 // SECTION 8 — PRICING
 // ─────────────────────────────────────────────────────────────────────────────
 
-const VI        = "#7c3aed";   // violet-600 — solid, no glow
+const VI        = "#7c3aed";
 const VI_BG     = "rgba(124,58,237,0.07)";
 const VI_BORDER = "rgba(124,58,237,0.30)";
 const VI_LIGHT  = "#c4b5fd";
+
+// Comparison table row types
+type TableRow =
+  | { type: "header"; label: string }
+  | { type: "row"; label: string; free: React.ReactNode; operator: React.ReactNode; dominion: React.ReactNode; highlight?: boolean };
+
+function Check({ on = true }: { on?: boolean }) {
+  return on
+    ? <span style={{ color: SCALE_COL, fontSize: 14 }}>✓</span>
+    : <span style={{ color: "rgba(255,255,255,0.15)", fontSize: 14 }}>—</span>;
+}
 
 function PricingSection() {
   const [annual, setAnnual] = useState(false);
 
   const PRICES = {
     operator: { monthly: 99,  annual: 79  },
-    dominion: { monthly: 249, annual: 199 },
+    dominion: { monthly: 200, annual: 159 },
   };
 
   const p = (plan: keyof typeof PRICES) =>
@@ -1542,6 +1553,32 @@ function PricingSection() {
   const B = ({ children }: { children: React.ReactNode }) => (
     <b style={{ color: "rgba(255,255,255,0.80)", fontWeight: 600 }}>{children}</b>
   );
+
+  const TABLE_ROWS: TableRow[] = [
+    { type: "header", label: "Campaigns & networks" },
+    { type: "row", label: "Active campaigns",        free: "3",         operator: "50",         dominion: "Unlimited" },
+    { type: "row", label: "Network connections",     free: "1",         operator: "All",        dominion: "All" },
+    { type: "row", label: "Vault assets",            free: "5",         operator: "Unlimited",  dominion: "Unlimited" },
+
+    { type: "header", label: "Decision Engine" },
+    { type: "row", label: "Kill rule",               free: <Check />,   operator: <Check />,    dominion: <Check /> },
+    { type: "row", label: "Watch rule",              free: <Check />,   operator: <Check />,    dominion: <Check /> },
+    { type: "row", label: "Scale rule",              free: <Check on={false} />, operator: <Check />, dominion: <Check /> },
+    { type: "row", label: "Automatic mode",          free: <Check on={false} />, operator: <Check />, dominion: <Check /> },
+    { type: "row", label: "Kill-Switch (1-click)",   free: <Check on={false} />, operator: <Check />, dominion: <Check /> },
+    { type: "row", label: "Engine scan interval",    free: "30 min",    operator: "10 min",     dominion: "1 min", highlight: true },
+
+    { type: "header", label: "Analytics & data" },
+    { type: "row", label: "Analytics",               free: <Check on={false} />, operator: "Basic", dominion: "Full" },
+    { type: "row", label: "Drill-down (network, geo)", free: <Check on={false} />, operator: <Check />, dominion: <Check /> },
+    { type: "row", label: "CSV export",              free: <Check on={false} />, operator: <Check on={false} />, dominion: <Check /> },
+    { type: "row", label: "Data history",            free: "7 days",    operator: "Unlimited",  dominion: "Unlimited" },
+    { type: "row", label: "Postbacks / day",         free: "500",       operator: "Unlimited",  dominion: "Unlimited" },
+
+    { type: "header", label: "Communication" },
+    { type: "row", label: "Daily briefing email",    free: <Check on={false} />, operator: <Check />, dominion: <Check /> },
+    { type: "row", label: "Support",                 free: "—",         operator: "Email",      dominion: "Priority" },
+  ];
 
   return (
     <section id="pricing" style={SEC}>
@@ -1587,7 +1624,7 @@ function PricingSection() {
           </div>
         </div>
 
-        {/* ── Reassurance strip (above cards) ── */}
+        {/* ── Reassurance strip ── */}
         <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: "6px 28px", marginBottom: 28 }}>
           {["No credit card on free", "Upgrade or downgrade anytime", "Keep your data when switching", "Onboarding included on Dominion"].map((item) => (
             <span key={item} style={{ fontSize: 12, color: "rgba(255,255,255,0.26)", display: "flex", alignItems: "center", gap: 6 }}>
@@ -1607,237 +1644,164 @@ function PricingSection() {
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_DIM }}>Observer</div>
-              <div style={{
-                borderRadius: 6, border: BORDER, background: "rgba(255,255,255,0.04)",
-                padding: "3px 9px", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.16em", color: T_DIM,
-              }}>Free forever</div>
+              <div style={{ borderRadius: 6, border: BORDER, background: "rgba(255,255,255,0.04)", padding: "3px 9px", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.16em", color: T_DIM }}>Free forever</div>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.60)", marginBottom: 14 }}>
-              Best for first visibility
-            </div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.60)", marginBottom: 14 }}>Best for first visibility</div>
             <div style={{ fontSize: 40, fontWeight: 200, letterSpacing: "-0.06em", color: "rgba(255,255,255,0.72)", lineHeight: 1 }}>€0</div>
             <div style={{ fontSize: 11, color: T_DIM, marginTop: 4, marginBottom: 18 }}>No credit card required</div>
             <CtxBox title="What you unlock">
-              Understand spend, campaign health and baseline profitability before turning decisions into actions.
+              Monitor up to 3 campaigns and 1 network. Kill and Watch rules in recommendation mode. 7-day history.
             </CtxBox>
-            <FEAT><B>Profit visibility</B> across your live campaigns</FEAT>
-            <FEAT><B>Budget leak detection</B> and core monitoring</FEAT>
-            <FEAT>Up to <B>2 connected networks</B></FEAT>
-            <FEAT><B>Live dashboard</B> and campaign detail</FEAT>
+            <FEAT><B>3 campaigns</B>, 1 network connection</FEAT>
+            <FEAT><B>Kill &amp; Watch</B> rules (recommendation only)</FEAT>
+            <FEAT>Live dashboard and campaign detail</FEAT>
+            <FEAT>500 postbacks/day</FEAT>
             <a href="/register?plan=observer" style={{ textDecoration: "none", display: "block", marginTop: 20 }}>
-              <button style={{
-                width: "100%", height: 42, borderRadius: 10,
-                border: BORDER, background: "transparent",
-                fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.42)", cursor: "pointer",
-                transition: "border-color 0.15s, color 0.15s",
-              }}>Start free</button>
+              <button style={{ width: "100%", height: 42, borderRadius: 10, border: BORDER, background: "transparent", fontSize: 13, fontWeight: 500, color: "rgba(255,255,255,0.42)", cursor: "pointer" }}>
+                Start free
+              </button>
             </a>
-            <div style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: T_DIM, fontStyle: "italic" }}>
-              For solo operators validating the setup
-            </div>
-            <p style={{ marginTop: 12, fontSize: 10, color: "rgba(255,255,255,0.16)", textAlign: "center", lineHeight: "16px" }}>
-              By creating an account, you agree to our{" "}
-              <a href="/terms" style={{ color: "rgba(255,255,255,0.26)", textDecoration: "underline" }}>Terms</a>
-              {" "}&amp;{" "}
-              <a href="/privacy" style={{ color: "rgba(255,255,255,0.26)", textDecoration: "underline" }}>Privacy Policy</a>.
-            </p>
+            <div style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: T_DIM, fontStyle: "italic" }}>For operators validating the setup</div>
           </motion.div>
 
-          {/* ── Operator — dominant, violet ── */}
+          {/* ── Operator ── */}
           <motion.div
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0 }} transition={{ delay: 0.08, duration: 0.6 }}
-            style={{
-              borderRadius: 20, padding: "40px 26px 32px",
-              border: `1px solid ${VI_BORDER}`,
-              background: VI_BG,
-              boxShadow: "0 0 0 1px rgba(124,58,237,0.06), 0 28px 64px rgba(0,0,0,0.36)",
-              marginTop: -20,
-            }}
+            style={{ borderRadius: 20, padding: "40px 26px 32px", border: `1px solid ${VI_BORDER}`, background: VI_BG, boxShadow: "0 0 0 1px rgba(124,58,237,0.06), 0 28px 64px rgba(0,0,0,0.36)", marginTop: -20 }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_PRIMARY }}>Operator</div>
-              <div style={{
-                borderRadius: 6, border: `1px solid ${VI_BORDER}`,
-                background: "rgba(124,58,237,0.16)", padding: "3px 10px",
-                fontSize: 8, textTransform: "uppercase", letterSpacing: "0.16em", color: VI_LIGHT,
-              }}>Most popular</div>
+              <div style={{ borderRadius: 6, border: `1px solid ${VI_BORDER}`, background: "rgba(124,58,237,0.16)", padding: "3px 10px", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.16em", color: VI_LIGHT }}>Most popular</div>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.70)", marginBottom: 14 }}>
-              Best for daily campaign decision-making
-            </div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.70)", marginBottom: 14 }}>Best for active campaign management</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
               <span style={{ fontSize: 60, fontWeight: 200, letterSpacing: "-0.06em", color: T_PRIMARY, lineHeight: 1 }}>€{p("operator")}</span>
               <span style={{ fontSize: 14, color: T_MUTED }}>/month</span>
             </div>
-            <div style={{ fontSize: 11, color: T_DIM, marginTop: 4, marginBottom: 18 }}>
-              {annual ? "Billed annually" : "Billed monthly"}
-            </div>
-            <CtxBox title="Why most operators start here">
-              You already run live campaigns. You need faster decisions, cleaner alerts and a system that works with your real revenue signal.
+            <div style={{ fontSize: 11, color: T_DIM, marginTop: 4, marginBottom: 18 }}>{annual ? "Billed annually" : "Billed monthly"}</div>
+            <CtxBox title="Why operators choose this">
+              50 campaigns, all networks, automatic mode. The engine kills and scales in real time — you just review the briefing.
             </CtxBox>
             <FEAT>Everything in <B>Observer</B></FEAT>
-            <FEAT><B>Revenue signal tracking</B> across networks</FEAT>
-            <FEAT><B>Kill / scale signal alerts</B> and recommendation flows</FEAT>
-            <FEAT><B>Auto-kill rules</B> by ROI threshold</FEAT>
-            <FEAT><B>Full campaign detail view</B> for faster review</FEAT>
+            <FEAT><B>50 campaigns</B>, all networks</FEAT>
+            <FEAT><B>Automatic mode</B> — Kill, Watch &amp; Scale</FEAT>
+            <FEAT><B>Kill-Switch</B> emergency stop</FEAT>
+            <FEAT><B>Daily briefing</B> email + drill-down analytics</FEAT>
+            <FEAT>Engine scan every <B>10 minutes</B></FEAT>
             <a href="/register?plan=operator" style={{ textDecoration: "none", display: "block", marginTop: 22 }}>
-              <button style={{
-                width: "100%", height: 48, borderRadius: 12,
-                border: "none", background: VI,
-                fontSize: 14, fontWeight: 600, color: "#ffffff", cursor: "pointer",
-                transition: "opacity 0.15s",
-              }}>Start with Operator →</button>
+              <button style={{ width: "100%", height: 48, borderRadius: 12, border: "none", background: VI, fontSize: 14, fontWeight: 600, color: "#ffffff", cursor: "pointer" }}>
+                Start with Operator →
+              </button>
             </a>
-            <div style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: "rgba(196,181,253,0.50)", fontStyle: "italic" }}>
-              The clearest choice once campaigns are live
-            </div>
-            <p style={{ marginTop: 12, fontSize: 10, color: "rgba(196,181,253,0.22)", textAlign: "center", lineHeight: "16px" }}>
-              By creating an account, you agree to our{" "}
-              <a href="/terms" style={{ color: "rgba(196,181,253,0.38)", textDecoration: "underline" }}>Terms</a>
-              {" "}&amp;{" "}
-              <a href="/privacy" style={{ color: "rgba(196,181,253,0.38)", textDecoration: "underline" }}>Privacy Policy</a>.
-            </p>
+            <div style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: "rgba(196,181,253,0.50)", fontStyle: "italic" }}>The clearest choice once campaigns are live</div>
           </motion.div>
 
           {/* ── Dominion ── */}
           <motion.div
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0 }} transition={{ delay: 0.16, duration: 0.6 }}
-            style={{
-              borderRadius: 20, padding: "34px 24px",
-              background: "rgba(100,116,139,0.12)",
-              border: "1px solid rgba(148,163,184,0.36)",
-              boxShadow: "0 0 0 1px rgba(148,163,184,0.05), 0 20px 52px rgba(0,0,0,0.32)",
-              marginTop: -10,
-            }}
+            style={{ borderRadius: 20, padding: "34px 24px", background: "rgba(100,116,139,0.12)", border: "1px solid rgba(148,163,184,0.36)", boxShadow: "0 0 0 1px rgba(148,163,184,0.05), 0 20px 52px rgba(0,0,0,0.32)", marginTop: -10 }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: "#94a3b8" }}>Dominion</div>
-              <div style={{
-                borderRadius: 6, border: "1px solid rgba(148,163,184,0.22)",
-                background: "rgba(148,163,184,0.08)", padding: "3px 9px",
-                fontSize: 8, textTransform: "uppercase", letterSpacing: "0.16em", color: "#cbd5e1",
-              }}>Most automated</div>
+              <div style={{ borderRadius: 6, border: "1px solid rgba(148,163,184,0.22)", background: "rgba(148,163,184,0.08)", padding: "3px 9px", fontSize: 8, textTransform: "uppercase", letterSpacing: "0.16em", color: "#cbd5e1" }}>Fastest reaction</div>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.58)", marginBottom: 14 }}>
-              Best for full automation at scale
-            </div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.58)", marginBottom: 14 }}>Best for heavy spenders at scale</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
               <span style={{ fontSize: 52, fontWeight: 200, letterSpacing: "-0.06em", color: T_PRIMARY, lineHeight: 1 }}>€{p("dominion")}</span>
               <span style={{ fontSize: 13, color: T_DIM }}>/month</span>
             </div>
-            <div style={{ fontSize: 11, color: T_DIM, marginTop: 4, marginBottom: 18 }}>
-              {annual ? "Billed annually" : "Billed monthly"}
-            </div>
-            <CtxBox title="When to upgrade">
-              You trust the engine, you want faster execution, and you do not want to babysit every recommendation manually.
+            <div style={{ fontSize: 11, color: T_DIM, marginTop: 4, marginBottom: 18 }}>{annual ? "Billed annually" : "Billed monthly"}</div>
+            <CtxBox title="The 1-minute argument">
+              A campaign burning $50/hour: at 10-min scan that&apos;s $8 lost before the robot reacts. At 1-min scan, it&apos;s $0.80.
             </CtxBox>
             <FEAT>Everything in <B>Operator</B></FEAT>
-            <FEAT><B>Fully automated kill &amp; scale</B> decisions</FEAT>
-            <FEAT><B>Priority signal refresh</B> and execution</FEAT>
-            <FEAT><B>Multi-network automation</B></FEAT>
-            <FEAT><B>Unlimited rules</B> &amp; thresholds</FEAT>
+            <FEAT><B>Unlimited campaigns</B></FEAT>
+            <FEAT>Engine scan every <B>1 minute</B></FEAT>
+            <FEAT><B>CSV export</B> — full data ownership</FEAT>
+            <FEAT><B>Priority support</B></FEAT>
             <a href="/register?plan=dominion" style={{ textDecoration: "none", display: "block", marginTop: 20 }}>
-              <button style={{
-                width: "100%", height: 44, borderRadius: 10,
-                border: "1px solid rgba(148,163,184,0.22)",
-                background: "rgba(148,163,184,0.10)",
-                fontSize: 13, fontWeight: 600, color: "#e2e8f0", cursor: "pointer",
-                transition: "background 0.15s",
-              }}>Get Dominion →</button>
+              <button style={{ width: "100%", height: 44, borderRadius: 10, border: "1px solid rgba(148,163,184,0.22)", background: "rgba(148,163,184,0.10)", fontSize: 13, fontWeight: 600, color: "#e2e8f0", cursor: "pointer" }}>
+                Get Dominion →
+              </button>
             </a>
-            <div style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: "#64748b", fontStyle: "italic" }}>
-              For operators ready to let the engine run
-            </div>
-            <p style={{ marginTop: 12, fontSize: 10, color: "rgba(100,116,139,0.50)", textAlign: "center", lineHeight: "16px" }}>
-              By creating an account, you agree to our{" "}
-              <a href="/terms" style={{ color: "rgba(148,163,184,0.55)", textDecoration: "underline" }}>Terms</a>
-              {" "}&amp;{" "}
-              <a href="/privacy" style={{ color: "rgba(148,163,184,0.55)", textDecoration: "underline" }}>Privacy Policy</a>.
-            </p>
+            <div style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: "#64748b", fontStyle: "italic" }}>For operators who can&apos;t afford to wait 10 minutes</div>
           </motion.div>
 
         </div>
 
-        {/* ── Command — 2 col layout ── */}
+        {/* ── Full comparison table ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0 }} transition={{ delay: 0.1, duration: 0.6 }}
+          style={{ marginTop: 20, borderRadius: 20, border: BORDER, background: "rgba(255,255,255,0.015)", overflow: "hidden" }}
+        >
+          {/* Table header */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 160px 160px", borderBottom: `1px solid ${BORDER_FAINT}`, padding: "16px 28px" }}>
+            <div style={{ fontSize: 11, color: T_DIM, textTransform: "uppercase", letterSpacing: "0.16em" }}>Feature</div>
+            {["Free", "Operator", "Dominion"].map((h, i) => (
+              <div key={h} style={{ textAlign: "center", fontSize: 11, fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase", color: i === 1 ? VI_LIGHT : T_DIM }}>{h}</div>
+            ))}
+          </div>
+
+          {/* Rows */}
+          {TABLE_ROWS.map((row, i) => {
+            if (row.type === "header") {
+              return (
+                <div key={i} style={{ padding: "12px 28px 8px", background: "rgba(255,255,255,0.02)", borderBottom: `1px solid ${BORDER_FAINT}` }}>
+                  <span style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.22em", color: "rgba(255,255,255,0.30)", fontWeight: 600 }}>{row.label}</span>
+                </div>
+              );
+            }
+            return (
+              <div key={i} style={{
+                display: "grid", gridTemplateColumns: "1fr 160px 160px 160px",
+                padding: "13px 28px", borderBottom: `1px solid ${BORDER_FAINT}`,
+                background: row.highlight ? "rgba(139,92,246,0.04)" : "transparent",
+                alignItems: "center",
+              }}>
+                <div style={{ fontSize: 13, color: row.highlight ? T_PRIMARY : T_MUTED }}>{row.label}
+                  {row.highlight && <span style={{ marginLeft: 8, fontSize: 9, color: VI_LIGHT, background: "rgba(124,58,237,0.14)", border: `1px solid ${VI_BORDER}`, borderRadius: 4, padding: "1px 6px", letterSpacing: "0.08em", textTransform: "uppercase" }}>Key diff</span>}
+                </div>
+                {[row.free, row.operator, row.dominion].map((val, ci) => (
+                  <div key={ci} style={{ textAlign: "center", fontSize: 13, color: ci === 1 ? "rgba(196,181,253,0.85)" : T_MUTED }}>{val}</div>
+                ))}
+              </div>
+            );
+          })}
+        </motion.div>
+
+        {/* ── Agency block ── */}
         <motion.div
           initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0 }} transition={{ delay: 0.2, duration: 0.6 }}
-          style={{ marginTop: 16, borderRadius: 20, border: BORDER, background: "rgba(255,255,255,0.02)", padding: "48px 48px" }}
+          style={{ marginTop: 16, borderRadius: 20, border: BORDER, background: "rgba(255,255,255,0.02)", padding: "40px 48px" }}
         >
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "start" }}>
-
-            {/* Left — features */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "center" }}>
             <div>
-              <div style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                borderRadius: 8, border: `1px solid ${VI_BORDER}`,
-                background: "rgba(124,58,237,0.10)", padding: "4px 12px",
-                fontSize: 9, textTransform: "uppercase", letterSpacing: "0.20em", color: VI_LIGHT,
-                marginBottom: 20,
-              }}>Command — Team Plan</div>
-              <h3 style={{
-                fontSize: 32, fontWeight: 600, letterSpacing: "-0.045em",
-                color: T_PRIMARY, lineHeight: 1.1, marginBottom: 14,
-              }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 8, border: `1px solid ${VI_BORDER}`, background: "rgba(124,58,237,0.10)", padding: "4px 12px", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.20em", color: VI_LIGHT, marginBottom: 20 }}>Agency — Custom</div>
+              <h3 style={{ fontSize: 32, fontWeight: 600, letterSpacing: "-0.045em", color: T_PRIMARY, lineHeight: 1.1, marginBottom: 14 }}>
                 Built for teams, agencies,<br />and trading desks.
               </h3>
-              <p style={{ fontSize: 15, lineHeight: "26px", color: T_MUTED, marginBottom: 28, maxWidth: "42ch" }}>
-                Shared rules, one workspace, role-based oversight, and a cleaner way to operate together without losing control of execution.
+              <p style={{ fontSize: 15, lineHeight: "26px", color: T_MUTED, maxWidth: "42ch" }}>
+                Custom campaign limits, shared workspaces, role-based access, and a dedicated onboarding. Priced per seat and volume — talk to us.
               </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                {[
-                  { name: "Shared rules across seats",  desc: "One decision layer for the whole workspace",          badge: "Shared"     },
-                  { name: "Role-based oversight",        desc: "Admins, operators, and reviewers in the same stack", badge: "Controlled" },
-                  { name: "One unified dashboard",       desc: "See spend, revenue and actions across the team",     badge: "Unified"    },
-                ].map(({ name, desc, badge }) => (
-                  <div key={name} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "16px 0", borderBottom: `1px solid ${BORDER_FAINT}`,
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 500, color: T_PRIMARY, marginBottom: 3 }}>{name}</div>
-                      <div style={{ fontSize: 13, color: T_MUTED }}>{desc}</div>
-                    </div>
-                    <div style={{
-                      marginLeft: 16, flexShrink: 0,
-                      borderRadius: 6, border: BORDER,
-                      background: "rgba(255,255,255,0.04)", padding: "3px 10px",
-                      fontSize: 10, letterSpacing: "0.08em", color: "rgba(255,255,255,0.40)",
-                    }}>{badge}</div>
-                  </div>
-                ))}
-              </div>
             </div>
-
-            {/* Right — quote card */}
-            <div style={{
-              borderRadius: 16, border: BORDER,
-              background: "rgba(255,255,255,0.03)",
-              padding: "32px 28px",
-              display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 320,
-            }}>
-              <div>
-                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_DIM, marginBottom: 20 }}>Command</div>
-                <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.04em", color: T_PRIMARY, lineHeight: 1.2, marginBottom: 16 }}>
-                  For agencies that need shared execution, not just more seats.
+            <div style={{ borderRadius: 16, border: BORDER, background: "rgba(255,255,255,0.03)", padding: "32px 28px" }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_DIM, marginBottom: 16 }}>What&apos;s included</div>
+              {["Everything in Dominion", "Unlimited seats & campaigns", "Shared workspace & rules", "Role-based permissions (Admin / Member)", "Dedicated onboarding", "Custom SLA & priority support"].map(f => (
+                <div key={f} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${BORDER_FAINT}` }}>
+                  <span style={{ color: SCALE_COL, fontSize: 11, flexShrink: 0 }}>✓</span>
+                  <span style={{ fontSize: 13, color: T_MUTED }}>{f}</span>
                 </div>
-                <div style={{ fontSize: 14, lineHeight: "24px", color: T_MUTED }}>
-                  Bring multiple operators into one workspace, centralize the rules, and keep campaign control aligned across the whole team.
-                </div>
-              </div>
-              <a href="mailto:hello@profitdash.io" style={{ textDecoration: "none", marginTop: 28 }}>
-                <button style={{
-                  width: "100%", height: 46, borderRadius: 11,
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  background: "rgba(255,255,255,0.05)",
-                  fontSize: 14, fontWeight: 600, color: T_PRIMARY, cursor: "pointer",
-                  transition: "background 0.15s",
-                }}>Talk to us →</button>
+              ))}
+              <a href="mailto:hello@profitdash.io" style={{ textDecoration: "none", display: "block", marginTop: 24 }}>
+                <button style={{ width: "100%", height: 46, borderRadius: 11, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.05)", fontSize: 14, fontWeight: 600, color: T_PRIMARY, cursor: "pointer" }}>
+                  Talk to us →
+                </button>
               </a>
             </div>
-
           </div>
         </motion.div>
 
@@ -2361,8 +2325,7 @@ function Footer() {
             <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.22em", color: T_DIM, marginBottom: 18 }}>Product</div>
             {([
               ["How it works", "#how-it-works"],
-              ["The system",   "#the-system"  ],
-              ["Results",      "#results"     ],
+              ["Features",     "#features"    ],
               ["Pricing",      "#pricing"     ],
               ["Sign in",      "/login"       ],
             ] as const).map(([label, href]) => (
@@ -2446,19 +2409,18 @@ export default function LandingPage() {
           margin: "0 auto", maxWidth: 1640, padding: "18px 48px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <a href="#hero" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
             <LogoIcon size={30} />
             <div style={{ fontSize: 22, letterSpacing: "-0.05em", fontWeight: 400 }}>
               <span style={{ color: T_PRIMARY }}>Profit</span><span style={{ color: "rgba(167,139,250,0.82)" }}>Dash</span>
             </div>
-          </div>
+          </a>
 
           <nav style={{ display: "flex", alignItems: "center", gap: 36, fontSize: 13 }}>
             {([
-              ["How it works","#how-it-works"],
-              ["The system",  "#the-system" ],
-              ["Results",     "#results"    ],
-              ["Pricing",     "#pricing"    ],
+              ["How it works", "#how-it-works"],
+              ["Features",     "#features"    ],
+              ["Pricing",      "#pricing"     ],
             ] as const).map(([label, href]) => (
               <a key={label} href={href} style={{
                 color: "rgba(255,255,255,0.40)", textDecoration: "none", cursor: "pointer",
@@ -2482,11 +2444,8 @@ export default function LandingPage() {
       <SyncStrip />
       <LosingCampaignSection />
       <EngineRevealSection />
-      <RecommendVsAutoSection />
       <SetupSection />
       <ProductPeekSection />
-      <StatsSection />
-      <TrustSection />
       <PricingSection />
       <FAQSection />
       <FinalCTA />

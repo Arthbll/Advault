@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 import { encrypt } from "@/lib/crypto";
 import { Network } from "@prisma/client";
+import { getSessionPlanId } from "@/lib/plan-access";
+import { PLANS } from "@/lib/plans";
 
 /** Upsert a single network account for the logged-in user */
 export async function saveAccount(formData: FormData) {
@@ -18,6 +20,23 @@ export async function saveAccount(formData: FormData) {
 
   if (!network || !apiKey?.trim()) {
     return { error: "API key is required." };
+  }
+
+  // ── Plan check: network connection limit ─────────────────────────────────
+  const planId = await getSessionPlanId();
+  const { networkConnectionLimit } = PLANS[planId];
+
+  if (networkConnectionLimit !== null) {
+    // Count existing active accounts (excluding the one being saved = upsert is OK)
+    const existing = await prisma.account.count({
+      where: { userId: user.id, isActive: true, network: { not: network } },
+    });
+    if (existing >= networkConnectionLimit) {
+      const planLabel = PLANS[planId].label;
+      return {
+        error: `Your ${planLabel} plan allows ${networkConnectionLimit} network connection${networkConnectionLimit > 1 ? "s" : ""}. Upgrade to connect more networks.`,
+      };
+    }
   }
 
   // Ensure shadow User row exists (mirrors Supabase auth.users)

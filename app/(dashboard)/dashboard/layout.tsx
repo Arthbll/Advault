@@ -112,13 +112,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }}>
 
         {/* Left: Brand */}
-        <div style={{
-          fontWeight: 400, fontSize: 18,
-          color: "rgba(255,255,255,0.3)",
-          letterSpacing: "-0.02em",
-        }}>
-          ProfitDash
-        </div>
+        <Link href="/dashboard" style={{ textDecoration: "none" }}>
+          <div style={{
+            fontWeight: 400, fontSize: 18,
+            color: "rgba(255,255,255,0.3)",
+            letterSpacing: "-0.02em",
+            cursor: "pointer",
+          }}>
+            ProfitDash
+          </div>
+        </Link>
 
         {/* Center: Nav pill + dots (hidden on mobile) */}
         <div style={{ display: isMobile ? "none" : "flex", flexDirection: "column", alignItems: "center", gap: 7 }}>
@@ -275,6 +278,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         overflow: "auto",
         position: "relative",
         paddingBottom: isMobile ? 72 : 0,
+        display: "flex",
+        flexDirection: "column",
       }}>
         {/* Ambient violet vignette at top */}
         <div className="page-vignette" style={{
@@ -299,6 +304,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             animate="animate"
             exit="exit"
             transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+            style={{ height: "100%" }}
           >
             {children}
           </motion.div>

@@ -8,7 +8,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { prisma }                    from "@/lib/prisma";
-import { resolveWorkspaceUserId } from "@/lib/workspace";
+import { resolveWorkspaceUserId }    from "@/lib/workspace";
+import { getSessionPlanId }          from "@/lib/plan-access";
+import { PLANS }                     from "@/lib/plans";
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -16,10 +18,23 @@ export async function GET(req: NextRequest) {
   if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const userId = await resolveWorkspaceUserId(user.id);
+  const planId = await getSessionPlanId();
+  const { dataRetentionDays } = PLANS[planId];
 
   const { searchParams } = new URL(req.url);
-  const dateFrom    = searchParams.get("dateFrom") ?? new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-  const dateTo      = searchParams.get("dateTo")   ?? new Date().toISOString().slice(0, 10);
+
+  // Default date window respects plan retention — Free gets 7 days max
+  const maxDays = dataRetentionDays ?? 365;
+  const defaultFrom = new Date(Date.now() - Math.min(30, maxDays) * 86_400_000).toISOString().slice(0, 10);
+
+  let dateFrom = searchParams.get("dateFrom") ?? defaultFrom;
+  const dateTo = searchParams.get("dateTo")   ?? new Date().toISOString().slice(0, 10);
+
+  // Enforce retention cap: clamp dateFrom to retention window
+  if (dataRetentionDays !== null) {
+    const retentionFloor = new Date(Date.now() - dataRetentionDays * 86_400_000).toISOString().slice(0, 10);
+    if (dateFrom < retentionFloor) dateFrom = retentionFloor;
+  }
   const page        = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
   const limit       = Math.min(100, parseInt(searchParams.get("limit") ?? "50", 10));
   const offset      = page * limit;

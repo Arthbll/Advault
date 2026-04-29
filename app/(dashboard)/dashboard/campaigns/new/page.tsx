@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { usePlan } from "@/hooks/usePlan";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, ChevronLeft, ChevronRight, Globe, Monitor, Smartphone, Tablet,
@@ -209,7 +210,7 @@ const NETWORK_WIZARD: Record<string, Array<{key: StepKey; label: string; sub: st
     { key: "publishers", label: "Publishers", sub: "Publication sites"            },
     { key: "schedule",   label: "Schedule",   sub: "Time slots & frequency cap"   },
     { key: "budget",     label: "Budget",     sub: "Bid & spend limits"           },
-    { key: "rules",      label: "Rules",      sub: "Kill · Watch · Scale"         },
+    { key: "rules",      label: "Rules",      sub: "Engine settings"         },
     { key: "creative",   label: "Creative",   sub: "Visual & summary"             },
   ],
   TRAFFICSTARS: [
@@ -220,7 +221,7 @@ const NETWORK_WIZARD: Record<string, Array<{key: StepKey; label: string; sub: st
     { key: "ts-schedule", label: "Schedule",   sub: "Hours grid & freq cap"   },
     { key: "publishers",  label: "Publishers", sub: "Publication sites"       },
     { key: "budget",      label: "Budget",     sub: "Pricing, bid & limits"   },
-    { key: "rules",       label: "Rules",      sub: "Kill · Watch · Scale"    },
+    { key: "rules",       label: "Rules",      sub: "Engine settings"    },
     { key: "creative",    label: "Creative",   sub: "Visual & summary"        },
   ],
   PROPELLERADS: [
@@ -361,18 +362,8 @@ interface FormState {
   imagePreview:   string | null;
   mediaType:      "image" | "video" | null;
   vaultAssetName: string | null;
-  // ── Decision Rules ──────────────────────────────────────────────────────────
-  engineActive:          boolean;
-  killThreshold:         number;  // ROI % below which campaign is killed
-  watchMinRoi:           number;  // ROI % lower bound of watch zone
-  watchMaxRoi:           number;  // ROI % upper bound of watch zone
-  scaleThreshold:        number;  // ROI % above which campaign is scaled
-  scaleBy:               number;  // budget increase % when scaling
-  maxScalingBudget:      number;  // max daily budget after scaling (€)
-  minSpendBeforeAction:  number;  // min € spent before engine acts
-  cooldownMins:          number;  // minutes between consecutive actions
-  maxActionsPerDay:      number;  // max engine actions per day
-  scanFreqMins:          number;  // how often engine scans (minutes)
+  // ── Decision Engine (global rules — per-campaign only flag) ────────────────
+  excludeFromEngine:     boolean;  // true = engine ignores this campaign entirely
   // ── Per-network extras (linked to APIs) ─────────────────────────────────────
   ecPricingModel:  string;  // ExoClick: "cpm"|"cpc"|"smart_cpm"|"smart_bid"
   tsTrafficType:   string;  // TrafficStars: "ron"|"prime"|"members_area"
@@ -382,6 +373,21 @@ interface FormState {
 
 export default function NewCampaignPage() {
   const router = useRouter();
+
+  // ── Plan gating ──────────────────────────────────────────────────────────────
+  const { campaignLimit, canUseAutomatic, canUseScale, loading: planLoading } = usePlan();
+  const [campaignCount, setCampaignCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/campaigns/count")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { current?: number } | null) => {
+        if (d?.current != null) setCampaignCount(d.current);
+      })
+      .catch(() => {});
+  }, []);
+
+  const atLimit = !planLoading && campaignCount !== null && campaignCount >= campaignLimit;
 
   const [step,        setStep]        = useState(0);
   const [maxStep,     setMaxStep]     = useState(0);
@@ -426,18 +432,8 @@ export default function NewCampaignPage() {
     imagePreview:   null,
     mediaType:      null,
     vaultAssetName: null,
-    // Decision Rules defaults
-    engineActive:         false,
-    killThreshold:        -30,
-    watchMinRoi:          -10,
-    watchMaxRoi:           30,
-    scaleThreshold:        50,
-    scaleBy:               25,
-    maxScalingBudget:     200,
-    minSpendBeforeAction:  10,
-    cooldownMins:         120,
-    maxActionsPerDay:       5,
-    scanFreqMins:          60,
+    // Decision Engine
+    excludeFromEngine:    false,
     ecPricingModel:  "cpm",
     tsTrafficType:   "ron",
   });
@@ -633,8 +629,9 @@ export default function NewCampaignPage() {
           os:             form.os.length > 0             ? form.os             : undefined,
           timeSlots:      form.timeSlots.length > 0      ? form.timeSlots      : undefined,
           publisherSites: form.publisherSites.length > 0 ? form.publisherSites : undefined,
-          freqCap:        form.freqCapImps ? { imps: parseInt(form.freqCapImps), hours: parseInt(form.freqCapHrs) } : undefined,
-          active:         form.active,
+          freqCap:           form.freqCapImps ? { imps: parseInt(form.freqCapImps), hours: parseInt(form.freqCapHrs) } : undefined,
+          active:            form.active,
+          excludeFromEngine: form.excludeFromEngine,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -823,10 +820,7 @@ export default function NewCampaignPage() {
                         paDirection: "onclick", paRateModel: "cpm",
                         adtFormat: "pop", adtPricingType: "CPM",
                         imageFile: null, imagePreview: null, mediaType: null, vaultAssetName: null,
-                        engineActive: false,
-                        killThreshold: -30, watchMinRoi: -10, watchMaxRoi: 30, scaleThreshold: 50,
-                        scaleBy: 25, maxScalingBudget: 200, minSpendBeforeAction: 10,
-                        cooldownMins: 120, maxActionsPerDay: 5, scanFreqMins: 60,
+                        excludeFromEngine: false,
                         ecPricingModel: "cpm",
                         tsTrafficType: "ron",
                       });
@@ -864,6 +858,61 @@ export default function NewCampaignPage() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // PLAN GATE — campaign limit reached
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (atLimit) {
+    const limitLabel = campaignLimit === Infinity ? "∞" : campaignLimit;
+    const planName   = campaignLimit === 2 ? "Free" : campaignLimit === 20 ? "Operator" : "Dominion";
+    return (
+      <div style={{ minHeight: "100vh", background: "#04050a", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+          style={{ width: "100%", maxWidth: 480, textAlign: "center" as const }}
+        >
+          <div style={{ margin: "0 auto 28px", width: 64, height: 64, borderRadius: "50%", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Lock size={22} color="rgba(253,230,138,0.8)" strokeWidth={1.3} />
+          </div>
+          <p style={{ fontSize: 10, textTransform: "uppercase" as const, letterSpacing: "0.26em", color: "rgba(253,230,138,0.5)", margin: "0 0 12px" }}>
+            Plan limit reached
+          </p>
+          <h1 style={{ fontSize: 34, fontWeight: 300, letterSpacing: "-0.05em", color: "rgba(255,255,255,0.90)", margin: "0 0 16px", lineHeight: 1.1 }}>
+            {campaignCount} / {limitLabel} campaigns
+          </h1>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.36)", lineHeight: 1.7, margin: "0 auto 36px", maxWidth: 360 }}>
+            Your {planName} plan allows up to {limitLabel} active campaigns. Archive an existing campaign or upgrade your plan to create a new one.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column" as const, gap: 12, alignItems: "center" }}>
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => router.push("/dashboard/campaigns")}
+              style={{
+                width: "100%", maxWidth: 320, padding: "14px 24px", borderRadius: 16,
+                background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)",
+                color: "rgba(255,255,255,0.70)", fontSize: 14, fontWeight: 400, cursor: "pointer",
+              }}
+            >
+              Manage campaigns
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => router.push("/dashboard/settings?tab=billing")}
+              style={{
+                width: "100%", maxWidth: 320, padding: "14px 24px", borderRadius: 16,
+                background: "rgba(251,191,36,0.10)", border: "1px solid rgba(251,191,36,0.25)",
+                color: "#fde68a", fontSize: 14, fontWeight: 400, cursor: "pointer",
+              }}
+            >
+              Upgrade plan
+            </motion.button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
   // WIZARD
   // ─────────────────────────────────────────────────────────────────────────────
   // Step subtitles for the vision-style header
@@ -884,11 +933,11 @@ export default function NewCampaignPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#05060a", padding: "32px 28px" }}>
+    <div style={{ height: "calc(100dvh - 60px)", background: "#05060a", padding: "16px 28px", boxSizing: "border-box", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div style={{
-        maxWidth: 1400, margin: "0 auto",
+        maxWidth: 1400, margin: "0 auto", width: "100%",
         display: "grid", gridTemplateColumns: "248px 1fr", gap: 28,
-        alignItems: "start",
+        alignItems: "stretch", flex: 1, minHeight: 0,
       }}>
 
       {/* ── Sidebar ── */}
@@ -897,7 +946,7 @@ export default function NewCampaignPage() {
         border: "1px solid rgba(255,255,255,0.06)",
         background: "linear-gradient(180deg,rgba(12,13,18,0.98),rgba(9,10,15,0.96))",
         overflow: "hidden",
-        position: "sticky", top: 32,
+        position: "sticky", top: 16,
       }}>
         {/* Header */}
         <div style={{
@@ -976,13 +1025,14 @@ export default function NewCampaignPage() {
       </div>
 
       {/* ── Main card ── */}
-      <main>
+      <main style={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
         <div style={{
           borderRadius: 30,
           border: "1px solid rgba(255,255,255,0.06)",
           background: "linear-gradient(180deg,rgba(10,11,17,0.96),rgba(8,9,14,0.98))",
           boxShadow: "0 0 0 1px rgba(255,255,255,0.02), 0 35px 120px rgba(0,0,0,0.45)",
           overflow: "hidden",
+          flex: 1, display: "flex", flexDirection: "column", minHeight: 0,
         }}>
 
           {/* Step header */}
@@ -1022,7 +1072,7 @@ export default function NewCampaignPage() {
           </div>
 
           {/* Scrollable step content */}
-          <div style={{ padding: "32px 36px", overflowY: "auto", maxHeight: "calc(100vh - 320px)" }}>
+          <div style={{ padding: "32px 36px", overflowY: "auto", flex: 1, minHeight: 0 }}>
           <AnimatePresence custom={dir} mode="wait">
             <motion.div
               key={step}
@@ -1835,7 +1885,7 @@ export default function NewCampaignPage() {
               {currentKey === "publishers" && <StepEditeurs form={form} set={set} toggleArr={toggleArr} />}
 
               {/* ══════════════════════════════════════════════════════ RULES */}
-              {currentKey === "rules" && <StepDecisionRules form={form} set={set} />}
+              {currentKey === "rules" && <StepDecisionRules form={form} set={set} canUseAutomatic={canUseAutomatic} />}
 
               {/* ══════════════════════════════════════════════════════ CREATIVE */}
               {currentKey === "creative" && (
@@ -2182,190 +2232,106 @@ function StepHoraires({ form, set }: { form: FormState; set: <K extends keyof Fo
   );
 }
 
-// ─── Step 6 — Decision Rules ──────────────────────────────────────────────────
+// ─── Step 6 — Decision Engine ─────────────────────────────────────────────────
 
 function StepDecisionRules({
-  form, set,
+  form, set, canUseAutomatic,
 }: {
   form: FormState;
   set: <K extends keyof FormState>(k: K, v: FormState[K]) => void;
+  canUseAutomatic: boolean;
 }) {
-  // Helper: numeric input clamped to int
-  function numInput(
-    label: string,
-    field: keyof FormState,
-    unit: string,
-    min: number,
-    max: number,
-    step: number,
-    hint?: string
-  ) {
-    const val = form[field] as number;
-    return (
-      <div>
-        <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "#3f3f46", margin: "0 0 6px" }}>
-          {label}
-        </p>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input
-            type="number"
-            min={min}
-            max={max}
-            step={step}
-            value={val}
-            onChange={e => set(field, Number(e.target.value) as FormState[typeof field])}
-            style={{
-              width: 80, padding: "9px 12px", borderRadius: 10, fontSize: 14,
-              fontWeight: 300, letterSpacing: "-0.02em",
-              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.9)", outline: "none",
-              colorScheme: "dark", textAlign: "right" as const,
-            }}
-            onFocus={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
-          />
-          <span style={{ fontSize: 11, color: "#52525b" }}>{unit}</span>
-        </div>
-        {hint && <p style={{ fontSize: 10, color: "#3f3f46", margin: "4px 0 0" }}>{hint}</p>}
-      </div>
-    );
-  }
+  const excluded = form.excludeFromEngine;
 
   return (
     <>
-      {/* Engine toggle */}
-      <div style={{
-        ...({ ...cardStyle, padding: "22px 24px" } as React.CSSProperties),
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {/* Info banner — global rules */}
+      <div style={{ ...cardStyle, padding: "20px 24px" } as React.CSSProperties}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: 10, flexShrink: 0, marginTop: 1,
+            background: "rgba(139,92,246,0.10)", border: "1px solid rgba(139,92,246,0.22)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Activity size={15} strokeWidth={1.4} color="#a78bfa" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 14, fontWeight: 400, color: "rgba(255,255,255,0.85)", margin: "0 0 4px" }}>
+              Decision engine
+            </p>
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.38)", margin: 0, lineHeight: 1.6 }}>
+              Le moteur utilise tes <strong style={{ color: "rgba(255,255,255,0.55)", fontWeight: 500 }}>règles globales</strong> — les seuils kill/watch/scale que tu as configurés dans{" "}
+              <a href="/dashboard/settings?tab=engine" style={{ color: "#a78bfa", textDecoration: "none" }}>Settings → Rules</a>.
+              {!canUseAutomatic
+                ? " Il surveille cette campagne 24h/24 et te signale ce qu'il ferait — tu décides."
+                : " En mode automatique, il agit directement (pause, scale) dès que les seuils sont atteints."
+              }
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Per-campaign exclusion toggle */}
+      <div style={{ ...cardStyle, padding: "20px 24px" } as React.CSSProperties}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{
               width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-              background: form.engineActive ? "rgba(139,92,246,0.12)" : "rgba(255,255,255,0.04)",
-              border: form.engineActive ? "1px solid rgba(139,92,246,0.3)" : "1px solid rgba(255,255,255,0.07)",
+              background: excluded ? "rgba(248,113,113,0.08)" : "rgba(255,255,255,0.03)",
+              border: excluded ? "1px solid rgba(248,113,113,0.22)" : "1px solid rgba(255,255,255,0.07)",
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "all 0.2s",
             }}>
-              <Activity size={16} strokeWidth={1.4} color={form.engineActive ? "#8b5cf6" : "#52525b"} />
+              {excluded
+                ? <Lock size={14} strokeWidth={1.4} color="rgba(248,113,113,0.75)" />
+                : <Sliders size={14} strokeWidth={1.4} color="#52525b" />
+              }
             </div>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 400, color: form.engineActive ? "rgba(255,255,255,0.9)" : "#52525b", margin: 0, transition: "color 0.2s" }}>
-                Decision engine
+              <p style={{ fontSize: 14, fontWeight: 400, color: excluded ? "rgba(248,113,113,0.8)" : "rgba(255,255,255,0.75)", margin: 0, transition: "color 0.2s" }}>
+                Exclure du moteur
               </p>
-              <p style={{ fontSize: 11, color: "#3f3f46", margin: "2px 0 0" }}>
-                Kill, Watch, Scale automatique
+              <p style={{ fontSize: 12, color: excluded ? "rgba(248,113,113,0.45)" : "rgba(255,255,255,0.28)", margin: "2px 0 0", lineHeight: 1.5, transition: "color 0.2s" }}>
+                {excluded
+                  ? "Le moteur ignore cette campagne — gestion 100% manuelle."
+                  : "Le moteur surveille et agit selon tes règles globales."
+                }
               </p>
             </div>
           </div>
           <motion.button
-            onClick={() => set("engineActive", !form.engineActive)}
+            onClick={() => set("excludeFromEngine", !excluded)}
             whileTap={{ scale: 0.93 }}
             style={{
               width: 44, height: 24, borderRadius: 12, cursor: "pointer",
-              background: form.engineActive ? "rgba(139,92,246,0.25)" : "rgba(255,255,255,0.06)",
-              border: form.engineActive ? "1px solid rgba(139,92,246,0.4)" : "1px solid rgba(255,255,255,0.1)",
+              background: excluded ? "rgba(248,113,113,0.18)" : "rgba(255,255,255,0.06)",
+              border: excluded ? "1px solid rgba(248,113,113,0.35)" : "1px solid rgba(255,255,255,0.10)",
               position: "relative", transition: "all 0.2s", flexShrink: 0,
             }}
           >
             <motion.div
-              animate={{ x: form.engineActive ? 20 : 2 }}
+              animate={{ x: excluded ? 20 : 2 }}
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
               style={{
                 position: "absolute", top: 2,
                 width: 18, height: 18, borderRadius: "50%",
-                background: form.engineActive ? "#8b5cf6" : "rgba(255,255,255,0.25)",
+                background: excluded ? "rgba(248,113,113,0.85)" : "rgba(255,255,255,0.25)",
                 transition: "background 0.2s",
               }}
             />
           </motion.button>
         </div>
-
-        {!form.engineActive && (
-          <p style={{ fontSize: 11, color: "#3f3f46", marginTop: 14, lineHeight: 1.5 }}>
-            Enable the engine for ProfitDash to take automated decisions (kill/watch/scale) based on the thresholds you define below.
-          </p>
-        )}
       </div>
 
-      {/* Kill rule — vision colored card */}
-      <div style={{ borderRadius: 26, border: "1px solid rgba(251,113,133,0.18)", background: "rgba(244,63,94,0.08)", padding: "24px" }}>
-        <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.24em", color: "rgba(253,164,175,0.8)" }}>Kill</div>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20, marginTop: 16 }}>
-          <div>
-            <div style={{ fontSize: 42, fontWeight: 300, letterSpacing: "-0.05em", color: "#fda4af", fontVariantNumeric: "tabular-nums" }}>
-              {form.killThreshold}%
-            </div>
-            <div style={{ marginTop: 12, color: "rgba(255,255,255,0.36)", fontSize: 14, lineHeight: 1.6 }}>
-              Pause or kill if ROI drops below this threshold
-            </div>
-          </div>
-          {numInput("Kill threshold (%)", "killThreshold", "%", -100, 0, 1)}
-        </div>
-      </div>
-
-      {/* Watch rule — vision colored card */}
-      <div style={{ borderRadius: 26, border: "1px solid rgba(251,191,36,0.18)", background: "rgba(245,158,11,0.08)", padding: "24px" }}>
-        <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.24em", color: "rgba(253,230,138,0.8)" }}>Watch</div>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20, marginTop: 16 }}>
-          <div>
-            <div style={{ fontSize: 42, fontWeight: 300, letterSpacing: "-0.05em", color: "#fde68a", fontVariantNumeric: "tabular-nums" }}>
-              {form.watchMinRoi}% → {form.watchMaxRoi}%
-            </div>
-            <div style={{ marginTop: 12, color: "rgba(255,255,255,0.36)", fontSize: 14, lineHeight: 1.6 }}>
-              Watch without acting — data collection in this range
-            </div>
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 20 }}>
-          {numInput("ROI min (%)", "watchMinRoi", "%", -100, 100, 1)}
-          {numInput("ROI max (%)", "watchMaxRoi", "%", -100, 300, 1)}
-        </div>
-        <div style={{ marginTop: 16, height: 3, borderRadius: 99, background: "rgba(255,255,255,0.05)", overflow: "hidden", position: "relative" }}>
-          <div style={{
-            position: "absolute", top: 0, height: "100%",
-            left: `${Math.max(0, (form.watchMinRoi + 100) / 4)}%`,
-            right: `${Math.max(0, (300 - form.watchMaxRoi) / 4)}%`,
-            background: "linear-gradient(90deg, rgba(251,191,36,0.3), rgba(251,191,36,0.6))",
-            borderRadius: 99, minWidth: 4,
-          }} />
-        </div>
-      </div>
-
-      {/* Scale rule — vision colored card */}
-      <div style={{ borderRadius: 26, border: "1px solid rgba(74,222,128,0.18)", background: "rgba(16,185,129,0.08)", padding: "24px" }}>
-        <div style={{ fontSize: 11, textTransform: "uppercase" as const, letterSpacing: "0.24em", color: "rgba(134,239,172,0.8)" }}>Scale</div>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20, marginTop: 16 }}>
-          <div>
-            <div style={{ fontSize: 42, fontWeight: 300, letterSpacing: "-0.05em", color: "#86efac", fontVariantNumeric: "tabular-nums" }}>
-              +{form.scaleBy}% budget
-            </div>
-            <div style={{ marginTop: 12, color: "rgba(255,255,255,0.36)", fontSize: 14, lineHeight: 1.6 }}>
-              Increase budget when ROI ≥ {form.scaleThreshold}%
-            </div>
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginTop: 20 }}>
-          {numInput("Scale threshold (%)", "scaleThreshold", "%", 0, 500, 5, "Min ROI to scale")}
-          {numInput("Increase by", "scaleBy", "%", 5, 200, 5, "Budget increase")}
-          {numInput("Max budget/day (€)", "maxScalingBudget", "€", 10, 10000, 10, "Scaling cap")}
-        </div>
-      </div>
-
-      {/* Safety conditions */}
-      <div style={{ ...cardStyle, padding: "24px" } as React.CSSProperties}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
-          <Shield size={14} strokeWidth={1.4} color="#a78bfa" />
-          <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "#a78bfa", margin: 0 }}>
-            Safety conditions
+      {/* Plan note */}
+      {!canUseAutomatic && (
+        <div style={{ padding: "12px 16px", borderRadius: 14, background: "rgba(251,191,36,0.04)", border: "1px solid rgba(251,191,36,0.10)", display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <Lock size={11} color="rgba(253,230,138,0.55)" strokeWidth={1.3} style={{ marginTop: 2, flexShrink: 0 }} />
+          <p style={{ fontSize: 11, color: "rgba(253,230,138,0.45)", margin: 0, lineHeight: 1.6 }}>
+            Les actions automatiques (kill/scale réel) nécessitent le plan Dominion. En mode recommandation, le moteur te signale ce qu&apos;il ferait — tu décides.
           </p>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          {numInput("Min spend before action", "minSpendBeforeAction", "€", 1, 500, 1, "Do not act below this threshold")}
-          {numInput("Cooldown", "cooldownMins", "min", 15, 1440, 15, "Cooldown between actions")}
-          {numInput("Max actions/day", "maxActionsPerDay", "actions", 1, 50, 1, "Daily limit")}
-          {numInput("Scan every", "scanFreqMins", "min", 15, 1440, 15, "Check frequency")}
-        </div>
-      </div>
+      )}
     </>
   );
 }
@@ -2683,29 +2649,30 @@ function AdPreviewScreen({ form, onBack, onLaunch, submitting, error, onUpdateMe
           background: "linear-gradient(180deg,rgba(12,13,18,0.98),rgba(9,10,15,0.96))",
           overflow: "hidden", position: "sticky", top: 32,
           display: "flex", flexDirection: "column", alignSelf: "start",
+          maxHeight: "calc(100dvh - 92px)",
         }}>
           {/* Sidebar header */}
-          <div style={{ padding: "32px 24px 24px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-            <div style={{ fontSize: 25, letterSpacing: "-0.04em", fontWeight: 300 }}>AdVault</div>
-            <div style={{ marginTop: 4, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.28)" }}>
+          <div style={{ padding: "28px 24px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+            <div style={{ fontSize: 22, letterSpacing: "-0.04em", fontWeight: 300 }}>AdVault</div>
+            <div style={{ marginTop: 3, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.28)" }}>
               Campaign preview
             </div>
           </div>
 
-          <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flex: 1, minHeight: 0 }}>
             {/* Preview mode */}
-            <div style={{ borderRadius: 24, border: "1px solid rgba(255,255,255,0.08)", background: "linear-gradient(180deg,rgba(17,18,25,0.98),rgba(12,13,19,0.98))", padding: 20 }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.24)" }}>Preview mode</div>
-              <div style={{ marginTop: 16, fontSize: 24, letterSpacing: "-0.04em", fontWeight: 300 }}>Launch Preview</div>
-              <p style={{ marginTop: 12, fontSize: 14, lineHeight: 1.7, color: "rgba(255,255,255,0.42)", margin: "12px 0 0" }}>
+            <div style={{ borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)", background: "linear-gradient(180deg,rgba(17,18,25,0.98),rgba(12,13,19,0.98))", padding: 16 }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.24)" }}>Preview mode</div>
+              <div style={{ marginTop: 10, fontSize: 20, letterSpacing: "-0.04em", fontWeight: 300 }}>Launch Preview</div>
+              <p style={{ marginTop: 8, fontSize: 12, lineHeight: 1.6, color: "rgba(255,255,255,0.38)", margin: "8px 0 0" }}>
                 Visualise how the ad enters its format before the final launch confirmation.
               </p>
             </div>
 
             {/* Selected campaign */}
-            <div style={{ borderRadius: 24, border: "1px solid rgba(255,255,255,0.08)", background: "linear-gradient(180deg,rgba(17,18,25,0.98),rgba(12,13,19,0.98))", padding: 20 }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.24)" }}>Selected campaign</div>
-              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12, fontSize: 14 }}>
+            <div style={{ borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)", background: "linear-gradient(180deg,rgba(17,18,25,0.98),rgba(12,13,19,0.98))", padding: 16 }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.24)" }}>Selected campaign</div>
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 9, fontSize: 13 }}>
                 {[
                   { label: "Network",      value: netName },
                   { label: "Format",       value: format?.label || "—" },
@@ -2723,27 +2690,29 @@ function AdPreviewScreen({ form, onBack, onLaunch, submitting, error, onUpdateMe
             </div>
 
             {/* Engine after launch */}
-            <div style={{ borderRadius: 24, border: "1px solid rgba(255,255,255,0.08)", background: "linear-gradient(180deg,rgba(17,18,25,0.98),rgba(12,13,19,0.98))", padding: 20 }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.24)" }}>Engine after launch</div>
-              <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
-                <div style={{ borderRadius: 16, border: "1px solid rgba(251,113,133,0.18)", background: "rgba(244,63,94,0.08)", padding: 12 }}>
-                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.20em", color: "rgba(253,164,175,0.8)" }}>Kill</div>
-                  <div style={{ marginTop: 8, fontSize: 18, letterSpacing: "-0.03em", fontWeight: 300, color: "#fda4af" }}>{form.killThreshold}%</div>
+            <div style={{ borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)", background: "linear-gradient(180deg,rgba(17,18,25,0.98),rgba(12,13,19,0.98))", padding: 16 }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.24)", marginBottom: 12 }}>Engine after launch</div>
+              {form.excludeFromEngine ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(248,113,113,0.7)", flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: "rgba(248,113,113,0.7)" }}>Exclu du moteur</span>
                 </div>
-                <div style={{ borderRadius: 16, border: "1px solid rgba(251,191,36,0.18)", background: "rgba(245,158,11,0.08)", padding: 12 }}>
-                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.20em", color: "rgba(253,230,138,0.8)" }}>Watch</div>
-                  <div style={{ marginTop: 8, fontSize: 14, letterSpacing: "-0.03em", fontWeight: 300, color: "#fde68a" }}>{form.watchMinRoi}→{form.watchMaxRoi}</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(167,139,250,0.7)", flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: "rgba(167,139,250,0.85)" }}>Surveillé par le moteur</span>
+                  </div>
+                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", margin: 0, lineHeight: 1.5 }}>
+                    Règles globales — Settings → Rules
+                  </p>
                 </div>
-                <div style={{ borderRadius: 16, border: "1px solid rgba(74,222,128,0.18)", background: "rgba(16,185,129,0.08)", padding: 12 }}>
-                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.20em", color: "rgba(134,239,172,0.8)" }}>Scale</div>
-                  <div style={{ marginTop: 8, fontSize: 18, letterSpacing: "-0.03em", fontWeight: 300, color: "#86efac" }}>+{form.scaleBy}%</div>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Creative thumbnail */}
-            <div style={{ borderRadius: 24, border: "1px solid rgba(255,255,255,0.08)", background: "linear-gradient(180deg,rgba(17,18,25,0.98),rgba(12,13,19,0.98))", padding: 20 }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.24)", marginBottom: 16 }}>Creative</div>
+            <div style={{ borderRadius: 20, border: "1px solid rgba(255,255,255,0.08)", background: "linear-gradient(180deg,rgba(17,18,25,0.98),rgba(12,13,19,0.98))", padding: 16 }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.24em", color: "rgba(255,255,255,0.24)", marginBottom: 12 }}>Creative</div>
               {/* Ad thumbnail — cliquable */}
               <div
                 onMouseEnter={() => setThumbHovered(true)}

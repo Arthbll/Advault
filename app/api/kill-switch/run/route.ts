@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createSupabase } from "@/lib/supabase/server";
 import { runKillSwitchForUser, runKillSwitchGlobal } from "@/lib/kill-switch";
 import { resolveWorkspaceUserId } from "@/lib/workspace";
+import { getSessionPlanId } from "@/lib/plan-access";
+import { PLANS } from "@/lib/plans";
 
 // Vercel cron jobs ont jusqu'à 300s sur Pro, 10s sur Hobby
 export const maxDuration = 300;
@@ -59,6 +61,14 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
     if (authErr || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const planId = await getSessionPlanId();
+    if (!PLANS[planId].canUseKillSwitch) {
+      return NextResponse.json(
+        { error: "Kill-Switch requires an Operator or Dominion plan." },
+        { status: 403 },
+      );
     }
 
     const userId = await resolveWorkspaceUserId(user.id);

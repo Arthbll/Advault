@@ -446,8 +446,6 @@ export class ExoClickAdapter {
       idgoal_target:          null,
     };
 
-    console.log(`[ExoClick] createCampaign → format=${params.adFormat}(adType=${adType}) bidType=${effectiveBidType} pricingModel=${pricingModelId} bid=${params.bid}€ → ${priceCents} centimes`);
-
     // ── Étape 1 : créer la campagne ───────────────────────────────────────────
     let data: Record<string, unknown>;
     try {
@@ -463,11 +461,9 @@ export class ExoClickAdapter {
     const result = (data?.result ?? data) as Record<string, unknown>;
     const campaignId = String(result.id ?? "");
     const campaignName = String(result.name ?? params.name);
-    console.log(`[ExoClick] Campagne créée ID=${campaignId}`);
 
     // ── Étape 2 : enregistrer l'URL dans la librairie, puis attacher la variation ─
     if (params.url && campaignId) {
-      console.log(`[ExoClick] Création de la variation pour campagne ${campaignId}...`);
       try {
         // 2a. Enregistre l'URL dans la librairie ExoClick → retourne [{id, url}]
         const urlRes = await this.apiFetch<Record<string, unknown>[]>("/library/url", {
@@ -476,7 +472,6 @@ export class ExoClickAdapter {
         });
         const urlEntry = Array.isArray(urlRes) ? urlRes[0] : urlRes;
         const urlId = urlEntry?.id as number | undefined;
-        console.log(`[ExoClick] URL enregistrée → urlId=${urlId}`);
 
         if (!urlId) throw new Error("POST /library/url n'a pas retourné d'id");
 
@@ -503,7 +498,7 @@ export class ExoClickAdapter {
           method: "PUT",
           body:   JSON.stringify(varPayload),
         });
-        console.log(`[ExoClick] ✅ Variation créée:`, JSON.stringify(putRes));
+        void putRes; // variation attached successfully
       } catch (err) {
         console.error(`[ExoClick] ❌ Création variation erreur:`, err instanceof Error ? err.message : err);
       }

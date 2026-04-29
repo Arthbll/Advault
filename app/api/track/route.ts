@@ -34,28 +34,35 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma }              from "@/lib/prisma";
 import { verifyPostbackToken } from "@/lib/postback-token";
 import { Prisma }              from "@prisma/client";
+import { normalizePlanId, PLANS } from "@/lib/plans";
 
 // ─── Rate limiter in-process ──────────────────────────────────────────────────
+// Deux fenêtres :
+//   - 500/minute  → garde-fou anti-burst pour tous les plans
+//   - 500/day     → plafond journalier pour les Free (observer)
+//
 // Note: par process Vercel. Sur plusieurs instances, la limite effective est
 // RATE_LIMIT * instanceCount — acceptable pour un garde-fou souple.
 // Pour un rate limiting distribué précis, migrer vers Upstash Redis (V2).
 
-const RATE_LIMIT_PER_MINUTE = 500;
-const WINDOW_MS             = 60_000;
+const RATE_LIMIT_PER_MINUTE  = 500;
+const WINDOW_MINUTE_MS       = 60_000;
+const RATE_LIMIT_FREE_PER_DAY = 500;
+const WINDOW_DAY_MS           = 86_400_000;
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-function checkRateLimit(key: string): { limited: boolean; count: number } {
+function checkRateLimit(key: string, limit: number, windowMs: number): { limited: boolean; count: number } {
   const now    = Date.now();
   const bucket = rateLimitMap.get(key);
 
   if (!bucket || now >= bucket.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + WINDOW_MS });
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
     return { limited: false, count: 1 };
   }
 
   bucket.count++;
-  return { limited: bucket.count > RATE_LIMIT_PER_MINUTE, count: bucket.count };
+  return { limited: bucket.count > limit, count: bucket.count };
 }
 
 // Purge périodique pour éviter les memory leaks
@@ -124,34 +131,58 @@ export async function GET(req: NextRequest) {
 
   // ── 4. Rate limiting (soft/silent) ────────────────────────────────────────
   //
+  // Deux niveaux :
+  //   a) Anti-burst : 500/min pour tous les plans
+  //   b) Plafond journalier : 500/jour pour Free (observer)
+  //
   // Appliqué APRÈS la dédup : seules les conversions non-dupliquées consomment
   // un slot. Si la limite est dépassée, on répond 200 OK + { limited: true }
   // et on logue en base pour monitoring — jamais de 429 brutal.
 
-  const { limited, count } = checkRateLimit(uid);
+  // a) Anti-burst (tous les plans)
+  const minuteCheck = checkRateLimit(`${uid}:min`, RATE_LIMIT_PER_MINUTE, WINDOW_MINUTE_MS);
+
+  // b) Plafond journalier Free — récupère le planId depuis la DB
+  let dailyLimited = false;
+  let dailyCount   = 0;
+  try {
+    const dbUser = await prisma.user.findUnique({ where: { id: uid }, select: { planId: true } });
+    const planId = normalizePlanId(dbUser?.planId ?? "observer");
+    const { postbacksPerDay } = PLANS[planId];
+    if (postbacksPerDay !== null) {
+      const dayCheck = checkRateLimit(`${uid}:day`, postbacksPerDay, WINDOW_DAY_MS);
+      dailyLimited = dayCheck.limited;
+      dailyCount   = dayCheck.count;
+    }
+  } catch { /* DB unreachable — fail open */ }
+
+  const limited = minuteCheck.limited || dailyLimited;
+  const count   = dailyLimited ? dailyCount : minuteCheck.count;
+  const limitUsed = dailyLimited ? RATE_LIMIT_FREE_PER_DAY : RATE_LIMIT_PER_MINUTE;
+  const windowUsed = dailyLimited ? WINDOW_DAY_MS : WINDOW_MINUTE_MS;
 
   if (limited) {
     // Log en base — visible dans le dashboard.
     // Fire-and-forget intentionnel : le sender reçoit 200 OK immédiatement,
     // on ne le fait pas attendre pour un log secondaire.
-    // Si la DB est indisponible, la perte du log est acceptable — la conversion
-    // est déjà comptabilisée dans le bucket in-process (rateLimitMap).
     void prisma.log.create({
       data: {
         userId:  uid,
         type:    "POSTBACK_OVERAGE" as never,
-        message: `Rate limit dépassé — ${count} postbacks/min (seuil: ${RATE_LIMIT_PER_MINUTE})`,
+        message: dailyLimited
+          ? `Daily postback limit reached — ${count}/${limitUsed} (Free plan)`
+          : `Rate limit dépassé — ${count} postbacks/min (seuil: ${RATE_LIMIT_PER_MINUTE})`,
         metadata: {
           count,
-          limit:      RATE_LIMIT_PER_MINUTE,
-          windowMs:   WINDOW_MS,
+          limit:      limitUsed,
+          windowMs:   windowUsed,
+          type:       dailyLimited ? "daily" : "per_minute",
           src:        src ?? "unknown",
           cid:        cid ?? null,
           hasClickId: !!clickId,
         },
       },
     }).catch((e: unknown) => {
-      // On logue uniquement côté serveur — pas de crash, pas de retry.
       console.error("[/api/track] Impossible de logguer l'overage:", e instanceof Error ? e.message : e);
     });
 
